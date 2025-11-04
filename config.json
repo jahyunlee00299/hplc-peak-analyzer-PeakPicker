@@ -1,0 +1,29 @@
+{
+  "data_directory": "C:/Chem32/1/DATA",
+  "output_directory": null,
+  "peak_detection": {
+    "prominence": null,
+    "min_height": null,
+    "min_width": 0.01,
+    "rel_height": 0.5
+  },
+  "export": {
+    "format": "excel",
+    "create_plots": true,
+    "plot_dpi": 300
+  },
+  "target_retention_times": [],
+  "rt_tolerance": 0.1,
+  "comments": {
+    "data_directory": "Path to Chemstation DATA directory containing .D folders",
+    "output_directory": "Where to save results (null = auto create in data_directory)",
+    "prominence": "Minimum peak prominence (null = auto detect)",
+    "min_height": "Minimum peak height (null = auto detect)",
+    "min_width": "Minimum peak width in minutes",
+    "rel_height": "Relative height for width calculation (0.5 = FWHM)",
+    "format": "excel, csv, or both",
+    "create_plots": "Whether to generate chromatogram plots",
+    "target_retention_times": "List of specific RTs to search for, e.g., [2.5, 5.8, 10.2]",
+    "rt_tolerance": "Tolerance for matching target RTs in minutes"
+  }
+}
