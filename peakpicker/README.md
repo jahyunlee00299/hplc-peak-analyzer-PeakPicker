@@ -4,7 +4,7 @@
 
 ## 개발 버전
 
-**v0.1.0 - Feature 1: Data Loading & Chromatogram Visualization**
+**v0.2.0 - Feature 1.5: Session Management (중단/재개 기능)**
 
 ## 현재 구현된 기능
 
@@ -17,6 +17,14 @@
 - Raw 데이터 테이블 뷰
 - 데이터 다운로드 기능
 - 플롯 커스터마이징 (색상, 선 굵기, 그리드)
+
+### ✅ Feature 1.5: 세션 관리 (중단/재개)
+- **세션 저장**: 현재 작업 상태를 파일로 저장
+- **세션 불러오기**: 이전에 저장한 작업 불러오기
+- **세션 히스토리**: 저장된 모든 세션 목록 보기
+- **중단/재개**: 분석 작업을 언제든지 중단하고 나중에 이어서 할 수 있음
+- **설정 저장**: 플롯 설정(색상, 선 굵기 등)도 함께 저장
+- **자동 타임스탬프**: 세션 생성 및 수정 시간 자동 기록
 
 ### 🚧 개발 예정 기능
 
@@ -74,23 +82,75 @@ Time,Intensity
 2. 데이터 파일 선택
 3. 자동으로 데이터 로드 및 시각화
 
-### 3. 플롯 커스터마이징
+### 3. 세션 관리 (중단/재개)
+
+#### 세션 저장하기
+1. 데이터를 로드하고 분석 작업 진행
+2. 사이드바 상단의 "💾 Save Session" 버튼 클릭
+3. 현재 상태가 파일로 저장됨
+4. 세션 ID가 표시됨 (예: `session_20250105_143022`)
+
+#### 세션 불러오기
+1. 사이드바의 "📂 Load Previous Session" 섹션 열기
+2. 저장된 세션 목록에서 원하는 세션 선택
+3. "Load" 버튼 클릭
+4. 저장된 시점의 데이터와 설정이 복원됨
+
+#### 새 세션 시작하기
+1. "🔄 New Session" 버튼 클릭
+2. 현재 작업이 초기화되고 새로운 세션 시작
+
+### 4. 플롯 커스터마이징
 
 사이드바에서 다음 옵션 조정 가능:
 - **Line Color**: 크로마토그램 선 색상
 - **Line Width**: 선 굵기 (0.5 - 3.0)
 - **Show Grid**: 그리드 표시/숨기기
 
-### 4. Time Range 필터링
+### 5. Time Range 필터링
 
 1. "Enable Time Filter" 체크박스 활성화
 2. Start Time과 End Time 입력
 3. 선택한 범위만 확대하여 표시
 
-### 5. 데이터 확인 및 다운로드
+### 6. 데이터 확인 및 다운로드
 
 - "View Raw Data" 확장 메뉴에서 데이터 테이블 확인
 - "Download Data as CSV" 버튼으로 처리된 데이터 다운로드
+
+## 세션 파일 관리
+
+### 세션 파일 저장 위치
+
+세션 데이터는 `sessions/` 디렉토리에 저장됩니다:
+```
+peakpicker/
+├── sessions/
+│   ├── session_20250105_143022.json      # 세션 메타데이터
+│   ├── session_20250105_143022_arrays.pkl # numpy 배열 데이터
+│   └── ...
+```
+
+### 세션 파일 구조
+
+각 세션은 두 개의 파일로 구성:
+1. **JSON 파일** (`.json`): 세션 메타데이터와 설정
+   - 세션 ID
+   - 생성/수정 시간
+   - 파일명
+   - 플롯 설정
+   - 진행 상태
+
+2. **Pickle 파일** (`.pkl`): 대용량 numpy 배열 데이터
+   - Time 배열
+   - Intensity 배열
+
+### 세션 백업
+
+중요한 세션은 `sessions/` 디렉토리를 복사하여 백업할 수 있습니다:
+```bash
+cp -r peakpicker/sessions peakpicker/sessions_backup
+```
 
 ## 예시 데이터
 
@@ -110,9 +170,13 @@ peakpicker/
 ├── modules/
 │   ├── __init__.py
 │   ├── data_loader.py         # 데이터 로딩 모듈
-│   └── visualizer.py          # 크로마토그램 시각화 모듈
-└── examples/
-    └── sample_chromatogram.csv # 예시 데이터 파일
+│   ├── visualizer.py          # 크로마토그램 시각화 모듈
+│   └── session_manager.py     # 세션 관리 모듈 (NEW)
+├── examples/
+│   └── sample_chromatogram.csv # 예시 데이터 파일
+├── sessions/                   # 세션 저장 디렉토리 (자동 생성)
+├── test_modules.py            # 모듈 테스트
+└── test_session_manager.py    # 세션 매니저 테스트 (NEW)
 ```
 
 ## 기술 스택
@@ -120,15 +184,22 @@ peakpicker/
 - **Frontend**: Streamlit (반응형 웹 UI)
 - **Data Processing**: pandas, numpy
 - **Visualization**: matplotlib
-- **File I/O**: openpyxl (Excel 지원)
+- **File I/O**: openpyxl (Excel 지원), pickle (세션 저장)
+- **Session Management**: JSON + Pickle
 
 ## 개발 로드맵
 
-### Phase 1: 기본 기능 (현재)
+### Phase 1: 기본 기능 (완료)
 - [x] 데이터 로드
 - [x] 크로마토그램 시각화
 - [x] 파일 브라우저
 - [x] 반응형 UI
+
+### Phase 1.5: 세션 관리 (완료)
+- [x] 세션 저장/불러오기
+- [x] 중단/재개 기능
+- [x] 세션 히스토리
+- [x] 설정 자동 저장
 
 ### Phase 2: Peak 분석
 - [ ] Peak detection
@@ -155,6 +226,28 @@ peakpicker/
 - [ ] 사용자 가이드
 - [ ] 성능 최적화
 
+## 테스트
+
+### 모듈 테스트 실행
+
+```bash
+cd peakpicker
+python test_modules.py        # 데이터 로더 및 시각화 테스트
+python test_session_manager.py # 세션 관리 테스트
+```
+
+### 테스트 결과
+
+```
+✅ Data Loader: PASSED
+✅ Visualizer: PASSED
+✅ Session Creation: PASSED
+✅ Session Save/Load: PASSED
+✅ Session Listing: PASSED
+✅ Session Deletion: PASSED
+🎉 All tests passed!
+```
+
 ## 문제 해결
 
 ### 앱이 실행되지 않는 경우
@@ -180,15 +273,40 @@ peakpicker/
 - 파일에 Time과 Intensity 데이터가 있는지 확인
 - 파일 크기가 너무 크지 않은지 확인 (200MB 제한)
 
+### 세션 로드 오류
+
+- 세션 파일이 `sessions/` 디렉토리에 있는지 확인
+- JSON 파일과 pickle 파일이 모두 있는지 확인
+- 파일 권한 확인
+
+## 주요 변경사항 (v0.2.0)
+
+### 새로운 기능
+- ✨ 세션 관리 시스템 추가
+- ✨ 작업 중단/재개 기능
+- ✨ 세션 히스토리 관리
+- ✨ 자동 설정 저장
+
+### 개선사항
+- 🔧 Streamlit session_state 활용한 상태 관리
+- 🔧 JSON + Pickle 하이브리드 저장 방식
+- 🔧 세션 메타데이터 자동 추적
+
+### 기술적 변경
+- 📦 SessionManager 모듈 추가
+- 📦 app.py 리팩토링 (세션 관리 통합)
+- 📦 테스트 스위트 확장
+
 ## 기여
 
 이 프로젝트는 기능별 브랜치로 개발됩니다:
-- `feature/01-data-loading-visualization` (현재)
-- `feature/02-peak-detection-integration`
-- `feature/03-baseline-peak-handling`
-- `feature/04-excel-export`
-- `feature/05-quantitative-analysis`
-- `feature/06-gui-integration`
+- `feature/01-data-loading-visualization` (완료)
+- `feature/session-management` (현재 - 완료)
+- `feature/02-peak-detection-integration` (예정)
+- `feature/03-baseline-peak-handling` (예정)
+- `feature/04-excel-export` (예정)
+- `feature/05-quantitative-analysis` (예정)
+- `feature/06-gui-integration` (예정)
 
 ## 라이선스
 
