@@ -64,3 +64,7 @@ desktop.ini
 *.tmp
 *.temp
 *.log
+
+# PeakPicker test outputs
+test_output*.png
+temp_data/
