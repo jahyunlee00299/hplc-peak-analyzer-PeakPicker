@@ -68,3 +68,7 @@ desktop.ini
 # PeakPicker test outputs
 test_output*.png
 temp_data/
+sessions/
+test_sessions/
+peakpicker/sessions/
+peakpicker/test_sessions/
