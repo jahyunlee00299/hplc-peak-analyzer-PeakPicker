@@ -94,12 +94,12 @@ class BaselineHandler:
             Baseline array
         """
         L = len(self.intensity)
-        D = np.diff(np.eye(L), 2)
+        D = np.diff(np.eye(L), 2, axis=0)  # Second derivative matrix
         w = np.ones(L)
 
         for i in range(niter):
             W = np.diag(w)
-            Z = W + lam * D.T @ D
+            Z = W + lam * (D.T @ D)
             z = np.linalg.solve(Z, w * self.intensity)
             w = p * (self.intensity > z) + (1 - p) * (self.intensity < z)
 
