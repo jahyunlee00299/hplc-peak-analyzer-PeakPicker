@@ -17,8 +17,6 @@ from scipy.integrate import trapezoid
 # Add src directory to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
-from chemstation_parser import ChemstationParser
-from result_exporter import ResultExporter
 from hybrid_baseline import HybridBaselineCorrector
 
 
