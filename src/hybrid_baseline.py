@@ -323,6 +323,182 @@ class HybridBaselineCorrector:
         score = (1 - neg_ratio) * 100 + peak_preservation * 50 - smoothness
         return score
 
+    def apply_linear_baseline_to_peaks(self, baseline: np.ndarray, detected_peaks: List[int]) -> np.ndarray:
+        """
+        검출된 피크 영역에 직선 베이스라인 적용
+
+        Args:
+            baseline: 원본 베이스라인
+            detected_peaks: 검출된 피크의 인덱스 리스트
+
+        Returns:
+            피크 영역에 직선 베이스라인이 적용된 베이스라인
+        """
+        linear_baseline = baseline.copy()
+
+        for peak_idx in detected_peaks:
+            # 피크 너비 추정 (half-height method)
+            peak_height = self.intensity[peak_idx] - baseline[peak_idx]
+            half_height = baseline[peak_idx] + peak_height / 2
+
+            # 왼쪽 경계 찾기
+            left_idx = peak_idx
+            while left_idx > 0 and self.intensity[left_idx] > half_height:
+                left_idx -= 1
+
+            # 오른쪽 경계 찾기
+            right_idx = peak_idx
+            while right_idx < len(self.intensity) - 1 and self.intensity[right_idx] > half_height:
+                right_idx += 1
+
+            # 피크 영역에 직선 베이스라인 적용
+            if right_idx > left_idx:
+                baseline_left = max(0, baseline[left_idx])
+                baseline_right = max(0, baseline[right_idx])
+                linear_baseline[left_idx:right_idx+1] = np.linspace(
+                    baseline_left, baseline_right, right_idx - left_idx + 1
+                )
+
+        return linear_baseline
+
+    def compare_baselines_by_peak_width(
+        self,
+        baseline_robust: np.ndarray,
+        baseline_weighted: np.ndarray
+    ) -> Tuple[np.ndarray, Dict]:
+        """
+        robust_fit과 weighted_spline을 피크별로 비교하여 더 넓은 피크 너비를 제공하는 방법 선택
+
+        Args:
+            baseline_robust: robust_fit 방법으로 생성한 베이스라인
+            baseline_weighted: weighted_spline 방법으로 생성한 베이스라인
+
+        Returns:
+            최적 베이스라인과 선택 정보
+        """
+        # 두 베이스라인으로 보정된 신호
+        corrected_robust = np.maximum(self.intensity - baseline_robust, 0)
+        corrected_weighted = np.maximum(self.intensity - baseline_weighted, 0)
+
+        # 피크 검출
+        noise_level_robust = np.percentile(corrected_robust, 25) * 1.5
+        noise_level_weighted = np.percentile(corrected_weighted, 25) * 1.5
+
+        peaks_robust, props_robust = signal.find_peaks(
+            corrected_robust,
+            prominence=np.ptp(corrected_robust) * 0.005,
+            height=noise_level_robust * 3,
+            width=0
+        )
+
+        peaks_weighted, props_weighted = signal.find_peaks(
+            corrected_weighted,
+            prominence=np.ptp(corrected_weighted) * 0.005,
+            height=noise_level_weighted * 3,
+            width=0
+        )
+
+        # 피크별로 비교
+        hybrid_baseline = baseline_weighted.copy()  # 기본은 weighted 사용
+        selection_info = {
+            'robust_peaks': len(peaks_robust),
+            'weighted_peaks': len(peaks_weighted),
+            'robust_selected_count': 0,
+            'weighted_selected_count': 0,
+            'selections': []
+        }
+
+        # 모든 피크 위치를 찾기 (robust + weighted 통합)
+        all_peak_positions = set(peaks_robust.tolist() + peaks_weighted.tolist())
+
+        for peak_pos in all_peak_positions:
+            # robust에서 이 피크의 너비
+            width_robust = 0
+            if peak_pos in peaks_robust:
+                idx_robust = np.where(peaks_robust == peak_pos)[0][0]
+                width_robust = props_robust['widths'][idx_robust] if 'widths' in props_robust else 0
+
+            # weighted에서 이 피크의 너비
+            width_weighted = 0
+            if peak_pos in peaks_weighted:
+                idx_weighted = np.where(peaks_weighted == peak_pos)[0][0]
+                width_weighted = props_weighted['widths'][idx_weighted] if 'widths' in props_weighted else 0
+
+            # 더 넓은 너비를 가진 방법 선택
+            if width_robust > width_weighted:
+                # robust가 더 넓음 - 피크 영역에서 robust 베이스라인 사용
+                peak_height = self.intensity[peak_pos] - baseline_robust[peak_pos]
+                half_height = baseline_robust[peak_pos] + peak_height / 2
+
+                left_idx = peak_pos
+                while left_idx > 0 and self.intensity[left_idx] > half_height:
+                    left_idx -= 1
+
+                right_idx = peak_pos
+                while right_idx < len(self.intensity) - 1 and self.intensity[right_idx] > half_height:
+                    right_idx += 1
+
+                hybrid_baseline[left_idx:right_idx+1] = baseline_robust[left_idx:right_idx+1]
+                selection_info['robust_selected_count'] += 1
+                selection_info['selections'].append({
+                    'rt': self.time[peak_pos],
+                    'method': 'robust',
+                    'width_robust': width_robust,
+                    'width_weighted': width_weighted
+                })
+            else:
+                selection_info['weighted_selected_count'] += 1
+                selection_info['selections'].append({
+                    'rt': self.time[peak_pos],
+                    'method': 'weighted',
+                    'width_robust': width_robust,
+                    'width_weighted': width_weighted
+                })
+
+        return hybrid_baseline, selection_info
+
+    def optimize_baseline_with_linear_peaks(self) -> Tuple[np.ndarray, Dict]:
+        """
+        피크 영역에 직선 베이스라인을 적용하고, robust vs weighted를 피크 너비로 비교
+
+        Returns:
+            최적 베이스라인과 파라미터 정보
+        """
+        # 앵커 포인트 찾기
+        self.find_baseline_anchor_points(
+            valley_prominence=0.01,
+            percentile=10
+        )
+
+        # robust_fit과 weighted_spline 방법으로 베이스라인 생성
+        baseline_robust = self.generate_hybrid_baseline(method='robust_fit')
+        baseline_weighted = self.generate_hybrid_baseline(method='weighted_spline')
+
+        # 피크 너비 비교하여 최적 베이스라인 선택
+        hybrid_baseline, selection_info = self.compare_baselines_by_peak_width(
+            baseline_robust, baseline_weighted
+        )
+
+        # 피크 검출
+        corrected = np.maximum(self.intensity - hybrid_baseline, 0)
+        noise_level = np.percentile(corrected, 25) * 1.5
+        peaks, _ = signal.find_peaks(
+            corrected,
+            prominence=np.ptp(corrected) * 0.005,
+            height=noise_level * 3
+        )
+
+        # 검출된 피크 영역에 직선 베이스라인 적용
+        linear_baseline = self.apply_linear_baseline_to_peaks(hybrid_baseline, peaks.tolist())
+
+        params = {
+            'method': 'hybrid_linear_peaks',
+            'selection_info': selection_info,
+            'peaks_detected': len(peaks)
+        }
+
+        return linear_baseline, params
+
 
 def test_hybrid_baseline():
     """Hybrid 베이스라인 방법 테스트"""
