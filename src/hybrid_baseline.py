@@ -326,6 +326,7 @@ class HybridBaselineCorrector:
     def apply_linear_baseline_to_peaks(self, baseline: np.ndarray, detected_peaks: List[int]) -> np.ndarray:
         """
         검출된 피크 영역에 직선 베이스라인 적용
+        기울기가 너무 급격하면 앵커 포인트를 양쪽으로 확장하여 기울기 완화
 
         Args:
             baseline: 원본 베이스라인
@@ -351,12 +352,60 @@ class HybridBaselineCorrector:
             while right_idx < len(self.intensity) - 1 and self.intensity[right_idx] > half_height:
                 right_idx += 1
 
-            # 피크 영역에 직선 베이스라인 적용
+            # 초기 앵커 포인트
+            anchor_left = left_idx
+            anchor_right = right_idx
+
+            # 기울기 완화: 너무 급격하면 앵커 포인트 확장
             if right_idx > left_idx:
-                baseline_left = max(0, baseline[left_idx])
-                baseline_right = max(0, baseline[right_idx])
-                linear_baseline[left_idx:right_idx+1] = np.linspace(
-                    baseline_left, baseline_right, right_idx - left_idx + 1
+                baseline_left = max(0, baseline[anchor_left])
+                baseline_right = max(0, baseline[anchor_right])
+
+                # 시간 간격 계산
+                time_diff = self.time[anchor_right] - self.time[anchor_left]
+                if time_diff > 0:
+                    # 초기 기울기 계산 (강도/시간)
+                    initial_slope = abs(baseline_right - baseline_left) / time_diff
+
+                    # 피크 높이 대비 기울기 비율로 급격함 판단
+                    peak_range = np.ptp(self.intensity)
+                    slope_threshold = peak_range * 0.3  # 전체 범위의 30% 이상 기울기면 급격함
+
+                    # 기울기가 너무 급격하면 앵커 포인트 확장
+                    max_expansion = int(len(self.time) * 0.05)  # 최대 5% 확장
+                    expansion_step = max(1, int(len(self.time) * 0.005))  # 0.5%씩 확장
+
+                    while initial_slope > slope_threshold and max_expansion > 0:
+                        # 왼쪽으로 확장 시도
+                        new_left = max(0, anchor_left - expansion_step)
+                        # 오른쪽으로 확장 시도
+                        new_right = min(len(self.intensity) - 1, anchor_right + expansion_step)
+
+                        # 확장된 위치의 베이스라인 값
+                        new_baseline_left = max(0, baseline[new_left])
+                        new_baseline_right = max(0, baseline[new_right])
+
+                        # 새로운 기울기 계산
+                        new_time_diff = self.time[new_right] - self.time[new_left]
+                        if new_time_diff > 0:
+                            new_slope = abs(new_baseline_right - new_baseline_left) / new_time_diff
+
+                            # 기울기가 완화되었는지 확인
+                            if new_slope < initial_slope * 0.9:  # 10% 이상 완화
+                                anchor_left = new_left
+                                anchor_right = new_right
+                                baseline_left = new_baseline_left
+                                baseline_right = new_baseline_right
+                                initial_slope = new_slope
+                            else:
+                                # 더 이상 완화되지 않으면 중단
+                                break
+
+                        max_expansion -= expansion_step
+
+                # 최종 직선 베이스라인 적용
+                linear_baseline[anchor_left:anchor_right+1] = np.linspace(
+                    baseline_left, baseline_right, anchor_right - anchor_left + 1
                 )
 
         return linear_baseline
