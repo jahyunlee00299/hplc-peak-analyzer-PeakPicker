@@ -26,7 +26,10 @@
       "Bash(dir /s /b)",
       "Bash(dir:*)",
       "Bash(tree:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(find:*)",
+      "Bash(iconv:*)",
+      "Bash(git merge claude/baseline-peak-handling-011CUq1SxwLTPQmGxyufu61S --no-ff -m \"$(cat <<''EOF''\nMerge branch ''claude/baseline-peak-handling-011CUq1SxwLTPQmGxyufu61S''\n\nAdd linear baseline for peak regions with intelligent method selection\n\nThis merge introduces a major improvement to baseline correction by applying linear baselines in peak regions and intelligently selecting between robust_fit and weighted_spline methods based on peak width analysis.\n\nKey features:\n- Linear baseline in peak regions for accurate area integration\n- Automatic peak-width-based method selection (robust vs weighted)\n- 90% of samples achieve perfect detection on first attempt\n- Comprehensive visualization tools for method comparison\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
