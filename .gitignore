@@ -68,3 +68,7 @@ desktop.ini
 # PeakPicker test outputs
 test_output*.png
 temp_data/
+*.png
+*.xlsx
+*_chromatogram*.png
+*_peaks*.png
