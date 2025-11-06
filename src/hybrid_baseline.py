@@ -369,17 +369,24 @@ class HybridBaselineCorrector:
 
                     # 피크 높이 대비 기울기 비율로 급격함 판단
                     peak_range = np.ptp(self.intensity)
-                    slope_threshold = peak_range * 0.3  # 전체 범위의 30% 이상 기울기면 급격함
+                    slope_threshold = peak_range * 0.05  # 전체 범위의 5% 이상 기울기면 급격함 (더 엄격)
 
                     # 기울기가 너무 급격하면 앵커 포인트 확장
-                    max_expansion = int(len(self.time) * 0.05)  # 최대 5% 확장
-                    expansion_step = max(1, int(len(self.time) * 0.005))  # 0.5%씩 확장
+                    max_expansion = int(len(self.time) * 0.2)  # 최대 20% 확장 (더 많이)
+                    expansion_step = max(1, int(len(self.time) * 0.01))  # 1%씩 확장 (더 크게)
 
-                    while initial_slope > slope_threshold and max_expansion > 0:
+                    iteration_count = 0
+                    max_iterations = 50  # 최대 반복 횟수
+
+                    while initial_slope > slope_threshold and max_expansion > 0 and iteration_count < max_iterations:
                         # 왼쪽으로 확장 시도
                         new_left = max(0, anchor_left - expansion_step)
                         # 오른쪽으로 확장 시도
                         new_right = min(len(self.intensity) - 1, anchor_right + expansion_step)
+
+                        # 더 이상 확장할 수 없으면 중단
+                        if new_left == anchor_left and new_right == anchor_right:
+                            break
 
                         # 확장된 위치의 베이스라인 값
                         new_baseline_left = max(0, baseline[new_left])
@@ -390,8 +397,8 @@ class HybridBaselineCorrector:
                         if new_time_diff > 0:
                             new_slope = abs(new_baseline_right - new_baseline_left) / new_time_diff
 
-                            # 기울기가 완화되었는지 확인
-                            if new_slope < initial_slope * 0.9:  # 10% 이상 완화
+                            # 기울기가 완화되었는지 확인 (조건 완화)
+                            if new_slope < initial_slope * 0.95:  # 5% 이상 완화면 적용
                                 anchor_left = new_left
                                 anchor_right = new_right
                                 baseline_left = new_baseline_left
@@ -402,6 +409,7 @@ class HybridBaselineCorrector:
                                 break
 
                         max_expansion -= expansion_step
+                        iteration_count += 1
 
                 # 최종 직선 베이스라인 적용
                 linear_baseline[anchor_left:anchor_right+1] = np.linspace(
