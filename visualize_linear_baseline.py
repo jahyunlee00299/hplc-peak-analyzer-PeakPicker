@@ -202,8 +202,8 @@ if __name__ == '__main__':
     csv_dir = Path('exported_signals')
     csv_files = sorted(csv_dir.glob('*.csv'))
 
-    # 처음 5개 샘플로 시각화
-    selected_files = list(csv_files[:5])
+    # 처음 50개 샘플로 시각화
+    selected_files = list(csv_files[:50])
 
     print("\n" + "="*80)
     print("직선 베이스라인 방법 비교 시각화")
