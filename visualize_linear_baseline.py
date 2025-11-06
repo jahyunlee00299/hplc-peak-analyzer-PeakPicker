@@ -202,7 +202,7 @@ if __name__ == '__main__':
     csv_dir = Path('exported_signals')
     csv_files = sorted(csv_dir.glob('*.csv'))
 
-    # 처음 50개 샘플로 시각화
+    # 50개 샘플
     selected_files = list(csv_files[:50])
 
     print("\n" + "="*80)

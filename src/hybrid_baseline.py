@@ -365,24 +365,43 @@ class HybridBaselineCorrector:
                 time_diff = self.time[anchor_right] - self.time[anchor_left]
                 if time_diff > 0:
                     # 초기 기울기 계산 (강도/시간)
-                    initial_slope = abs(baseline_right - baseline_left) / time_diff
+                    current_slope = abs(baseline_right - baseline_left) / time_diff
 
                     # 피크 높이 대비 기울기 비율로 급격함 판단
                     peak_range = np.ptp(self.intensity)
-                    slope_threshold = peak_range * 0.05  # 전체 범위의 5% 이상 기울기면 급격함 (더 엄격)
+                    # 매우 엄격한 임계값: 전체 범위의 1% 이상이면 평평하지 않음
+                    slope_threshold = peak_range * 0.01
 
-                    # 기울기가 너무 급격하면 앵커 포인트 확장
-                    max_expansion = int(len(self.time) * 0.2)  # 최대 20% 확장 (더 많이)
-                    expansion_step = max(1, int(len(self.time) * 0.01))  # 1%씩 확장 (더 크게)
+                    # RT 기준으로 확장 (시간 간격 기준)
+                    rt_expansion_step = 0.1  # 0.1분(6초)씩 양쪽으로 확장
+                    max_rt_expansion = 5.0  # 최대 5분까지 확장
+                    total_expansion = 0.0
 
                     iteration_count = 0
-                    max_iterations = 50  # 최대 반복 횟수
+                    max_iterations = 100  # 최대 반복 횟수 증가
 
-                    while initial_slope > slope_threshold and max_expansion > 0 and iteration_count < max_iterations:
-                        # 왼쪽으로 확장 시도
-                        new_left = max(0, anchor_left - expansion_step)
-                        # 오른쪽으로 확장 시도
-                        new_right = min(len(self.intensity) - 1, anchor_right + expansion_step)
+                    # 기울기가 거의 평평해질 때까지 반복
+                    while current_slope > slope_threshold and total_expansion < max_rt_expansion and iteration_count < max_iterations:
+                        # 현재 RT 범위
+                        current_rt_left = self.time[anchor_left]
+                        current_rt_right = self.time[anchor_right]
+
+                        # RT 기준으로 확장할 새로운 위치 찾기
+                        target_rt_left = current_rt_left - rt_expansion_step
+                        target_rt_right = current_rt_right + rt_expansion_step
+
+                        # RT를 인덱스로 변환
+                        new_left = anchor_left
+                        for i in range(anchor_left - 1, -1, -1):
+                            if self.time[i] <= target_rt_left:
+                                new_left = i
+                                break
+
+                        new_right = anchor_right
+                        for i in range(anchor_right + 1, len(self.time)):
+                            if self.time[i] >= target_rt_right:
+                                new_right = i
+                                break
 
                         # 더 이상 확장할 수 없으면 중단
                         if new_left == anchor_left and new_right == anchor_right:
@@ -397,24 +416,37 @@ class HybridBaselineCorrector:
                         if new_time_diff > 0:
                             new_slope = abs(new_baseline_right - new_baseline_left) / new_time_diff
 
-                            # 기울기가 완화되었는지 확인 (조건 완화)
-                            if new_slope < initial_slope * 0.95:  # 5% 이상 완화면 적용
+                            # 기울기가 완화되었거나 거의 평평하면 적용
+                            if new_slope < current_slope or new_slope <= slope_threshold:
                                 anchor_left = new_left
                                 anchor_right = new_right
                                 baseline_left = new_baseline_left
                                 baseline_right = new_baseline_right
-                                initial_slope = new_slope
+                                current_slope = new_slope
+
+                                # 거의 평평하면 조기 종료
+                                if new_slope <= slope_threshold:
+                                    break
                             else:
-                                # 더 이상 완화되지 않으면 중단
+                                # 기울기가 더 나빠지면 중단
                                 break
 
-                        max_expansion -= expansion_step
+                        total_expansion += rt_expansion_step
                         iteration_count += 1
 
-                # 최종 직선 베이스라인 적용
-                linear_baseline[anchor_left:anchor_right+1] = np.linspace(
-                    baseline_left, baseline_right, anchor_right - anchor_left + 1
-                )
+                # 최종 검증: 기울기가 여전히 너무 가파르면 원본 베이스라인 유지
+                # 최대 허용 기울기: 전체 범위의 2% (1%보다 약간 여유)
+                max_allowed_slope = peak_range * 0.02
+
+                if current_slope <= max_allowed_slope:
+                    # 기울기가 충분히 완화되었으면 직선 베이스라인 적용
+                    linear_baseline[anchor_left:anchor_right+1] = np.linspace(
+                        baseline_left, baseline_right, anchor_right - anchor_left + 1
+                    )
+                else:
+                    # 기울기가 여전히 너무 가파르면 원본 베이스라인 유지
+                    # 이 피크에 대해서는 직선 베이스라인을 적용하지 않음
+                    pass
 
         return linear_baseline
 
