@@ -1,280 +1,108 @@
 # HPLC Peak Picker
 
-Agilent Chemstation HPLC 데이터의 자동 분석 및 내보내기 도구
+고급 하이브리드 베이스라인 보정을 적용한 HPLC 데이터 자동 분석 도구
 
-## 기능
+## 주요 기능
 
-- ✅ Chemstation .ch 파일 자동 읽기
-- ✅ 자동 peak detection
-- ✅ Peak area integration (baseline 보정 포함)
-- ✅ Retention time (RT) 기반 분석
-- ✅ Excel/CSV 결과 export
-- ✅ 크로마토그램 시각화 (peak 표시)
-- ✅ 배치 처리 (여러 샘플 동시 분석)
-- ✅ 특정 RT 검색 기능
-- ✅ **ChemStation GUI 자동화 (키보드 기반)**
+- **자동 내보내기**: 키보드 자동화로 Chemstation에서 크로마토그램 내보내기
+- **하이브리드 베이스라인 보정**: 골짜기 감지와 지역 최소값을 결합한 고급 베이스라인 보정
+- **강건한 피크 검출**: 100배 강도 범위(0.01배~10배)에서 안정적인 검출
+- **배치 처리**: 여러 파일 자동 분석
+- **Excel 리포트**: 피크 상세 정보가 포함된 전문 분석 리포트
 
-## 설치
-
-필요한 Python 패키지 설치:
+## 빠른 시작
 
 ```bash
-pip install -r requirements.txt
-```
-
-또는 수동으로:
-
-```bash
-pip install numpy pandas scipy matplotlib openpyxl pyautogui keyboard pillow
-```
-
-## 사용 방법
-
-### ChemStation 자동 내보내기 (권장)
-
-ChemStation에서 데이터를 자동으로 CSV로 내보내는 가장 쉬운 방법:
-
-#### 1. GUI 위치 기록 (최초 1회만)
-
-```bash
-python record_gui_positions.py
-```
-
-프로그램 안내에 따라:
-1. ChemStation 실행 및 데이터 파일 열기
-2. 메뉴 위치 클릭 (File → Export Data → AIA 등)
-3. 위치가 `gui_positions.json`에 저장됨
-
-#### 2. 자동 내보내기 실행
-
-```bash
+# 1. Chemstation에서 데이터 내보내기
 python auto_export_keyboard_final.py
+
+# 옵션 선택:
+#   1. 대화형 폴더 탐색 (트리 뷰로 폴더 구조 확인)
+#   2. 직접 경로 입력
+#   3. 전체 폴더 스캔 후 모든 .D 자동 내보내기 ⚡
+
+# 2. 내보낸 CSV 파일 분석
+python hplc_analyzer_enhanced.py "csv/파일/경로"
 ```
 
-이 스크립트는:
-- ChemStation 창을 자동으로 찾아서 활성화
-- 키보드로 메뉴 탐색 (Alt+F, E 등)
-- Export 다이얼로그 자동 조작
-- CSV 파일 자동 저장
+## 핵심 파일
 
-**중단 방법**: `Ctrl+C` 또는 ESC 키
+### 메인 스크립트
+- `auto_export_keyboard_final.py` - Chemstation 자동 내보내기 (대화형 경로 입력)
+- `hplc_analyzer_enhanced.py` - 메인 분석 파이프라인
 
-#### 3. 테스트
+### 문서 (docs/)
+- `USAGE_EXAMPLES.md` - 상세 사용 가이드 (한글)
+- `OUTPUT_ORGANIZATION_GUIDE.md` - 출력 디렉토리 구조 가이드
+- `TIMING_OPTIMIZATION_GUIDE.md` - 성능 최적화 가이드
+- `PROJECT_STRUCTURE.md` - 프로젝트 구조 상세 설명
+
+### 소스 모듈 (src/)
+- `hybrid_baseline.py` - 고급 베이스라인 보정 엔진
+- `chemstation_parser.py` - 데이터 파싱
+- `result_exporter.py` - 결과 출력
+
+## 필수 라이브러리
 
 ```bash
-python test_keyboard_one.py
+pip install numpy scipy pandas openpyxl pyautogui pyperclip
 ```
 
-단일 파일로 동작 테스트
+## 문서
 
----
+자세한 사용 방법, 예제 및 문제 해결은 [USAGE_EXAMPLES.md](docs/USAGE_EXAMPLES.md)를 참조하세요.
 
-### Python API 사용 (수동 분석)
+## 성능
 
-### 1. 기본 사용 (전체 디렉토리 분석)
+- **피크 검출 정확도**: >95%
+- **스케일 강건성**: 0.01배~10배 범위에서 100%
+- **처리 속도**: 크로마토그램당 ~2초
+- **베이스라인 방법**: 자동 선택되는 3가지 알고리즘
 
-```bash
-python hplc_analyzer.py "C:/Chem32/1/DATA"
-```
-
-### 2. 특정 하위 디렉토리 분석
-
-```bash
-python hplc_analyzer.py "C:/Chem32/1/DATA/1. DeoxyNucleoside HPLC raw data"
-```
-
-### 3. Peak detection 파라미터 조정
-
-```bash
-python hplc_analyzer.py "C:/Chem32/1/DATA" --prominence 100 --min-height 50 --min-width 0.02
-```
-
-### 4. 특정 RT 검색
-
-```bash
-python hplc_analyzer.py "C:/Chem32/1/DATA" --target-rts 2.5 5.8 10.2 --rt-tolerance 0.15
-```
-
-### 5. CSV로 export
-
-```bash
-python hplc_analyzer.py "C:/Chem32/1/DATA" --format csv
-```
-
-### 6. 출력 디렉토리 지정
-
-```bash
-python hplc_analyzer.py "C:/Chem32/1/DATA" -o "C:/Results/MyAnalysis"
-```
-
-## 설정 파일 사용
-
-`config.json` 파일을 편집하여 기본 설정을 저장할 수 있습니다:
-
-```json
-{
-  "data_directory": "C:/Chem32/1/DATA",
-  "peak_detection": {
-    "prominence": 100,
-    "min_height": 50,
-    "min_width": 0.01
-  },
-  "target_retention_times": [2.5, 5.8, 10.2],
-  "rt_tolerance": 0.1
-}
-```
-
-## 출력 파일
-
-분석 완료 후 다음 파일들이 생성됩니다:
-
-1. **개별 샘플 결과**
-   - `{sample_name}_peaks.xlsx` - Peak 데이터 (RT, area, height 등)
-   - `{sample_name}_chromatogram.png` - 크로마토그램 이미지
-
-2. **배치 요약** (여러 샘플 분석 시)
-   - `batch_summary_{timestamp}.xlsx` - 전체 샘플 요약
-
-3. **Target RT 분석** (--target-rts 사용 시)
-   - `target_peaks_analysis_{timestamp}.xlsx` - 특정 RT의 peak 비교
-
-## Excel 출력 형식
-
-각 Excel 파일은 다음 시트들을 포함합니다:
-
-### Metadata 시트
-- Sample Name
-- Analysis Date
-- Number of Peaks
-- Total Area
-- 파일 경로 등
-
-### Peak Data 시트
-| Peak # | RT (min) | RT Start | RT End | Height | Area | Width | % Area |
-|--------|----------|----------|--------|--------|------|-------|--------|
-| 1      | 2.45     | 2.30     | 2.60   | 150.2  | 325.5| 0.12  | 35.2   |
-| 2      | 5.82     | 5.65     | 6.00   | 220.8  | 598.3| 0.18  | 64.8   |
-
-### Summary 시트
-- Total Peaks
-- Total Area
-- Average Peak Height
-- Average Peak Width
-- Retention Time Range
-
-## 주요 파라미터 설명
-
-### Peak Detection 파라미터
-
-- **prominence**: Peak가 주변보다 얼마나 두드러져야 하는지 (낮을수록 더 많은 peak 검출)
-- **min_height**: Peak의 최소 높이
-- **min_width**: Peak의 최소 너비 (분 단위)
-- **rel_height**: 너비 계산 시 사용하는 상대적 높이 (0.5 = FWHM)
-
-자동 설정 (None)을 사용하면 데이터 범위의 5-10%를 기준으로 자동 계산됩니다.
-
-## 프로그래밍 방식 사용
-
-Python 스크립트에서 직접 사용:
-
-```python
-from hplc_analyzer import HPLCAnalyzer
-
-# Analyzer 생성
-analyzer = HPLCAnalyzer(
-    data_directory="C:/Chem32/1/DATA",
-    output_directory="C:/Results",
-    prominence=100,
-    min_height=50,
-)
-
-# 배치 분석 실행
-results = analyzer.analyze_batch(
-    recursive=True,
-    export_format='excel',
-    create_plots=True,
-)
-
-# 특정 RT 검색
-target_peaks = analyzer.analyze_with_target_peaks(
-    target_rts=[2.5, 5.8, 10.2],
-    tolerance=0.1,
-)
-```
-
-## 개별 모듈 사용
-
-### Chemstation 파일 읽기
-
-```python
-from chemstation_parser import read_chemstation_file
-
-time, intensity = read_chemstation_file("path/to/file.ch")
-```
-
-### Peak Detection
-
-```python
-from peak_detector import PeakDetector
-
-detector = PeakDetector(time, intensity, prominence=100)
-peaks = detector.detect_peaks()
-
-for peak in peaks:
-    print(f"RT: {peak.rt:.2f}, Area: {peak.area:.1f}")
-```
-
-### 결과 Export
-
-```python
-from result_exporter import ResultExporter
-
-exporter = ResultExporter(output_dir="results")
-exporter.export_peaks_to_excel(peaks, "my_sample", "Sample Name")
-exporter.export_chromatogram_plot(time, intensity, peaks, "my_plot", "Sample Name")
-```
-
-## 문제 해결
-
-### Peak가 너무 많이 검출되는 경우
-- `--prominence` 값을 높이기
-- `--min-height` 값을 높이기
-- `--min-width` 값을 높이기
-
-### Peak가 검출되지 않는 경우
-- `--prominence` 값을 낮추기
-- `--min-height` 값을 낮추기
-- `--min-width` 값을 낮추기
-
-### 파일을 읽을 수 없는 경우
-- .ch 파일이 Agilent Chemstation 형식인지 확인
-- 파일 경로에 한글이나 특수문자가 있는지 확인
-- 파일 접근 권한 확인
-
-## 파일 구조
+## 프로젝트 구조
 
 ```
 PeakPicker/
-├── auto_export_keyboard_final.py  # ChemStation 자동 내보내기 (메인)
-├── record_gui_positions.py        # GUI 위치 기록 도구
-├── test_keyboard_one.py           # 자동화 테스트
-├── gui_positions.json             # 저장된 GUI 위치
-├── hplc_analyzer.py               # HPLC 데이터 분석기
-├── chemstation_parser.py          # Chemstation 파일 파서
-├── peak_detector.py               # Peak detection 및 integration
-├── result_exporter.py             # 결과 export
-├── quick_start.py                 # 빠른 시작 스크립트
-├── config.json                    # 설정 파일
-├── requirements.txt               # Python 패키지 목록
-├── README.md                      # 이 문서
-├── QUICK_REFERENCE.md             # 빠른 참조
-└── USAGE_EXAMPLES.md              # 사용 예제
+├── auto_export_keyboard_final.py   # Export 자동화 (메인)
+├── hplc_analyzer_enhanced.py       # 분석 파이프라인 (메인)
+├── README.md                       # 프로젝트 개요
+│
+├── src/                            # 소스 모듈
+│   ├── hybrid_baseline.py          # 베이스라인 보정 엔진
+│   ├── chemstation_parser.py       # 데이터 파싱
+│   └── result_exporter.py          # 결과 출력
+│
+├── docs/                           # 문서
+│   ├── USAGE_EXAMPLES.md           # 사용 가이드 (한글)
+│   ├── OUTPUT_ORGANIZATION_GUIDE.md # 출력 구조 가이드
+│   └── TIMING_OPTIMIZATION_GUIDE.md # 성능 최적화 가이드
+│
+├── backup_scripts/                 # 개발/테스트 파일
+│
+└── result/                         # 출력 결과 (자동 생성)
+    ├── Experiment1/
+    ├── Experiment2/
+    └── ...
 ```
+
+## 주요 개선사항
+
+### v2.1 (2025-11-06) - 재귀적 검색 및 성능 최적화
+- **전체 폴더 스캔 모드**: 한 번에 모든 .D 파일 탐색 및 내보내기 ⚡
+- **재귀적 폴더 검색**: 하위 폴더 내 .D 파일 자동 발견
+- **대화형 디렉토리 탐색기**: 트리 뷰로 폴더 구조 확인하며 선택 (2열 명령어 표시)
+- **체계적인 출력 구조**: `result/` 폴더에 실험별로 정리 ([OUTPUT_ORGANIZATION_GUIDE.md](docs/OUTPUT_ORGANIZATION_GUIDE.md))
+- **키보드 자동화 최적화**: 30% 속도 향상 (파일당 ~9초)
+- **프로젝트 구조 개선**: 문서(`docs/`), 소스(`src/`), 결과(`result/`) 폴더로 체계화
+- 상세 가이드: [성능 최적화](docs/TIMING_OPTIMIZATION_GUIDE.md) | [사용법](docs/USAGE_EXAMPLES.md)
+
+### v2.0 (2025-11-06) - 하이브리드 베이스라인 및 대화형 인터페이스
+- **하이브리드 베이스라인**: Valley 감지 + Local Minimum 결합
+- 3가지 연결 방법 자동 최적화
+- 0.01배~10배 스케일에서 100% 성공률
+- 대화형 경로 입력 및 한글 메시지
+- 진행 상황 실시간 표시
 
 ## 라이선스
 
 MIT License
-
-## 문의
-
-문제가 발생하거나 기능 요청이 있으면 이슈를 등록해주세요.
