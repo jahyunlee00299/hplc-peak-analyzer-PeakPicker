@@ -300,14 +300,20 @@ class IterativePeakRecovery:
             print(f"\n[반복 {iteration + 1}/{max_iterations}]")
 
             # 현재 신호에 대해 베이스라인 보정
+            # 피크 영역에 직선 베이스라인 적용 + robust vs weighted 비교
             corrector = HybridBaselineCorrector(self.time, self.current_intensity)
-            baseline, best_params = corrector.optimize_baseline()
+            baseline, best_params = corrector.optimize_baseline_with_linear_peaks()
             corrected = self.current_intensity - baseline
             corrected = np.maximum(corrected, 0)
 
             # 메인 피크 검출
             main_peaks, main_peak_info = self.detect_peaks(corrected)
             print(f"  메인 피크 검출: {len(main_peaks)}개")
+
+            # 베이스라인 방법 선택 정보 출력
+            if 'selection_info' in best_params:
+                info = best_params['selection_info']
+                print(f"  베이스라인 선택: robust={info['robust_selected_count']}개, weighted={info['weighted_selected_count']}개")
 
             # 첫 번째 반복: 메인 피크를 기준으로 저장
             if initial_main_peaks is None:
