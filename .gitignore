@@ -72,3 +72,10 @@ sessions/
 test_sessions/
 peakpicker/sessions/
 peakpicker/test_sessions/
+
+# Generated output files (but keep examples)
+*.png
+!peakpicker/examples/*.png
+*.xlsx
+*_chromatogram*.png
+*_peaks*.png
