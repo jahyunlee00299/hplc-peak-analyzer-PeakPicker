@@ -30,3 +30,4 @@ riba_plots_demo/
 # IDE
 .vscode/
 .idea/
+.claude/
