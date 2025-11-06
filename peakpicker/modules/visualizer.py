@@ -5,7 +5,10 @@ Chromatogram visualization module
 import matplotlib.pyplot as plt
 import matplotlib.figure
 import numpy as np
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .peak_detector import Peak
 
 
 class ChromatogramVisualizer:
@@ -190,6 +193,109 @@ class ChromatogramVisualizer:
         self.ax.plot(peak_times, peak_intensities, marker_style,
                     markersize=marker_size, label='Detected Peaks')
         self.ax.legend(loc='upper right')
+
+    def plot_with_peaks(
+        self,
+        time: np.ndarray,
+        intensity: np.ndarray,
+        peaks: List,
+        title: str = "Chromatogram with Peaks",
+        color: str = "blue",
+        linewidth: float = 1.0,
+        grid: bool = True,
+        show_baseline: bool = True,
+        annotate_peaks: bool = True,
+    ) -> matplotlib.figure.Figure:
+        """
+        Plot chromatogram with detected peaks
+
+        Args:
+            time: Time array
+            intensity: Intensity array
+            peaks: List of Peak objects
+            title: Plot title
+            color: Line color
+            linewidth: Line width
+            grid: Show grid
+            show_baseline: Show baseline for each peak
+            annotate_peaks: Show peak numbers and RT
+
+        Returns:
+            Matplotlib figure object
+        """
+        # Create figure
+        self.fig, self.ax = plt.subplots(figsize=self.figsize)
+
+        # Plot chromatogram
+        self.ax.plot(time, intensity, color=color, linewidth=linewidth, label='Signal')
+
+        # Plot peaks
+        if peaks:
+            peak_times = [p.rt for p in peaks]
+            peak_heights = [intensity[p.index] for p in peaks]
+
+            # Plot peak markers
+            self.ax.plot(peak_times, peak_heights, 'ro', markersize=8,
+                        label=f'Peaks ({len(peaks)})', zorder=5)
+
+            # Show baselines and fill peak areas
+            for i, peak in enumerate(peaks):
+                # Get peak region
+                peak_time = time[peak.index_start:peak.index_end + 1]
+                peak_intensity = intensity[peak.index_start:peak.index_end + 1]
+
+                # Baseline
+                baseline = np.linspace(
+                    intensity[peak.index_start],
+                    intensity[peak.index_end],
+                    len(peak_intensity)
+                )
+
+                if show_baseline:
+                    self.ax.plot(peak_time, baseline, 'k--', linewidth=0.8, alpha=0.5)
+
+                # Fill area under peak
+                self.ax.fill_between(
+                    peak_time,
+                    baseline,
+                    peak_intensity,
+                    alpha=0.2,
+                    label=f'Peak {i+1}' if i < 5 else None  # Only label first 5
+                )
+
+                # Annotate peak
+                if annotate_peaks:
+                    self.ax.annotate(
+                        f'{i+1}\n{peak.rt:.2f}min',
+                        xy=(peak.rt, intensity[peak.index]),
+                        xytext=(0, 10),
+                        textcoords='offset points',
+                        ha='center',
+                        fontsize=8,
+                        bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.5)
+                    )
+
+        # Labels and formatting
+        self.ax.set_xlabel('Retention Time (min)', fontsize=12, fontweight='bold')
+        self.ax.set_ylabel('Intensity', fontsize=12, fontweight='bold')
+        self.ax.set_title(title, fontsize=14, fontweight='bold')
+
+        if grid:
+            self.ax.grid(True, alpha=0.3, linestyle='--')
+
+        self.ax.spines['top'].set_visible(False)
+        self.ax.spines['right'].set_visible(False)
+
+        # Legend (limit to avoid clutter)
+        handles, labels = self.ax.get_legend_handles_labels()
+        if len(handles) > 10:
+            self.ax.legend(handles[:10], labels[:10], loc='upper right', fontsize=8)
+        else:
+            self.ax.legend(loc='upper right', fontsize=9)
+
+        plt.tight_layout()
+
+        return self.fig
 
     def save_figure(self, filename: str, dpi: int = 300):
         """
