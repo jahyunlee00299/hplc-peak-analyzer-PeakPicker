@@ -10,8 +10,6 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from peak_detector import Peak
-
 
 class ResultExporter:
     """Export analysis results to various formats"""
