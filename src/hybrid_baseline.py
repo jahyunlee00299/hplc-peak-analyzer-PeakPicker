@@ -568,25 +568,12 @@ class HybridBaselineCorrector:
             baseline_robust, baseline_weighted
         )
 
-        # 피크 검출
-        corrected = np.maximum(self.intensity - hybrid_baseline, 0)
-        noise_level = np.percentile(corrected, 25) * 1.5
-        peaks, _ = signal.find_peaks(
-            corrected,
-            prominence=np.ptp(corrected) * 0.005,
-            height=noise_level * 3
-        )
-
-        # 검출된 피크 영역에 직선 베이스라인 적용
-        linear_baseline = self.apply_linear_baseline_to_peaks(hybrid_baseline, peaks.tolist())
-
         params = {
-            'method': 'hybrid_linear_peaks',
-            'selection_info': selection_info,
-            'peaks_detected': len(peaks)
+            'method': 'hybrid_width_comparison',
+            'selection_info': selection_info
         }
 
-        return linear_baseline, params
+        return hybrid_baseline, params
 
 
 def test_hybrid_baseline():
