@@ -41,6 +41,7 @@ class PeakDetector:
         min_width: float = 0.01,  # minutes
         rel_height: float = 0.5,  # for width calculation (0.5 = FWHM)
         auto_threshold: bool = True,
+        adaptive_mode: bool = True,  # New: Enable adaptive detection
     ):
         """
         Initialize peak detector
@@ -53,11 +54,13 @@ class PeakDetector:
             min_width: Minimum peak width in minutes
             rel_height: Relative height for width calculation (0.5 = FWHM)
             auto_threshold: Auto-calculate thresholds based on data
+            adaptive_mode: Use adaptive detection for varying peak intensities
         """
         self.time = time
         self.intensity = intensity
         self.min_width = min_width
         self.rel_height = rel_height
+        self.adaptive_mode = adaptive_mode
         self.peaks: List[Peak] = []
 
         # Calculate automatic thresholds if requested
@@ -66,20 +69,43 @@ class PeakDetector:
             intensity_mean = np.mean(self.intensity)
             intensity_std = np.std(self.intensity)
 
+            # Estimate noise level from quiet regions
+            noise_level = self._estimate_noise_level()
+
             if prominence is None:
-                # Use 5% of intensity range or 2*std, whichever is larger
-                self.prominence = max(intensity_range * 0.05, 2 * intensity_std)
+                if adaptive_mode:
+                    # More sensitive for small peaks
+                    self.prominence = max(intensity_range * 0.01, 3 * noise_level)
+                else:
+                    # Standard calculation
+                    self.prominence = max(intensity_range * 0.05, 2 * intensity_std)
             else:
                 self.prominence = prominence
 
             if min_height is None:
-                # Use mean + 1*std as minimum height
-                self.min_height = intensity_mean + intensity_std
+                if adaptive_mode:
+                    # Use noise-based threshold
+                    self.min_height = 3 * noise_level
+                else:
+                    # Use mean + std as minimum height
+                    self.min_height = intensity_mean + intensity_std
             else:
                 self.min_height = min_height
         else:
             self.prominence = prominence if prominence is not None else 0
             self.min_height = min_height if min_height is not None else 0
+
+    def _estimate_noise_level(self, percentile: float = 25) -> float:
+        """Estimate noise level from quiet regions"""
+        # Use lower percentile of signal as noise estimate
+        noise_region = np.percentile(self.intensity, percentile)
+        # Calculate standard deviation in quiet regions
+        quiet_mask = self.intensity < noise_region * 1.5
+        if np.any(quiet_mask):
+            noise_std = np.std(self.intensity[quiet_mask])
+        else:
+            noise_std = np.std(self.intensity) * 0.1
+        return noise_std
 
     def detect_peaks(self) -> List[Peak]:
         """

@@ -1,11 +1,16 @@
 """
 Baseline correction and peak handling module
+Enhanced with adaptive methods for HPLC with varying peak intensities
 """
 
 import numpy as np
-from scipy import signal, interpolate
+from scipy import signal, interpolate, sparse
+from scipy.sparse.linalg import spsolve
+from scipy.ndimage import grey_opening, grey_closing
 from typing import List, Tuple, Optional
 from .peak_detector import Peak
+import warnings
+warnings.filterwarnings('ignore')
 
 
 class BaselineHandler:
@@ -79,28 +84,31 @@ class BaselineHandler:
     def calculate_als_baseline(
         self,
         lam: float = 1e6,
-        p: float = 0.01,
-        niter: int = 10
+        p: float = 0.001,
+        niter: int = 20
     ) -> np.ndarray:
         """
         Calculate baseline using Asymmetric Least Squares (ALS)
+        Optimized for HPLC with varying peak sizes
 
         Args:
-            lam: Smoothness parameter
-            p: Asymmetry parameter
+            lam: Smoothness parameter (larger = smoother)
+            p: Asymmetry parameter (smaller = better for positive peaks)
             niter: Number of iterations
 
         Returns:
             Baseline array
         """
         L = len(self.intensity)
-        D = np.diff(np.eye(L), 2, axis=0)  # Second derivative matrix
+        D = sparse.diags([1, -2, 1], [0, -1, -2], shape=(L, L-2))
+        D = lam * D.dot(D.transpose())
         w = np.ones(L)
+        W = sparse.spdiags(w, 0, L, L)
 
         for i in range(niter):
-            W = np.diag(w)
-            Z = W + lam * (D.T @ D)
-            z = np.linalg.solve(Z, w * self.intensity)
+            W.setdiag(w)
+            Z = W + D
+            z = spsolve(Z, w * self.intensity)
             w = p * (self.intensity > z) + (1 - p) * (self.intensity < z)
 
         self.baseline = z
@@ -123,6 +131,98 @@ class BaselineHandler:
 
         self.corrected_intensity = self.intensity - baseline
         return self.corrected_intensity
+
+    def calculate_adaptive_baseline(
+        self,
+        window_size: int = 100,
+        percentile: float = 10
+    ) -> np.ndarray:
+        """
+        Adaptive iterative baseline using local minima
+        Excellent for varying peak intensities
+
+        Args:
+            window_size: Window for local minima detection
+            percentile: Percentile for baseline points selection
+
+        Returns:
+            Baseline array
+        """
+        baseline = self.intensity.copy()
+
+        for iteration in range(5):
+            # Find local minima in windows
+            baseline_points = []
+            indices = []
+
+            for i in range(0, len(baseline), window_size // 2):
+                end = min(i + window_size, len(baseline))
+                window = baseline[i:end]
+                if len(window) > 0:
+                    # Get lowest percentile points in window
+                    threshold = np.percentile(window, percentile)
+                    mask = window <= threshold
+                    if np.any(mask):
+                        local_indices = np.where(mask)[0] + i
+                        baseline_points.extend(baseline[local_indices])
+                        indices.extend(local_indices)
+
+            if len(indices) > 1:
+                # Interpolate baseline through selected points
+                from scipy.interpolate import UnivariateSpline
+                indices = np.array(indices)
+                baseline_points = np.array(baseline_points)
+
+                # Sort by index
+                sort_idx = np.argsort(indices)
+                indices = indices[sort_idx]
+                baseline_points = baseline_points[sort_idx]
+
+                # Fit spline through baseline points
+                spl = UnivariateSpline(indices, baseline_points, s=len(indices) * 0.1, k=3)
+                new_baseline = spl(np.arange(len(self.intensity)))
+
+                # Check convergence
+                if np.max(np.abs(new_baseline - baseline)) < 0.01 * np.ptp(self.intensity):
+                    break
+
+                baseline = new_baseline
+
+        self.baseline = baseline
+        return baseline
+
+    def calculate_morphological_baseline(
+        self,
+        window_size: int = None,
+        iterations: int = 2
+    ) -> np.ndarray:
+        """
+        Morphological baseline using erosion and dilation
+        Good for preserving peak shapes
+
+        Args:
+            window_size: Size of structuring element (auto if None)
+            iterations: Number of morphological operations
+
+        Returns:
+            Baseline array
+        """
+        if window_size is None:
+            # Auto-determine based on typical peak width
+            window_size = len(self.intensity) // 20
+
+        baseline = self.intensity.copy()
+
+        for _ in range(iterations):
+            baseline = grey_opening(baseline, size=window_size)
+            baseline = grey_closing(baseline, size=window_size)
+
+        # Smooth the baseline
+        if len(baseline) > 11:
+            baseline = signal.savgol_filter(baseline, min(len(baseline), window_size // 2 * 2 + 1), 3)
+
+        self.baseline = baseline
+        return baseline
 
     def manual_baseline(
         self,
