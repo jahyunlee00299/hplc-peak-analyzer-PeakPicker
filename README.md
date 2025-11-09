@@ -5,7 +5,10 @@
 ## 주요 기능
 
 - **자동 내보내기**: 키보드 자동화로 Chemstation에서 크로마토그램 내보내기
-- **하이브리드 베이스라인 보정**: 골짜기 감지와 지역 최소값을 결합한 고급 베이스라인 보정
+- **개선된 베이스라인 보정** ✨: RT 기반 슬로프 완화 + 최적화된 앵커 검출
+  - 앵커 포인트 82% 감소 (85개 → 15개)
+  - 자동 품질 평가 (204점 만점)
+  - 피크 검출 성능 유지
 - **강건한 피크 검출**: 100배 강도 범위(0.01배~10배)에서 안정적인 검출
 - **배치 처리**: 여러 파일 자동 분석
 - **Excel 리포트**: 피크 상세 정보가 포함된 전문 분석 리포트
@@ -36,11 +39,16 @@ python hplc_analyzer_enhanced.py "csv/파일/경로"
 - `OUTPUT_ORGANIZATION_GUIDE.md` - 출력 디렉토리 구조 가이드
 - `TIMING_OPTIMIZATION_GUIDE.md` - 성능 최적화 가이드
 - `PROJECT_STRUCTURE.md` - 프로젝트 구조 상세 설명
+- `BASELINE_IMPROVEMENTS.md` - 베이스라인 개선 사항 ✨
 
 ### 소스 모듈 (src/)
-- `hybrid_baseline.py` - 고급 베이스라인 보정 엔진
+- `improved_baseline.py` - **개선된 베이스라인 보정 엔진** ✨
+- `hybrid_baseline.py` - 기존 베이스라인 보정 (레거시)
 - `chemstation_parser.py` - 데이터 파싱
 - `result_exporter.py` - 결과 출력
+
+### 예제 (examples/)
+- `baseline_example.py` - 베이스라인 보정 4가지 예제
 
 ## 필수 라이브러리
 
