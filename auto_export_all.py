@@ -1,6 +1,10 @@
 """
 Chemstation 자동 Export - 전체 자동 실행 버전
 사용자 입력 없이 C:\Chem32\1\DATA의 모든 .D 파일을 자동으로 export
+
+중단 방법:
+1. Ctrl+C 누르기 (KeyboardInterrupt)
+2. 'export_STOP.txt' 파일 생성 (작업 디렉토리에)
 """
 
 import pyautogui
@@ -8,11 +12,44 @@ import pyperclip
 import time
 import os
 import shutil
+import signal
 from pathlib import Path
 
 # 안전 설정
 pyautogui.PAUSE = 0.2
 pyautogui.FAILSAFE = False  # Disable fail-safe to prevent mouse corner interruption
+
+# 글로벌 중단 플래그
+STOP_REQUESTED = False
+STOP_FILE = "export_STOP.txt"
+
+
+def signal_handler(signum, frame):
+    """Ctrl+C 시그널 핸들러"""
+    global STOP_REQUESTED
+    STOP_REQUESTED = True
+    print("\n\n" + "=" * 80)
+    print("  [INTERRUPT] Ctrl+C 감지! 현재 파일 완료 후 중단합니다...")
+    print("=" * 80)
+
+
+def check_stop_requested():
+    """중단 요청 확인 (STOP 파일 또는 플래그)"""
+    global STOP_REQUESTED
+
+    # Ctrl+C 플래그 확인
+    if STOP_REQUESTED:
+        return True
+
+    # STOP 파일 확인
+    if os.path.exists(STOP_FILE):
+        STOP_REQUESTED = True
+        print("\n\n" + "=" * 80)
+        print(f"  [STOP FILE] '{STOP_FILE}' 감지! 현재 파일 완료 후 중단합니다...")
+        print("=" * 80)
+        return True
+
+    return False
 
 
 def find_all_d_folders(base_dir, recursive=True):
@@ -242,8 +279,16 @@ def check_and_cleanup_duplicates(output_dir):
 def main():
     """자동 export 실행 - 모든 입력 자동화"""
 
+    # Ctrl+C 시그널 핸들러 등록
+    signal.signal(signal.SIGINT, signal_handler)
+
     print("=" * 80)
     print("  Chemstation 자동 Export - 전체 자동 실행")
+    print("=" * 80)
+
+    print("\n[중단 방법]")
+    print(f"  1. Ctrl+C 누르기 (현재 파일 완료 후 중단)")
+    print(f"  2. '{STOP_FILE}' 파일 생성 (현재 파일 완료 후 중단)")
     print("=" * 80)
 
     # 자동 설정
@@ -339,6 +384,12 @@ def main():
     start_time = time.time()
 
     for i, d_folder in enumerate(d_folders, 1):
+        # 중단 요청 확인
+        if check_stop_requested():
+            print("\n[INTERRUPTED] Export가 사용자에 의해 중단되었습니다.")
+            print(f"[PROGRESS] {i-1}/{len(d_folders)} 파일 처리 중 중단됨")
+            break
+
         folder_name = Path(d_folder).name.replace('.D', '')
 
         # "last"나 "blank" 포함된 파일 건너뛰기
@@ -458,7 +509,11 @@ def main():
     check_and_cleanup_duplicates(output_dir)
 
     print("\n" + "=" * 80)
-    print("\n[DONE] Export 완료! 이제 분석을 시작할 수 있습니다.")
+    if STOP_REQUESTED:
+        print("\n[INTERRUPTED] Export가 사용자에 의해 중단되었습니다.")
+    else:
+        print("\n[DONE] Export 완료! 이제 분석을 시작할 수 있습니다.")
+
     print(f"[DIR] 출력 디렉토리: {output_dir}")
     print(f"[SUCCESS] 성공: {success_count}개")
     if no_signal_files:
@@ -467,6 +522,14 @@ def main():
         print(f"[FAILED] 기타 오류: {len(failed)}개")
     if skipped_last_blank > 0:
         print(f"[SKIPPED] Last/Blank 건너뜀: {skipped_last_blank}개")
+
+    # STOP 파일 정리
+    if os.path.exists(STOP_FILE):
+        try:
+            os.remove(STOP_FILE)
+            print(f"\n[CLEANUP] '{STOP_FILE}' 파일 삭제됨")
+        except Exception as e:
+            print(f"\n[WARNING] '{STOP_FILE}' 파일 삭제 실패: {e}")
 
 
 if __name__ == '__main__':
