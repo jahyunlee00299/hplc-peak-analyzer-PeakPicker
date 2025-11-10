@@ -202,8 +202,8 @@ def run_analysis(data_dir, enable_deconvolution=True, asymmetry_threshold=1.2):
     # Import analyzer
     from hplc_analyzer_enhanced import EnhancedHPLCAnalyzer
 
-    # Create output directory
-    output_dir = Path(data_dir) / "analysis_results"
+    # Create output directory for exported Excel files
+    output_dir = Path(data_dir) / "exported"
 
     # Create analyzer
     analyzer = EnhancedHPLCAnalyzer(
@@ -248,7 +248,7 @@ def run_analysis(data_dir, enable_deconvolution=True, asymmetry_threshold=1.2):
 
 def run_visualization(data_dir):
     """
-    Create visualizations for deconvolution results.
+    Create visualizations and summaries for analysis results.
 
     Args:
         data_dir: Directory containing CSV and analysis results
@@ -257,40 +257,44 @@ def run_visualization(data_dir):
         True if successful, False otherwise
     """
     print("\n" + "="*80)
-    print("STEP 3: VISUALIZATION")
+    print("STEP 3: VISUALIZATION & SUMMARY")
     print("="*80)
 
-    analysis_dir = Path(data_dir) / "analysis_results"
+    exported_dir = Path(data_dir) / "exported"
 
-    if not analysis_dir.exists():
-        print(f"\n[X] 분석 디렉토리가 없습니다: {analysis_dir}")
+    if not exported_dir.exists():
+        print(f"\n[X] exported 디렉토리가 없습니다: {exported_dir}")
         return False
 
     # Find Excel files
-    excel_files = sorted(list(analysis_dir.glob("*_peaks.xlsx")))
+    excel_files = sorted(list(exported_dir.glob("*_peaks.xlsx")))
 
     if not excel_files:
-        print(f"\n[X] 분석 결과 파일이 없습니다: {analysis_dir}")
+        print(f"\n[X] 분석 결과 파일이 없습니다: {exported_dir}")
         return False
 
     print(f"\n[OK] {len(excel_files)}개 분석 파일 발견")
-    print(f"   디렉토리: {analysis_dir}")
+
+    # Create output folders
+    baseline_plots_dir = Path(data_dir) / "baseline_plots"
+    deconv_plots_dir = Path(data_dir) / "deconvolution_plots"
+    baseline_plots_dir.mkdir(exist_ok=True)
+    deconv_plots_dir.mkdir(exist_ok=True)
 
     # Import visualization tools
     sys.path.insert(0, str(Path(__file__).parent / 'src'))
     from peak_models import gaussian
     from hybrid_baseline import HybridBaselineCorrector
 
-    print("\n시각화 생성 중...")
-
     # Track statistics
     viz_count = 0
     baseline_viz_count = 0
     stats = []
+    baseline_stats = []
 
-    # Process each file for baseline visualization (all samples)
+    # Process each file for baseline visualization
     print("\n베이스라인 플롯 생성 중...")
-    for excel_file in excel_files[:10]:  # Limit to first 10 for speed
+    for excel_file in excel_files:
         sample_name = excel_file.stem.replace('_peaks', '')
         csv_file = Path(data_dir) / f"{sample_name}.csv"
 
@@ -309,6 +313,22 @@ def run_visualization(data_dir):
             corrected = intensity - baseline
             corrected = np.maximum(corrected, 0)
 
+            # Store baseline statistics
+            method = best_params.get('method', 'N/A')
+            baseline_area = np.trapz(baseline, time)
+            signal_area = np.trapz(intensity, time)
+            baseline_ratio = baseline_area / signal_area if signal_area > 0 else 0
+
+            baseline_stats.append({
+                'Sample': sample_name,
+                'Method': method,
+                'Baseline_Area': baseline_area,
+                'Total_Signal_Area': signal_area,
+                'Baseline_Ratio_%': baseline_ratio * 100,
+                'Max_Intensity': intensity.max(),
+                'Max_Baseline': baseline.max()
+            })
+
             # Create baseline plot
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8))
 
@@ -324,8 +344,8 @@ def run_visualization(data_dir):
             ax1.grid(True, alpha=0.3)
 
             # Add method info
-            method = best_params.get('method', 'N/A')
-            ax1.text(0.02, 0.98, f'Method: {method}', transform=ax1.transAxes,
+            info_text = f'Method: {method}\nBaseline Ratio: {baseline_ratio*100:.2f}%'
+            ax1.text(0.02, 0.98, info_text, transform=ax1.transAxes,
                     fontsize=10, verticalalignment='top',
                     bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
@@ -340,13 +360,14 @@ def run_visualization(data_dir):
             ax2.grid(True, alpha=0.3)
 
             plt.tight_layout()
-            output_file = analysis_dir / f"{sample_name}_baseline.png"
+            output_file = baseline_plots_dir / f"{sample_name}_baseline.png"
             plt.savefig(output_file, dpi=150, bbox_inches='tight')
             plt.close()
 
             baseline_viz_count += 1
 
         except Exception as e:
+            print(f"  Warning: {sample_name} 베이스라인 시각화 실패: {e}")
             continue
 
     print(f"  베이스라인 플롯: {baseline_viz_count}개 생성")
@@ -443,17 +464,19 @@ def run_visualization(data_dir):
                 ax2.grid(True, alpha=0.3)
 
                 plt.tight_layout()
-                output_file = analysis_dir / f"{sample_name}_deconvolution.png"
+                output_file = deconv_plots_dir / f"{sample_name}_deconvolution.png"
                 plt.savefig(output_file, dpi=150, bbox_inches='tight')
                 plt.close()
 
                 viz_count += 1
 
         except Exception as e:
-            print(f"  Warning: {sample_name} 시각화 실패: {e}")
+            print(f"  Warning: {sample_name} 디컨볼루션 시각화 실패: {e}")
             continue
 
-    # Create summary plot
+    print(f"  디컨볼루션 플롯: {viz_count}개 생성")
+
+    # Create deconvolution summary plot
     if stats:
         df_stats = pd.DataFrame(stats)
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
@@ -491,18 +514,30 @@ def run_visualization(data_dir):
         ax2.grid(True, alpha=0.3, axis='y')
 
         plt.tight_layout()
-        summary_file = analysis_dir / "deconvolution_summary.png"
+        summary_file = deconv_plots_dir / "deconvolution_summary.png"
         plt.savefig(summary_file, dpi=150, bbox_inches='tight')
         plt.close()
 
-    # Create summary Excel file
-    if stats:
-        print("\n전체 분석 서머리 파일 생성 중...")
+    # Create summary Excel files
+    print("\n서머리 파일 생성 중...")
+
+    # 1. Baseline Summary
+    if baseline_stats:
         try:
-            summary_excel = analysis_dir / "ALL_SAMPLES_SUMMARY.xlsx"
+            baseline_summary_file = Path(data_dir) / "BASELINE_SUMMARY.xlsx"
+            df_baseline = pd.DataFrame(baseline_stats)
+            df_baseline.to_excel(baseline_summary_file, index=False, engine='openpyxl')
+            print(f"  베이스라인 서머리: {baseline_summary_file.name}")
+        except Exception as e:
+            print(f"  베이스라인 서머리 생성 실패: {e}")
+
+    # 2. RT-based Pivot Table Summary
+    if stats:
+        try:
+            summary_excel = Path(data_dir) / "PEAK_SUMMARY.xlsx"
 
             with pd.ExcelWriter(summary_excel, engine='openpyxl') as writer:
-                # Sheet 1: Overall Summary
+                # Sheet 1: Sample Summary
                 df_stats = pd.DataFrame(stats)
                 df_stats.to_excel(writer, sheet_name='Sample_Summary', index=False)
 
@@ -519,12 +554,27 @@ def run_visualization(data_dir):
 
                 if all_peaks:
                     df_all_peaks = pd.concat(all_peaks, ignore_index=True)
-                    # Reorder columns
                     cols = ['sample_name'] + [c for c in df_all_peaks.columns if c != 'sample_name']
                     df_all_peaks = df_all_peaks[cols]
                     df_all_peaks.to_excel(writer, sheet_name='All_Peaks', index=False)
 
-                # Sheet 3: All Deconvolved Peaks Combined
+                    # Sheet 3: RT-based Pivot (Area only)
+                    # Round RT to 1 decimal place, Samples as rows, RT as columns
+                    df_all_peaks['RT_rounded'] = df_all_peaks['retention_time'].round(1)
+
+                    pivot_area = df_all_peaks.pivot_table(
+                        index='sample_name',
+                        columns='RT_rounded',
+                        values='area',
+                        aggfunc='sum'
+                    ).fillna('')
+
+                    # Rename columns to include RT_ prefix
+                    pivot_area.columns = [f'RT_{rt}' for rt in pivot_area.columns]
+
+                    pivot_area.to_excel(writer, sheet_name='RT_Pivot_Area')
+
+                # Sheet 4: All Deconvolved Peaks Combined
                 all_deconv = []
                 for excel_file in excel_files:
                     sample_name = excel_file.stem.replace('_peaks', '')
@@ -537,24 +587,23 @@ def run_visualization(data_dir):
 
                 if all_deconv:
                     df_all_deconv = pd.concat(all_deconv, ignore_index=True)
-                    # Reorder columns
                     cols = ['sample_name'] + [c for c in df_all_deconv.columns if c != 'sample_name']
                     df_all_deconv = df_all_deconv[cols]
                     df_all_deconv.to_excel(writer, sheet_name='All_Deconvolved_Peaks', index=False)
 
-            print(f"  서머리 파일 저장: {summary_excel.name}")
+            print(f"  피크 서머리: {summary_excel.name}")
 
         except Exception as e:
-            print(f"  서머리 파일 생성 실패: {e}")
+            print(f"  피크 서머리 생성 실패: {e}")
 
     print("\n" + "="*80)
-    print("시각화 완료")
+    print("시각화 및 서머리 완료")
     print("="*80)
-    print(f"\n  베이스라인 플롯: {baseline_viz_count}개")
-    print(f"  디컨볼루션 플롯: {viz_count}개")
-    print(f"  요약 플롯: deconvolution_summary.png")
-    print(f"  서머리 파일: ALL_SAMPLES_SUMMARY.xlsx")
-    print(f"  저장 위치: {analysis_dir}")
+    print(f"\n  베이스라인 플롯: {baseline_viz_count}개 → {baseline_plots_dir.name}/")
+    print(f"  디컨볼루션 플롯: {viz_count}개 → {deconv_plots_dir.name}/")
+    print(f"  베이스라인 서머리: BASELINE_SUMMARY.xlsx")
+    print(f"  피크 서머리: PEAK_SUMMARY.xlsx (RT 기준 피벗 포함)")
+    print(f"  저장 위치: {data_dir}")
 
     return True
 
@@ -628,23 +677,25 @@ def main():
     print("  전체 워크플로우 완료!")
     print("="*80)
     print(f"\n[OK] CSV 파일: {data_dir}")
-    print(f"[OK] 분석 결과: {Path(data_dir) / 'analysis_results'}")
+    print(f"[OK] 개별 피크 파일: {Path(data_dir) / 'exported'}/")
     if viz_success:
-        print(f"[OK] 시각화: {Path(data_dir) / 'analysis_results' / '*_deconvolution.png'}")
+        print(f"[OK] 베이스라인 플롯: {Path(data_dir) / 'baseline_plots'}/")
+        print(f"[OK] 디컨볼루션 플롯: {Path(data_dir) / 'deconvolution_plots'}/")
+        print(f"[OK] 서머리 파일: BASELINE_SUMMARY.xlsx, PEAK_SUMMARY.xlsx")
     print("\nExcel 파일과 시각화를 확인하여 결과를 검토하세요.")
     print("="*80)
 
-    # Open result folder
-    analysis_dir = Path(data_dir) / 'analysis_results'
-    if analysis_dir.exists():
+    # Open result folder (main data directory)
+    result_dir = Path(data_dir)
+    if result_dir.exists():
         print("\n결과 폴더를 여는 중...")
         try:
             if sys.platform == 'win32':
-                os.startfile(str(analysis_dir))
+                os.startfile(str(result_dir))
             elif sys.platform == 'darwin':  # macOS
-                subprocess.run(['open', str(analysis_dir)])
+                subprocess.run(['open', str(result_dir)])
             else:  # linux
-                subprocess.run(['xdg-open', str(analysis_dir)])
+                subprocess.run(['xdg-open', str(result_dir)])
         except Exception as e:
             print(f"폴더 열기 실패: {e}")
 
