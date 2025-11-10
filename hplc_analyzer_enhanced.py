@@ -163,10 +163,19 @@ class EnhancedHPLCAnalyzer:
                 left = max(0, peak_idx - 10)
                 right = min(len(intensity) - 1, peak_idx + 10)
 
-            # Calculate area
+            # Calculate area with linear baseline correction
             peak_time = time[left:right+1]
             peak_intensity = intensity[left:right+1]
-            area = trapezoid(peak_intensity, peak_time)
+
+            # Create linear baseline between start and end points
+            baseline_start = intensity[left]
+            baseline_end = intensity[right]
+            linear_baseline = np.linspace(baseline_start, baseline_end, len(peak_intensity))
+
+            # Subtract linear baseline and integrate
+            baseline_corrected_intensity = peak_intensity - linear_baseline
+            baseline_corrected_intensity = np.maximum(baseline_corrected_intensity, 0)  # No negative values
+            area = trapezoid(baseline_corrected_intensity, peak_time)
 
             # Calculate SNR
             snr = intensity[peak_idx] / noise_level if noise_level > 0 else float('inf')
