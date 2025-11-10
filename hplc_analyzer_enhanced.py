@@ -76,13 +76,16 @@ class EnhancedHPLCAnalyzer:
 
             # Apply hybrid baseline correction
             if self.use_hybrid_baseline:
-                print("  Applying hybrid baseline correction...")
+                print("  Applying baseline correction (robust_fit)...")
                 corrector = HybridBaselineCorrector(time, intensity)
-                baseline, best_params = corrector.optimize_baseline()
+
+                # Use robust_fit method only
+                corrector.find_baseline_anchor_points(valley_prominence=0.01, percentile=10)
+                baseline = corrector.generate_hybrid_baseline(method='robust_fit')
                 corrected = intensity - baseline
                 corrected = np.maximum(corrected, 0)  # No negative values
 
-                print(f"  Best baseline method: {best_params.get('method', 'N/A')}")
+                print(f"  Baseline method: robust_fit")
             else:
                 corrected = intensity
                 baseline = np.zeros_like(intensity)
@@ -170,7 +173,7 @@ class EnhancedHPLCAnalyzer:
             # Find actual peak base by looking for where signal drops to near-baseline
             # (for baseline-corrected signal, this should be close to 0)
             peak_height = intensity[peak_idx]
-            threshold = peak_height * 0.01  # 1% of peak height
+            threshold = peak_height * 0.0001  # 0.01% of peak height (for wider integration)
 
             # Extend left boundary
             for idx in range(peak_idx, max(0, peak_idx - half_width * 2), -1):
