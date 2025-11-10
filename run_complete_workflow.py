@@ -64,8 +64,11 @@ def run_auto_export():
     base_dir_name = Path(base_dir).name
     output_dir = os.path.join(default_output, base_dir_name)
 
-    print(f"\n출력 경로: {output_dir}")
-    os.makedirs(output_dir, exist_ok=True)
+    # Create csv subdirectory for CSV files
+    csv_dir = os.path.join(output_dir, "csv")
+
+    print(f"\n출력 경로: {csv_dir}")
+    os.makedirs(csv_dir, exist_ok=True)
 
     # Confirm
     print("\n" + "="*80)
@@ -94,7 +97,7 @@ def run_auto_export():
 
     for i, d_folder in enumerate(d_folders, 1):
         folder_name = Path(d_folder).name.replace('.D', '')
-        output_csv = os.path.join(output_dir, f"{folder_name}.csv")
+        output_csv = os.path.join(csv_dir, f"{folder_name}.csv")
 
         # Skip if already exists
         if os.path.exists(output_csv):
@@ -124,7 +127,7 @@ def run_auto_export():
     print("="*80)
     print(f"\n  성공: {success_count}/{len(d_folders)} 파일")
     print(f"  소요 시간: {total_time/60:.1f}분")
-    print(f"  출력 디렉토리: {output_dir}")
+    print(f"  출력 디렉토리: {csv_dir}")
 
     if failed:
         print(f"\n  실패: {len(failed)}개")
@@ -172,15 +175,22 @@ def run_analysis(data_dir, enable_deconvolution=True, asymmetry_threshold=1.2):
         print(f"\n[X] 데이터 디렉토리가 없습니다: {data_dir}")
         return False
 
+    # Check for csv subdirectory first, fall back to main directory
+    csv_subdir = Path(data_dir) / "csv"
+    if csv_subdir.exists():
+        csv_search_dir = csv_subdir
+    else:
+        csv_search_dir = Path(data_dir)
+
     # Count CSV files
-    csv_files = list(Path(data_dir).glob("*.csv")) + list(Path(data_dir).glob("*.CSV"))
+    csv_files = list(csv_search_dir.glob("*.csv")) + list(csv_search_dir.glob("*.CSV"))
 
     if not csv_files:
-        print(f"\n[X] CSV 파일이 없습니다: {data_dir}")
+        print(f"\n[X] CSV 파일이 없습니다: {csv_search_dir}")
         return False
 
     print(f"\n[OK] {len(csv_files)}개 CSV 파일 발견")
-    print(f"   디렉토리: {data_dir}")
+    print(f"   디렉토리: {csv_search_dir}")
 
     # Analysis settings
     print(f"\n분석 설정:")
@@ -205,9 +215,9 @@ def run_analysis(data_dir, enable_deconvolution=True, asymmetry_threshold=1.2):
     # Create output directory for exported Excel files
     output_dir = Path(data_dir) / "exported"
 
-    # Create analyzer
+    # Create analyzer (use csv_search_dir for reading CSV files)
     analyzer = EnhancedHPLCAnalyzer(
-        data_directory=data_dir,
+        data_directory=str(csv_search_dir),
         output_directory=str(output_dir),
         use_hybrid_baseline=True,
         enable_deconvolution=enable_deconvolution,
@@ -292,11 +302,15 @@ def run_visualization(data_dir):
     stats = []
     baseline_stats = []
 
+    # Check for csv subdirectory
+    csv_subdir = Path(data_dir) / "csv"
+    csv_search_dir = csv_subdir if csv_subdir.exists() else Path(data_dir)
+
     # Process each file for baseline visualization
     print("\n베이스라인 플롯 생성 중...")
     for excel_file in excel_files:
         sample_name = excel_file.stem.replace('_peaks', '')
-        csv_file = Path(data_dir) / f"{sample_name}.csv"
+        csv_file = csv_search_dir / f"{sample_name}.csv"
 
         if not csv_file.exists():
             continue
@@ -377,7 +391,7 @@ def run_visualization(data_dir):
     print("\n디컨볼루션 플롯 생성 중...")
     for excel_file in excel_files:
         sample_name = excel_file.stem.replace('_peaks', '')
-        csv_file = Path(data_dir) / f"{sample_name}.csv"
+        csv_file = csv_search_dir / f"{sample_name}.csv"
 
         if not csv_file.exists():
             continue
@@ -696,7 +710,11 @@ def main():
     print("\n" + "="*80)
     print("  전체 워크플로우 완료!")
     print("="*80)
-    print(f"\n[OK] CSV 파일: {data_dir}")
+    csv_dir = Path(data_dir) / 'csv'
+    if csv_dir.exists():
+        print(f"\n[OK] CSV 파일: {csv_dir}/")
+    else:
+        print(f"\n[OK] CSV 파일: {data_dir}/")
     print(f"[OK] 개별 피크 파일: {Path(data_dir) / 'exported'}/")
     if viz_success:
         print(f"[OK] 베이스라인 플롯: {Path(data_dir) / 'baseline_plots'}/")

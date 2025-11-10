@@ -158,45 +158,28 @@ class EnhancedHPLCAnalyzer:
         # Calculate peak properties
         peak_data = []
         for i, peak_idx in enumerate(peaks):
-            # Get peak width from scipy.signal.find_peaks
-            if 'widths' in properties:
-                width_samples = properties['widths'][i]
+            # Use scipy's calculated peak bases for better boundary detection
+            if 'left_bases' in properties and 'right_bases' in properties:
+                left = int(properties['left_bases'][i])
+                right = int(properties['right_bases'][i])
             else:
-                width_samples = 20  # Default width
+                # Fallback: use width if available
+                if 'widths' in properties:
+                    width_samples = properties['widths'][i]
+                else:
+                    width_samples = 20
+                half_width = int(width_samples * 1.5)  # Conservative extension
+                left = max(0, peak_idx - half_width)
+                right = min(len(intensity) - 1, peak_idx + half_width)
 
-            # Extend boundaries to capture full peak (3-sigma rule for Gaussian)
-            # For Gaussian peaks, 99.7% of area is within ±3σ from center
-            half_width = int(width_samples * 3)  # Extend to ±3 sigma
-            left = max(0, peak_idx - half_width)
-            right = min(len(intensity) - 1, peak_idx + half_width)
-
-            # Find actual peak base by looking for where signal drops to near-baseline
-            # (for baseline-corrected signal, this should be close to 0)
-            peak_height = intensity[peak_idx]
-            threshold = peak_height * 0.0001  # 0.01% of peak height (for wider integration)
-
-            # Extend left boundary
-            for idx in range(peak_idx, max(0, peak_idx - half_width * 2), -1):
-                if intensity[idx] < threshold:
-                    left = idx
-                    break
-
-            # Extend right boundary
-            for idx in range(peak_idx, min(len(intensity), peak_idx + half_width * 2)):
-                if intensity[idx] < threshold:
-                    right = idx
-                    break
-
-            # Calculate area using Chemstation-compatible method
-            # Chemstation uses sum of intensities, not physical integration
+            # Calculate area using trapezoid integration with time in seconds
+            # This matches Chemstation's physical integration approach
             peak_time = time[left:right+1]
             peak_intensity = intensity[left:right+1]
 
-            # Sum method (Chemstation-style): area = sum of all intensity values
-            area = np.sum(peak_intensity)
-
-            # Alternative: Physical integration (commented out)
-            # area = trapezoid(peak_intensity, peak_time)  # Units: mRU·min
+            # Trapezoid integration in seconds (matches Chemstation units)
+            peak_time_sec = peak_time * 60  # Convert minutes to seconds
+            area = trapezoid(peak_intensity, peak_time_sec)
 
             # Calculate SNR
             snr = intensity[peak_idx] / noise_level if noise_level > 0 else float('inf')
