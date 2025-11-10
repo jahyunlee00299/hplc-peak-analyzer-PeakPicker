@@ -137,6 +137,18 @@ def run_auto_export():
         print("\n[X] Export된 파일이 없습니다.")
         return None
 
+    # Open export folder
+    print("\nExport 폴더를 여는 중...")
+    try:
+        if sys.platform == 'win32':
+            os.startfile(str(output_dir))
+        elif sys.platform == 'darwin':  # macOS
+            subprocess.run(['open', str(output_dir)])
+        else:  # linux
+            subprocess.run(['xdg-open', str(output_dir)])
+    except Exception as e:
+        print(f"폴더 열기 실패: {e}")
+
     return output_dir
 
 
@@ -501,6 +513,20 @@ def main():
         print(f"[OK] 시각화: {Path(data_dir) / 'analysis_results' / '*_deconvolution.png'}")
     print("\nExcel 파일과 시각화를 확인하여 결과를 검토하세요.")
     print("="*80)
+
+    # Open result folder
+    analysis_dir = Path(data_dir) / 'analysis_results'
+    if analysis_dir.exists():
+        print("\n결과 폴더를 여는 중...")
+        try:
+            if sys.platform == 'win32':
+                os.startfile(str(analysis_dir))
+            elif sys.platform == 'darwin':  # macOS
+                subprocess.run(['open', str(analysis_dir)])
+            else:  # linux
+                subprocess.run(['xdg-open', str(analysis_dir)])
+        except Exception as e:
+            print(f"폴더 열기 실패: {e}")
 
     return 0
 
