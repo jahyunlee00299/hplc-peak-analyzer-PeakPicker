@@ -307,14 +307,15 @@ def run_visualization(data_dir):
             time = df_csv[0].values
             intensity = df_csv[1].values
 
-            # Calculate baseline
+            # Calculate baseline (robust_fit only)
             corrector = HybridBaselineCorrector(time, intensity)
-            baseline, best_params = corrector.optimize_baseline()
+            corrector.find_baseline_anchor_points(valley_prominence=0.01, percentile=10)
+            baseline = corrector.generate_hybrid_baseline(method='robust_fit')
             corrected = intensity - baseline
             corrected = np.maximum(corrected, 0)
 
             # Store baseline statistics
-            method = best_params.get('method', 'N/A')
+            method = 'robust_fit'
             baseline_area = np.trapz(baseline, time)
             signal_area = np.trapz(intensity, time)
             baseline_ratio = baseline_area / signal_area if signal_area > 0 else 0
