@@ -567,7 +567,24 @@ def run_visualization(data_dir):
                         columns='RT_rounded',
                         values='area',
                         aggfunc='sum'
-                    ).fillna('')
+                    )
+
+                    # Sort columns by: 1) number of non-NaN values (desc), 2) max value (desc)
+                    non_empty_counts = pivot_area.notna().sum(axis=0)
+                    max_values = pivot_area.max(axis=0).fillna(0)
+
+                    sort_df = pd.DataFrame({
+                        'rt': pivot_area.columns,
+                        'count': non_empty_counts,
+                        'max_val': max_values
+                    })
+                    sort_df = sort_df.sort_values(['count', 'max_val'], ascending=[False, False])
+
+                    # Reorder columns based on sorted RT values
+                    pivot_area = pivot_area[sort_df['rt'].tolist()]
+
+                    # Fill NaN with empty string
+                    pivot_area = pivot_area.fillna('')
 
                     # Rename columns to include RT_ prefix
                     pivot_area.columns = [f'RT_{rt}' for rt in pivot_area.columns]
