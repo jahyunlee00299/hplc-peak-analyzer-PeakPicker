@@ -14,34 +14,44 @@
 
 ## 빠른 시작
 
+### 완전 자동화 워크플로우 (권장 ⭐)
+```bash
+# 방법 1: 폴더 경로 직접 지정 (가장 빠름 🚀)
+python complete_workflow.py "result/DEF_LC 2025-05-19 17-57-25"
+
+# 방법 2: 최근 폴더 자동 감지
+python quick_analyze.py
+
+# 방법 3: 대화형 모드
+python complete_workflow.py
+#   옵션: 1. Export부터 / 2. 기존 폴더 / 경로 직접 입력
+```
+
+### 단계별 실행
 ```bash
 # 1. Chemstation에서 데이터 내보내기
 python auto_export_keyboard_final.py
 
-# 옵션 선택:
-#   1. 대화형 폴더 탐색 (트리 뷰로 폴더 구조 확인)
-#   2. 직접 경로 입력
-#   3. 전체 폴더 스캔 후 모든 .D 자동 내보내기 ⚡
+# 2. 피크 면적 정량 분석
+python quantify_peaks.py "result/폴더명"
 
-# 2. 통합 피크 검출 (권장 ⭐)
+# 3. 통합 피크 검출 (개별 분석)
 python integrated_peak_detection.py
-
-# 또는 기존 분석 파이프라인
-python hplc_analyzer_enhanced.py "csv/파일/경로"
 ```
 
 ## 핵심 파일
 
 ### 메인 스크립트
-- `auto_export_keyboard_final.py` - Chemstation 자동 내보내기 (대화형 경로 입력)
-- `integrated_peak_detection.py` - **통합 피크 검출 시스템 (권장 ⭐)**
-- `hplc_analyzer_enhanced.py` - 기존 분석 파이프라인
+- `complete_workflow.py` - **완전 자동화 워크플로우 (Export → 분석 → 시각화) ⭐**
+- `quantify_peaks.py` - **피크 면적 정량 분석 및 검량선 생성**
+- `auto_export_keyboard_final.py` - Chemstation 자동 내보내기
+- `integrated_peak_detection.py` - 통합 피크 검출 시스템
 
 ### 진단 및 테스트 도구
+- `check_area_calculation.py` - 면적 계산 방법 검증 (6가지 방법 비교)
 - `test_smoothing_improvements.py` - 스무딩 개선 효과 비교
 - `inspect_baseline_check.py` - 베이스라인 상세 점검
 - `diagnose_negative_issue.py` - 음수 영역 진단
-- `test_negative_peaks.py` - 음수 피크 검출 테스트
 
 ### 문서
 - `PROJECT_UPDATE.md` - **최신 업데이트 내역 (2025-01-10)**
@@ -101,14 +111,19 @@ PeakPicker/
 
 ## 주요 개선사항
 
-### v3.0 (2025-01-10) - 베이스라인 강화 및 통합 피크 검출 ⭐
+### v3.1 (2025-11-10) - 완전 자동화 워크플로우 및 정량 분석 ⭐
+- **완전 자동화**: Export → 베이스라인 보정 → 피크 검출 → 정량 → 시각화 (원스톱)
+- **정량 분석**: 피크 면적 계산, 검량선 생성, 참조값 비교
+- **면적 계산 수정**: 베이스라인 복귀 지점 기반, 초 단위 적분 (97% 정확도)
+- **대화형 시각화**: Tkinter 기반 결과 뷰어 (검량선, 요약표, 상세 데이터)
+- **배치 정량**: 폴더 내 모든 샘플 자동 분석 및 농도별 통계
+
+### v3.0 (2025-01-10) - 베이스라인 강화 및 통합 피크 검출
 - **양방향 피크 검출**: 양수/음수 피크 모두 검출 가능
 - **베이스라인 스무딩 강화**: 3배 스무딩 팩터 + 2단계 필터링 (Savgol + 이동평균)
 - **스마트 음수 처리**: 실제 음수 피크 보존, 가짜 음수 영역 70% 감소
 - **통합 파이프라인**: `IntegratedPeakDetector` 클래스로 전체 워크플로우 자동화
 - **성능 개선**: 음수 값 61.5% 감소, 가짜 음수 피크 66.7% 제거
-- **상세 진단 도구**: 베이스라인 점검, 음수 영역 분석, 개선 효과 비교
-- 상세 내역: [PROJECT_UPDATE.md](PROJECT_UPDATE.md)
 
 ### v2.1 (2025-11-06) - 재귀적 검색 및 성능 최적화
 - **전체 폴더 스캔 모드**: 한 번에 모든 .D 파일 탐색 및 내보내기 ⚡
