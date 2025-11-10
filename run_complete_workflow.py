@@ -525,102 +525,14 @@ def run_visualization(data_dir):
     # 1. Baseline Summary
     if baseline_stats:
         try:
-            # Save Excel
+            # Save Excel only
             baseline_summary_file = Path(data_dir) / "BASELINE_SUMMARY.xlsx"
             df_baseline = pd.DataFrame(baseline_stats)
             df_baseline.to_excel(baseline_summary_file, index=False, engine='openpyxl')
             print(f"  베이스라인 서머리: {baseline_summary_file.name}")
 
-            # Create baseline summary visualization
-            fig = plt.figure(figsize=(16, 10))
-            gs = fig.add_gridspec(3, 2, hspace=0.3, wspace=0.3)
-
-            # Plot 1: Method usage frequency
-            ax1 = fig.add_subplot(gs[0, 0])
-            method_counts = df_baseline['Method'].value_counts()
-            colors_methods = plt.cm.Set3(np.linspace(0, 1, len(method_counts)))
-            ax1.bar(range(len(method_counts)), method_counts.values, color=colors_methods)
-            ax1.set_xticks(range(len(method_counts)))
-            ax1.set_xticklabels(method_counts.index, rotation=45, ha='right')
-            ax1.set_ylabel('Count', fontsize=11, fontweight='bold')
-            ax1.set_title('Baseline Correction Methods Used', fontsize=12, fontweight='bold')
-            ax1.grid(True, alpha=0.3, axis='y')
-            for i, v in enumerate(method_counts.values):
-                ax1.text(i, v, str(v), ha='center', va='bottom', fontweight='bold')
-
-            # Plot 2: Baseline Ratio distribution
-            ax2 = fig.add_subplot(gs[0, 1])
-            samples_to_show = df_baseline.head(15)
-            x_pos = np.arange(len(samples_to_show))
-            colors_ratio = plt.cm.RdYlGn_r(samples_to_show['Baseline_Ratio_%'].values / 100)
-            bars = ax2.bar(x_pos, samples_to_show['Baseline_Ratio_%'], color=colors_ratio)
-            ax2.set_xticks(x_pos)
-            ax2.set_xticklabels(samples_to_show['Sample'], rotation=45, ha='right', fontsize=8)
-            ax2.set_ylabel('Baseline Ratio (%)', fontsize=11, fontweight='bold')
-            ax2.set_title('Baseline Ratio by Sample (First 15)', fontsize=12, fontweight='bold')
-            ax2.axhline(y=50, color='orange', linestyle='--', alpha=0.5, label='50% threshold')
-            ax2.legend()
-            ax2.grid(True, alpha=0.3, axis='y')
-
-            # Plot 3: Baseline vs Signal Area
-            ax3 = fig.add_subplot(gs[1, :])
-            x_pos = np.arange(len(df_baseline))
-            width = 0.35
-            ax3.bar(x_pos - width/2, df_baseline['Total_Signal_Area'], width,
-                   label='Total Signal Area', alpha=0.7, color='blue')
-            ax3.bar(x_pos + width/2, df_baseline['Baseline_Area'], width,
-                   label='Baseline Area', alpha=0.7, color='red')
-            ax3.set_xticks(x_pos)
-            ax3.set_xticklabels(df_baseline['Sample'], rotation=45, ha='right', fontsize=8)
-            ax3.set_ylabel('Area', fontsize=11, fontweight='bold')
-            ax3.set_title('Total Signal vs Baseline Area', fontsize=12, fontweight='bold')
-            ax3.legend()
-            ax3.grid(True, alpha=0.3, axis='y')
-
-            # Plot 4: Statistics table
-            ax4 = fig.add_subplot(gs[2, :])
-            ax4.axis('off')
-
-            stats_data = [
-                ['Statistic', 'Value'],
-                ['Total Samples', f"{len(df_baseline)}"],
-                ['Avg Baseline Ratio', f"{df_baseline['Baseline_Ratio_%'].mean():.1f}%"],
-                ['Min Baseline Ratio', f"{df_baseline['Baseline_Ratio_%'].min():.1f}%"],
-                ['Max Baseline Ratio', f"{df_baseline['Baseline_Ratio_%'].max():.1f}%"],
-                ['Most Used Method', f"{df_baseline['Method'].mode()[0]}"],
-                ['Avg Total Signal Area', f"{df_baseline['Total_Signal_Area'].mean():,.1f}"],
-                ['Avg Baseline Area', f"{df_baseline['Baseline_Area'].mean():,.1f}"],
-            ]
-
-            table = ax4.table(cellText=stats_data, cellLoc='left', loc='center',
-                            colWidths=[0.3, 0.7])
-            table.auto_set_font_size(False)
-            table.set_fontsize(10)
-            table.scale(1, 2)
-
-            # Style header row
-            for i in range(2):
-                table[(0, i)].set_facecolor('#4CAF50')
-                table[(0, i)].set_text_props(weight='bold', color='white')
-
-            # Alternate row colors
-            for i in range(1, len(stats_data)):
-                for j in range(2):
-                    if i % 2 == 0:
-                        table[(i, j)].set_facecolor('#f0f0f0')
-
-            plt.suptitle('Baseline Correction Summary', fontsize=14, fontweight='bold', y=0.98)
-
-            baseline_summary_plot = Path(data_dir) / "BASELINE_SUMMARY.png"
-            plt.savefig(baseline_summary_plot, dpi=150, bbox_inches='tight')
-            plt.close()
-
-            print(f"  베이스라인 서머리 이미지: {baseline_summary_plot.name}")
-
         except Exception as e:
             print(f"  베이스라인 서머리 생성 실패: {e}")
-            import traceback
-            traceback.print_exc()
 
     # 2. RT-based Pivot Table Summary
     if stats:
@@ -709,7 +621,7 @@ def run_visualization(data_dir):
     print("="*80)
     print(f"\n  베이스라인 플롯: {baseline_viz_count}개 → {baseline_plots_dir.name}/")
     print(f"  디컨볼루션 플롯: {viz_count}개 → {deconv_plots_dir.name}/")
-    print(f"  베이스라인 서머리: BASELINE_SUMMARY.xlsx + BASELINE_SUMMARY.png")
+    print(f"  베이스라인 서머리: BASELINE_SUMMARY.xlsx")
     print(f"  피크 서머리: PEAK_SUMMARY.xlsx (RT 기준 피벗 포함)")
     print(f"  저장 위치: {data_dir}")
 
