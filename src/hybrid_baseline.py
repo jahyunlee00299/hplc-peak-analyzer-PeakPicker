@@ -162,7 +162,8 @@ class HybridBaselineCorrector:
     def generate_hybrid_baseline(
         self,
         method: str = 'weighted_spline',
-        smooth_factor: float = 0.5
+        smooth_factor: float = 0.5,
+        enhanced_smoothing: bool = True
     ) -> np.ndarray:
         """
         앵커 포인트들로부터 베이스라인 생성
@@ -185,9 +186,13 @@ class HybridBaselineCorrector:
         if method == 'weighted_spline':
             # Confidence를 가중치로 사용한 스플라인 피팅
             if len(indices) > 3:
-                # 가중치 기반 스무싱 팩터
+                # 가중치 기반 스무싱 팩터 (강화된 스무딩)
                 weights = confidences
-                s = len(indices) * smooth_factor * (1 - np.mean(confidences) * 0.5)
+                if enhanced_smoothing:
+                    # 스무딩 강화: smooth_factor를 3배 증가
+                    s = len(indices) * smooth_factor * 3.0 * (1 - np.mean(confidences) * 0.5)
+                else:
+                    s = len(indices) * smooth_factor * (1 - np.mean(confidences) * 0.5)
 
                 try:
                     spl = UnivariateSpline(indices, values, w=weights, s=s, k=3)
@@ -241,11 +246,17 @@ class HybridBaselineCorrector:
                 robust_weights = confidences[mask]
 
                 if len(robust_indices) > 3:
+                    # 스무딩 강화
+                    if enhanced_smoothing:
+                        s = len(robust_indices) * smooth_factor * 3.0
+                    else:
+                        s = len(robust_indices) * smooth_factor
+
                     spl = UnivariateSpline(
                         robust_indices,
                         robust_values,
                         w=robust_weights,
-                        s=len(robust_indices) * smooth_factor,
+                        s=s,
                         k=min(3, len(robust_indices) - 1)
                     )
                     baseline = spl(np.arange(len(self.intensity)))
@@ -256,15 +267,77 @@ class HybridBaselineCorrector:
                 f = interp1d(indices, values, kind='linear', fill_value='extrapolate')
                 baseline = f(np.arange(len(self.intensity)))
 
-        # 베이스라인이 신호 위로 가지 않도록
-        baseline = np.minimum(baseline, self.intensity)
+        # 베이스라인 제약 제거: 음수 피크를 위해 신호 위로 갈 수 있음
+        # baseline = np.minimum(baseline, self.intensity)  # 주석 처리
 
-        # 부드럽게 만들기
+        # 부드럽게 만들기 (강화된 스무딩)
         if len(baseline) > 21:
-            baseline = signal.savgol_filter(baseline, 21, 3)
-            baseline = np.minimum(baseline, self.intensity)
+            if enhanced_smoothing:
+                # 1차 스무딩: savgol_filter
+                baseline = signal.savgol_filter(baseline, 21, 3)
+                # 2차 스무딩: 이동 평균 (추가)
+                window = 15
+                baseline = np.convolve(baseline, np.ones(window)/window, mode='same')
+            else:
+                baseline = signal.savgol_filter(baseline, 21, 3)
+            # baseline = np.minimum(baseline, self.intensity)  # 주석 처리
 
         return baseline
+
+    def post_process_corrected_signal(
+        self,
+        corrected: np.ndarray,
+        clip_negative: bool = True,
+        negative_threshold: float = -50.0
+    ) -> np.ndarray:
+        """
+        보정된 신호의 후처리
+
+        Args:
+            corrected: 베이스라인 보정 후 신호
+            clip_negative: 음수 값을 0으로 클리핑할지 여부
+            negative_threshold: 이 값보다 작은 음수는 실제 음수 피크로 간주하고 보존
+
+        Returns:
+            후처리된 신호
+        """
+        processed = corrected.copy()
+
+        if clip_negative:
+            # 음수 영역 분석
+            negative_mask = processed < 0
+
+            if np.any(negative_mask):
+                # 연속된 음수 영역 찾기
+                regions = []
+                in_region = False
+                start = 0
+
+                for i, val in enumerate(negative_mask):
+                    if val and not in_region:
+                        start = i
+                        in_region = True
+                    elif not val and in_region:
+                        regions.append((start, i-1))
+                        in_region = False
+
+                if in_region:
+                    regions.append((start, len(negative_mask)-1))
+
+                # 각 음수 영역 검사
+                for start, end in regions:
+                    region_values = processed[start:end+1]
+                    min_val = np.min(region_values)
+                    region_size = end - start + 1
+
+                    # 작고 얕은 음수 영역만 클리핑
+                    # 조건: 최소값이 threshold보다 크고 (얕음), 크기가 작음
+                    if min_val > negative_threshold and region_size < 100:
+                        # 0으로 클리핑
+                        processed[start:end+1] = np.maximum(processed[start:end+1], 0)
+                    # 크고 깊은 음수 영역은 실제 음수 피크로 보존
+
+        return processed
 
     def optimize_baseline(self) -> Tuple[np.ndarray, Dict]:
         """
@@ -587,8 +660,9 @@ def test_hybrid_baseline():
                       header=None, sep='\t', encoding='utf-16-le')
     time1 = df1[0].values
     intensity1 = df1[1].values
-    if np.min(intensity1) < 0:
-        intensity1 = intensity1 - np.min(intensity1)
+    # 음수 값 보존: 음수 피크 검출을 위해 자동 변환 제거
+    # if np.min(intensity1) < 0:
+    #     intensity1 = intensity1 - np.min(intensity1)
 
     # sample_chromatogram.csv
     df2 = pd.read_csv('peakpicker/examples/sample_chromatogram.csv')
