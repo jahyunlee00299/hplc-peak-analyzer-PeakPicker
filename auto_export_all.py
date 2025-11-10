@@ -314,21 +314,16 @@ def main():
             folder_groups[parent_folder] = 0
         folder_groups[parent_folder] += 1
 
-    for folder, count in sorted(folder_groups.items(), key=lambda x: x[1], reverse=True)[:15]:
+    for folder, count in sorted(folder_groups.items(), key=lambda x: x[1], reverse=True):
         print(f"  [DIR] {folder}: {count}개")
 
-    if len(folder_groups) > 15:
-        print(f"  ... 외 {len(folder_groups)-15}개 폴더 더")
-
-    # 처음 몇 개 표시
+    # 전체 파일 목록 표시
     print("\n" + "=" * 80)
-    print("발견된 파일 (처음 10개):")
+    print(f"발견된 전체 파일 목록 ({len(d_folders)}개):")
     print("-" * 80)
-    for i, d_folder in enumerate(d_folders[:10], 1):
+    for i, d_folder in enumerate(d_folders, 1):
         rel_path = Path(d_folder).relative_to(base_dir)
-        print(f"  {i:2d}. {rel_path}")
-    if len(d_folders) > 10:
-        print(f"  ... 외 {len(d_folders)-10}개 더")
+        print(f"  {i:3d}. {rel_path}")
 
     # 디렉토리 생성
     os.makedirs(output_dir, exist_ok=True)
@@ -460,11 +455,8 @@ def main():
                 exported_summary[parent_folder] = 0
             exported_summary[parent_folder] += 1
 
-    for folder, count in sorted(exported_summary.items(), key=lambda x: x[1], reverse=True)[:10]:
+    for folder, count in sorted(exported_summary.items(), key=lambda x: x[1], reverse=True):
         print(f"  [OK] {folder}: {count}개")
-
-    if len(exported_summary) > 10:
-        print(f"  ... 외 {len(exported_summary)-10}개 폴더 더")
 
     # No signal 파일 목록
     if no_signal_files:
