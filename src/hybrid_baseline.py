@@ -256,13 +256,13 @@ class HybridBaselineCorrector:
                 f = interp1d(indices, values, kind='linear', fill_value='extrapolate')
                 baseline = f(np.arange(len(self.intensity)))
 
-        # 베이스라인이 신호 위로 가지 않도록
-        baseline = np.minimum(baseline, self.intensity)
+        # 베이스라인 제약 제거: 음수 피크를 위해 신호 위로 갈 수 있음
+        # baseline = np.minimum(baseline, self.intensity)  # 주석 처리
 
         # 부드럽게 만들기
         if len(baseline) > 21:
             baseline = signal.savgol_filter(baseline, 21, 3)
-            baseline = np.minimum(baseline, self.intensity)
+            # baseline = np.minimum(baseline, self.intensity)  # 주석 처리
 
         return baseline
 
@@ -587,8 +587,9 @@ def test_hybrid_baseline():
                       header=None, sep='\t', encoding='utf-16-le')
     time1 = df1[0].values
     intensity1 = df1[1].values
-    if np.min(intensity1) < 0:
-        intensity1 = intensity1 - np.min(intensity1)
+    # 음수 값 보존: 음수 피크 검출을 위해 자동 변환 제거
+    # if np.min(intensity1) < 0:
+    #     intensity1 = intensity1 - np.min(intensity1)
 
     # sample_chromatogram.csv
     df2 = pd.read_csv('peakpicker/examples/sample_chromatogram.csv')
