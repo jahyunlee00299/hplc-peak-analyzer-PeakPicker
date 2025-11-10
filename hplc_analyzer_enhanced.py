@@ -155,27 +155,39 @@ class EnhancedHPLCAnalyzer:
         # Calculate peak properties
         peak_data = []
         for i, peak_idx in enumerate(peaks):
-            # Get boundaries
-            if 'left_bases' in properties:
-                left = properties['left_bases'][i]
-                right = properties['right_bases'][i]
+            # Get peak width from scipy.signal.find_peaks
+            if 'widths' in properties:
+                width_samples = properties['widths'][i]
             else:
-                left = max(0, peak_idx - 10)
-                right = min(len(intensity) - 1, peak_idx + 10)
+                width_samples = 20  # Default width
 
-            # Calculate area with linear baseline correction
+            # Extend boundaries to capture full peak (3-sigma rule for Gaussian)
+            # For Gaussian peaks, 99.7% of area is within ±3σ from center
+            half_width = int(width_samples * 3)  # Extend to ±3 sigma
+            left = max(0, peak_idx - half_width)
+            right = min(len(intensity) - 1, peak_idx + half_width)
+
+            # Find actual peak base by looking for where signal drops to near-baseline
+            # (for baseline-corrected signal, this should be close to 0)
+            peak_height = intensity[peak_idx]
+            threshold = peak_height * 0.01  # 1% of peak height
+
+            # Extend left boundary
+            for idx in range(peak_idx, max(0, peak_idx - half_width * 2), -1):
+                if intensity[idx] < threshold:
+                    left = idx
+                    break
+
+            # Extend right boundary
+            for idx in range(peak_idx, min(len(intensity), peak_idx + half_width * 2)):
+                if intensity[idx] < threshold:
+                    right = idx
+                    break
+
+            # Calculate area by direct integration (intensity is already baseline-corrected)
             peak_time = time[left:right+1]
             peak_intensity = intensity[left:right+1]
-
-            # Create linear baseline between start and end points
-            baseline_start = intensity[left]
-            baseline_end = intensity[right]
-            linear_baseline = np.linspace(baseline_start, baseline_end, len(peak_intensity))
-
-            # Subtract linear baseline and integrate
-            baseline_corrected_intensity = peak_intensity - linear_baseline
-            baseline_corrected_intensity = np.maximum(baseline_corrected_intensity, 0)  # No negative values
-            area = trapezoid(baseline_corrected_intensity, peak_time)
+            area = trapezoid(peak_intensity, peak_time)
 
             # Calculate SNR
             snr = intensity[peak_idx] / noise_level if noise_level > 0 else float('inf')
