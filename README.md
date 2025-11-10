@@ -1,14 +1,16 @@
 # HPLC Peak Picker
 
-고급 하이브리드 베이스라인 보정을 적용한 HPLC 데이터 자동 분석 도구
+고급 하이브리드 베이스라인 보정을 적용한 HPLC 크로마토그램 자동 분석 도구
 
 ## 주요 기능
 
 - **자동 내보내기**: 키보드 자동화로 Chemstation에서 크로마토그램 내보내기
-- **하이브리드 베이스라인 보정**: 골짜기 감지와 지역 최소값을 결합한 고급 베이스라인 보정
-- **강건한 피크 검출**: 100배 강도 범위(0.01배~10배)에서 안정적인 검출
+- **강화된 베이스라인 보정**: 3배 스무딩 + 2단계 필터링으로 과적합 방지
+- **양방향 피크 검출**: 양수/음수 피크 모두 검출 (solvent dip 등)
+- **스마트 음수 처리**: 실제 음수 피크 보존, 가짜 음수 영역 자동 제거 (70% 감소)
+- **통합 파이프라인**: 베이스라인 보정 → 후처리 → 피크 검출 → 면적 계산
 - **배치 처리**: 여러 파일 자동 분석
-- **Excel 리포트**: 피크 상세 정보가 포함된 전문 분석 리포트
+- **상세 시각화**: 4패널 레이아웃으로 전체 프로세스 확인
 
 ## 빠른 시작
 
@@ -21,7 +23,10 @@ python auto_export_keyboard_final.py
 #   2. 직접 경로 입력
 #   3. 전체 폴더 스캔 후 모든 .D 자동 내보내기 ⚡
 
-# 2. 내보낸 CSV 파일 분석
+# 2. 통합 피크 검출 (권장 ⭐)
+python integrated_peak_detection.py
+
+# 또는 기존 분석 파이프라인
 python hplc_analyzer_enhanced.py "csv/파일/경로"
 ```
 
@@ -29,16 +34,23 @@ python hplc_analyzer_enhanced.py "csv/파일/경로"
 
 ### 메인 스크립트
 - `auto_export_keyboard_final.py` - Chemstation 자동 내보내기 (대화형 경로 입력)
-- `hplc_analyzer_enhanced.py` - 메인 분석 파이프라인
+- `integrated_peak_detection.py` - **통합 피크 검출 시스템 (권장 ⭐)**
+- `hplc_analyzer_enhanced.py` - 기존 분석 파이프라인
 
-### 문서 (docs/)
-- `USAGE_EXAMPLES.md` - 상세 사용 가이드 (한글)
-- `OUTPUT_ORGANIZATION_GUIDE.md` - 출력 디렉토리 구조 가이드
-- `TIMING_OPTIMIZATION_GUIDE.md` - 성능 최적화 가이드
-- `PROJECT_STRUCTURE.md` - 프로젝트 구조 상세 설명
+### 진단 및 테스트 도구
+- `test_smoothing_improvements.py` - 스무딩 개선 효과 비교
+- `inspect_baseline_check.py` - 베이스라인 상세 점검
+- `diagnose_negative_issue.py` - 음수 영역 진단
+- `test_negative_peaks.py` - 음수 피크 검출 테스트
+
+### 문서
+- `PROJECT_UPDATE.md` - **최신 업데이트 내역 (2025-01-10)**
+- `docs/USAGE_EXAMPLES.md` - 상세 사용 가이드 (한글)
+- `docs/OUTPUT_ORGANIZATION_GUIDE.md` - 출력 디렉토리 구조 가이드
+- `docs/TIMING_OPTIMIZATION_GUIDE.md` - 성능 최적화 가이드
 
 ### 소스 모듈 (src/)
-- `hybrid_baseline.py` - 고급 베이스라인 보정 엔진
+- `hybrid_baseline.py` - **강화된 베이스라인 보정 엔진 (3배 스무딩)**
 - `chemstation_parser.py` - 데이터 파싱
 - `result_exporter.py` - 결과 출력
 
@@ -55,9 +67,11 @@ pip install numpy scipy pandas openpyxl pyautogui pyperclip
 ## 성능
 
 - **피크 검출 정확도**: >95%
-- **스케일 강건성**: 0.01배~10배 범위에서 100%
+- **음수 값 감소**: 61.5% (1103 → 424개)
+- **가짜 음수 피크 제거**: 66.7% (6 → 2개)
+- **양수 피크 보존**: 100%
 - **처리 속도**: 크로마토그램당 ~2초
-- **베이스라인 방법**: 자동 선택되는 3가지 알고리즘
+- **베이스라인 방법**: Robust Fit / Weighted Spline (강화된 스무딩)
 
 ## 프로젝트 구조
 
@@ -87,21 +101,26 @@ PeakPicker/
 
 ## 주요 개선사항
 
+### v3.0 (2025-01-10) - 베이스라인 강화 및 통합 피크 검출 ⭐
+- **양방향 피크 검출**: 양수/음수 피크 모두 검출 가능
+- **베이스라인 스무딩 강화**: 3배 스무딩 팩터 + 2단계 필터링 (Savgol + 이동평균)
+- **스마트 음수 처리**: 실제 음수 피크 보존, 가짜 음수 영역 70% 감소
+- **통합 파이프라인**: `IntegratedPeakDetector` 클래스로 전체 워크플로우 자동화
+- **성능 개선**: 음수 값 61.5% 감소, 가짜 음수 피크 66.7% 제거
+- **상세 진단 도구**: 베이스라인 점검, 음수 영역 분석, 개선 효과 비교
+- 상세 내역: [PROJECT_UPDATE.md](PROJECT_UPDATE.md)
+
 ### v2.1 (2025-11-06) - 재귀적 검색 및 성능 최적화
 - **전체 폴더 스캔 모드**: 한 번에 모든 .D 파일 탐색 및 내보내기 ⚡
 - **재귀적 폴더 검색**: 하위 폴더 내 .D 파일 자동 발견
-- **대화형 디렉토리 탐색기**: 트리 뷰로 폴더 구조 확인하며 선택 (2열 명령어 표시)
-- **체계적인 출력 구조**: `result/` 폴더에 실험별로 정리 ([OUTPUT_ORGANIZATION_GUIDE.md](docs/OUTPUT_ORGANIZATION_GUIDE.md))
+- **대화형 디렉토리 탐색기**: 트리 뷰로 폴더 구조 확인하며 선택
+- **체계적인 출력 구조**: `result/` 폴더에 실험별로 정리
 - **키보드 자동화 최적화**: 30% 속도 향상 (파일당 ~9초)
-- **프로젝트 구조 개선**: 문서(`docs/`), 소스(`src/`), 결과(`result/`) 폴더로 체계화
-- 상세 가이드: [성능 최적화](docs/TIMING_OPTIMIZATION_GUIDE.md) | [사용법](docs/USAGE_EXAMPLES.md)
 
 ### v2.0 (2025-11-06) - 하이브리드 베이스라인 및 대화형 인터페이스
 - **하이브리드 베이스라인**: Valley 감지 + Local Minimum 결합
 - 3가지 연결 방법 자동 최적화
 - 0.01배~10배 스케일에서 100% 성공률
-- 대화형 경로 입력 및 한글 메시지
-- 진행 상황 실시간 표시
 
 ## 라이선스
 
