@@ -279,14 +279,80 @@ def run_visualization(data_dir):
     # Import visualization tools
     sys.path.insert(0, str(Path(__file__).parent / 'src'))
     from peak_models import gaussian
+    from hybrid_baseline import HybridBaselineCorrector
 
     print("\n시각화 생성 중...")
 
     # Track statistics
     viz_count = 0
+    baseline_viz_count = 0
     stats = []
 
-    # Process each file
+    # Process each file for baseline visualization (all samples)
+    print("\n베이스라인 플롯 생성 중...")
+    for excel_file in excel_files[:10]:  # Limit to first 10 for speed
+        sample_name = excel_file.stem.replace('_peaks', '')
+        csv_file = Path(data_dir) / f"{sample_name}.csv"
+
+        if not csv_file.exists():
+            continue
+
+        try:
+            # Load chromatogram
+            df_csv = pd.read_csv(csv_file, header=None, sep='\t', encoding='utf-16-le')
+            time = df_csv[0].values
+            intensity = df_csv[1].values
+
+            # Calculate baseline
+            corrector = HybridBaselineCorrector(time, intensity)
+            baseline, best_params = corrector.optimize_baseline()
+            corrected = intensity - baseline
+            corrected = np.maximum(corrected, 0)
+
+            # Create baseline plot
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8))
+
+            # Plot 1: Original + Baseline
+            ax1.plot(time, intensity, 'b-', linewidth=1.5, label='Original Signal', alpha=0.7)
+            ax1.plot(time, baseline, 'r-', linewidth=2, label='Baseline', alpha=0.8)
+            ax1.fill_between(time, baseline, intensity, alpha=0.2, color='yellow', label='Area to Remove')
+
+            ax1.set_xlabel('Retention Time (min)', fontsize=12)
+            ax1.set_ylabel('Intensity', fontsize=12)
+            ax1.set_title(f'{sample_name} - Baseline Correction', fontsize=14, fontweight='bold')
+            ax1.legend(fontsize=10)
+            ax1.grid(True, alpha=0.3)
+
+            # Add method info
+            method = best_params.get('method', 'N/A')
+            ax1.text(0.02, 0.98, f'Method: {method}', transform=ax1.transAxes,
+                    fontsize=10, verticalalignment='top',
+                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+            # Plot 2: Corrected Signal
+            ax2.plot(time, corrected, 'g-', linewidth=1.5, label='Corrected Signal')
+            ax2.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+
+            ax2.set_xlabel('Retention Time (min)', fontsize=12)
+            ax2.set_ylabel('Intensity', fontsize=12)
+            ax2.set_title(f'{sample_name} - After Baseline Correction', fontsize=14, fontweight='bold')
+            ax2.legend(fontsize=10)
+            ax2.grid(True, alpha=0.3)
+
+            plt.tight_layout()
+            output_file = analysis_dir / f"{sample_name}_baseline.png"
+            plt.savefig(output_file, dpi=150, bbox_inches='tight')
+            plt.close()
+
+            baseline_viz_count += 1
+
+        except Exception as e:
+            continue
+
+    print(f"  베이스라인 플롯: {baseline_viz_count}개 생성")
+
+    # Process each file for deconvolution visualization
+    print("\n디컨볼루션 플롯 생성 중...")
     for excel_file in excel_files:
         sample_name = excel_file.stem.replace('_peaks', '')
         csv_file = Path(data_dir) / f"{sample_name}.csv"
@@ -484,7 +550,8 @@ def run_visualization(data_dir):
     print("\n" + "="*80)
     print("시각화 완료")
     print("="*80)
-    print(f"\n  개별 시각화: {viz_count}개")
+    print(f"\n  베이스라인 플롯: {baseline_viz_count}개")
+    print(f"  디컨볼루션 플롯: {viz_count}개")
     print(f"  요약 플롯: deconvolution_summary.png")
     print(f"  서머리 파일: ALL_SAMPLES_SUMMARY.xlsx")
     print(f"  저장 위치: {analysis_dir}")
