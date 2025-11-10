@@ -262,6 +262,29 @@ def main():
     print(f"  입력 디렉토리: {base_dir}")
     print(f"  출력 디렉토리: {output_dir}")
 
+    # 폴더 구조 유지 여부 확인
+    print("\n" + "=" * 80)
+    print("  폴더 구조 옵션")
+    print("=" * 80)
+    print("\n  하위 폴더의 폴더 구조를 어떻게 처리할까요?")
+    print("\n  1) 폴더 구조 유지 (예: output/프로젝트A/sample1.csv)")
+    print("  2) 평평하게 저장 (예: output/sample1.csv)")
+    print("\n  선택 (1 또는 2): ", end="")
+
+    preserve_structure = True
+    while True:
+        choice = input().strip()
+        if choice == '1':
+            preserve_structure = True
+            print("\n  [OK] 폴더 구조를 유지합니다.")
+            break
+        elif choice == '2':
+            preserve_structure = False
+            print("\n  [OK] 모든 파일을 한 폴더에 평평하게 저장합니다.")
+            break
+        else:
+            print("  잘못된 입력입니다. 1 또는 2를 입력하세요: ", end="")
+
     # .D 폴더 찾기
     print(f"\n'{base_dir}' 에서 .D 폴더 검색 중...")
     print("  (하위 폴더 포함 재귀적 검색)")
@@ -348,18 +371,23 @@ def main():
             skipped_last_blank += 1
             continue
 
-        # 프로젝트 폴더 구조 유지
-        try:
-            # d_folder의 상대 경로 계산
-            rel_path = Path(d_folder).relative_to(base_dir)
-            # 상위 폴더 구조 생성
-            subfolder = rel_path.parent
-            output_subfolder = os.path.join(output_dir, subfolder)
-            os.makedirs(output_subfolder, exist_ok=True)
-            # CSV 파일 경로
-            output_csv = os.path.join(output_subfolder, f"{folder_name}.csv")
-        except ValueError:
-            # 상대 경로 계산 실패 시 기본 경로 사용
+        # 폴더 구조 유지 여부에 따라 경로 설정
+        if preserve_structure:
+            # 프로젝트 폴더 구조 유지
+            try:
+                # d_folder의 상대 경로 계산
+                rel_path = Path(d_folder).relative_to(base_dir)
+                # 상위 폴더 구조 생성
+                subfolder = rel_path.parent
+                output_subfolder = os.path.join(output_dir, subfolder)
+                os.makedirs(output_subfolder, exist_ok=True)
+                # CSV 파일 경로
+                output_csv = os.path.join(output_subfolder, f"{folder_name}.csv")
+            except ValueError:
+                # 상대 경로 계산 실패 시 기본 경로 사용
+                output_csv = os.path.join(output_dir, f"{folder_name}.csv")
+        else:
+            # 평평하게 저장 (모든 파일을 한 폴더에)
             output_csv = os.path.join(output_dir, f"{folder_name}.csv")
 
         # 이미 존재하면 건너뛰기
@@ -406,19 +434,27 @@ def main():
     exported_summary = {}
     for d_folder in d_folders:
         folder_name = Path(d_folder).name.replace('.D', '')
-        try:
-            rel_path = Path(d_folder).relative_to(base_dir)
-            subfolder = rel_path.parent
-            output_csv = os.path.join(output_dir, subfolder, f"{folder_name}.csv")
-        except ValueError:
+
+        # 폴더 구조 유지 여부에 따라 경로 설정
+        if preserve_structure:
+            try:
+                rel_path = Path(d_folder).relative_to(base_dir)
+                subfolder = rel_path.parent
+                output_csv = os.path.join(output_dir, subfolder, f"{folder_name}.csv")
+            except ValueError:
+                output_csv = os.path.join(output_dir, f"{folder_name}.csv")
+        else:
             output_csv = os.path.join(output_dir, f"{folder_name}.csv")
 
         if os.path.exists(output_csv):
-            try:
-                rel_path = Path(d_folder).relative_to(base_dir)
-                parent_folder = str(rel_path.parent) if rel_path.parent != Path('.') else '(루트)'
-            except ValueError:
-                parent_folder = '(기타)'
+            if preserve_structure:
+                try:
+                    rel_path = Path(d_folder).relative_to(base_dir)
+                    parent_folder = str(rel_path.parent) if rel_path.parent != Path('.') else '(루트)'
+                except ValueError:
+                    parent_folder = '(기타)'
+            else:
+                parent_folder = '(전체 - 평평하게 저장)'
 
             if parent_folder not in exported_summary:
                 exported_summary[parent_folder] = 0
