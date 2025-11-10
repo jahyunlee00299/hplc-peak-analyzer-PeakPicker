@@ -429,11 +429,64 @@ def run_visualization(data_dir):
         plt.savefig(summary_file, dpi=150, bbox_inches='tight')
         plt.close()
 
+    # Create summary Excel file
+    if stats:
+        print("\n전체 분석 서머리 파일 생성 중...")
+        try:
+            summary_excel = analysis_dir / "ALL_SAMPLES_SUMMARY.xlsx"
+
+            with pd.ExcelWriter(summary_excel, engine='openpyxl') as writer:
+                # Sheet 1: Overall Summary
+                df_stats = pd.DataFrame(stats)
+                df_stats.to_excel(writer, sheet_name='Sample_Summary', index=False)
+
+                # Sheet 2: All Peaks Combined
+                all_peaks = []
+                for excel_file in excel_files:
+                    sample_name = excel_file.stem.replace('_peaks', '')
+                    try:
+                        df_peaks = pd.read_excel(excel_file, sheet_name='Peaks')
+                        df_peaks['sample_name'] = sample_name
+                        all_peaks.append(df_peaks)
+                    except:
+                        pass
+
+                if all_peaks:
+                    df_all_peaks = pd.concat(all_peaks, ignore_index=True)
+                    # Reorder columns
+                    cols = ['sample_name'] + [c for c in df_all_peaks.columns if c != 'sample_name']
+                    df_all_peaks = df_all_peaks[cols]
+                    df_all_peaks.to_excel(writer, sheet_name='All_Peaks', index=False)
+
+                # Sheet 3: All Deconvolved Peaks Combined
+                all_deconv = []
+                for excel_file in excel_files:
+                    sample_name = excel_file.stem.replace('_peaks', '')
+                    try:
+                        df_deconv = pd.read_excel(excel_file, sheet_name='Deconvolved_Peaks')
+                        df_deconv['sample_name'] = sample_name
+                        all_deconv.append(df_deconv)
+                    except:
+                        pass
+
+                if all_deconv:
+                    df_all_deconv = pd.concat(all_deconv, ignore_index=True)
+                    # Reorder columns
+                    cols = ['sample_name'] + [c for c in df_all_deconv.columns if c != 'sample_name']
+                    df_all_deconv = df_all_deconv[cols]
+                    df_all_deconv.to_excel(writer, sheet_name='All_Deconvolved_Peaks', index=False)
+
+            print(f"  서머리 파일 저장: {summary_excel.name}")
+
+        except Exception as e:
+            print(f"  서머리 파일 생성 실패: {e}")
+
     print("\n" + "="*80)
     print("시각화 완료")
     print("="*80)
     print(f"\n  개별 시각화: {viz_count}개")
     print(f"  요약 플롯: deconvolution_summary.png")
+    print(f"  서머리 파일: ALL_SAMPLES_SUMMARY.xlsx")
     print(f"  저장 위치: {analysis_dir}")
 
     return True
