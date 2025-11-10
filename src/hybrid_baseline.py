@@ -281,20 +281,27 @@ class HybridBaselineCorrector:
             # 1-3분 구간의 낮은 값을 기준으로 사용 (10th percentile)
             reference_region = self.intensity[ref_start_idx:ref_end_idx]
             reference_baseline = np.percentile(reference_region, 10)
+            reference_range = np.ptp(reference_region)  # 1-3분 구간 자체의 범위
 
-            # 베이스라인이 기준점에서 ±신호범위만큼 벗어나는 것 허용
-            signal_range = np.ptp(self.intensity)  # peak-to-peak
-            lower_bound = reference_baseline - signal_range * 0.5
-            upper_bound = reference_baseline + signal_range * 1.5
+            # 베이스라인이 기준점에서 1-3분 구간 범위의 ±3배만큼 벗어나는 것 허용
+            # 이는 피크가 있는 구간에서도 베이스라인이 합리적으로 유지되도록 함
+            allowed_deviation = max(reference_range * 3.0, 1000)  # 최소 1000 허용
+            lower_bound = reference_baseline - allowed_deviation
+            upper_bound = reference_baseline + allowed_deviation * 2.0  # 위로는 더 여유
 
             baseline = np.clip(baseline, lower_bound, upper_bound)
 
-        # 2. 로컬 윈도우에서 원본 신호의 최대값을 초과하지 않도록 제한
-        from scipy.ndimage import maximum_filter
+        # 2. 로컬 윈도우에서 원본 신호 범위를 초과하지 않도록 제한
+        from scipy.ndimage import maximum_filter, minimum_filter
         window_size = 201  # ~1분 윈도우
         local_max = maximum_filter(self.intensity, size=window_size, mode='nearest')
-        # 베이스라인은 로컬 최대값의 1.5배를 초과할 수 없음
+        local_min = minimum_filter(self.intensity, size=window_size, mode='nearest')
+
+        # 베이스라인은 로컬 최소값과 최대값 사이에 있어야 함
+        # 약간의 여유(1.5배)는 양수 쪽으로만 허용
         baseline = np.minimum(baseline, local_max * 1.5)
+        # 음수 쪽으로는 로컬 최소값의 1.2배까지만 허용
+        baseline = np.maximum(baseline, local_min * 1.2)
 
         # 부드럽게 만들기 (강화된 스무딩) - 마지막 구간 제외
         if len(baseline) > 21 and len(self.baseline_points) >= 2:
