@@ -267,19 +267,53 @@ class HybridBaselineCorrector:
                 f = interp1d(indices, values, kind='linear', fill_value='extrapolate')
                 baseline = f(np.arange(len(self.intensity)))
 
-        # 베이스라인 제약 제거: 음수 피크를 위해 신호 위로 갈 수 있음
-        # baseline = np.minimum(baseline, self.intensity)  # 주석 처리
+        # 베이스라인 안전 제약: 극단적인 값 방지
+        # 로컬 윈도우에서 원본 신호의 최대값을 초과하지 않도록 제한
+        from scipy.ndimage import maximum_filter
+        window_size = 201  # ~1분 윈도우
+        local_max = maximum_filter(self.intensity, size=window_size, mode='nearest')
+        # 베이스라인은 로컬 최대값의 1.5배를 초과할 수 없음
+        baseline = np.minimum(baseline, local_max * 1.5)
 
-        # 부드럽게 만들기 (강화된 스무딩)
-        if len(baseline) > 21:
-            if enhanced_smoothing:
-                # 1차 스무딩: savgol_filter
-                baseline = signal.savgol_filter(baseline, 21, 3)
-                # 2차 스무딩: 이동 평균 (추가)
-                window = 15
-                baseline = np.convolve(baseline, np.ones(window)/window, mode='same')
-            else:
-                baseline = signal.savgol_filter(baseline, 21, 3)
+        # 부드럽게 만들기 (강화된 스무딩) - 마지막 구간 제외
+        if len(baseline) > 21 and len(self.baseline_points) >= 2:
+            # 마지막 구간 인덱스 계산
+            last_pt = self.baseline_points[-1]
+            second_last_pt = self.baseline_points[-2]
+            last_segment_start = second_last_pt.index
+
+            # 마지막 구간 제외하고 스무딩
+            if last_segment_start > 21:
+                if enhanced_smoothing:
+                    # 1차 스무딩: savgol_filter
+                    baseline[:last_segment_start] = signal.savgol_filter(baseline[:last_segment_start], 21, 3)
+                    # 2차 스무딩: 이동 평균 (추가)
+                    window = 15
+                    baseline[:last_segment_start] = np.convolve(
+                        baseline[:last_segment_start],
+                        np.ones(window)/window,
+                        mode='same'
+                    )
+                else:
+                    baseline[:last_segment_start] = signal.savgol_filter(baseline[:last_segment_start], 21, 3)
+
+        # 마지막 구간 선형 보간으로 교체 (스플라인 발산 방지)
+        if len(self.baseline_points) >= 2:
+            last_pt = self.baseline_points[-1]
+            second_last_pt = self.baseline_points[-2]
+
+            # 마지막 두 앵커 포인트 사이를 선형 보간
+            start_idx = second_last_pt.index
+            end_idx = last_pt.index
+
+            if end_idx > start_idx:
+                x_range = np.arange(start_idx, end_idx + 1)
+                linear_baseline = np.interp(
+                    x_range,
+                    [start_idx, end_idx],
+                    [second_last_pt.value, last_pt.value]
+                )
+                baseline[start_idx:end_idx + 1] = linear_baseline
             # baseline = np.minimum(baseline, self.intensity)  # 주석 처리
 
         return baseline
