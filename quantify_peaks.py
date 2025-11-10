@@ -242,15 +242,6 @@ class PeakQuantifier:
             print("농도별 주 피크 면적 요약")
             print(f"{'='*80}")
             print(summary)
-
-            # CSV 저장
-            summary_file = output_dir / 'peak_area_summary.csv'
-            summary.to_csv(summary_file, encoding='utf-8-sig')
-            print(f"\n요약 저장: {summary_file}")
-
-            # 검량선 그래프 (STD 샘플만)
-            if len(main_peaks) > 0:
-                self._plot_calibration_curve(main_peaks, output_dir, reference_y0, reference_a)
         else:
             # 일반 샘플: 피크 정보 시각화
             print(f"\n{'='*80}")
@@ -271,87 +262,6 @@ class PeakQuantifier:
 
         return df
 
-    def _plot_calibration_curve(self, df, output_dir, reference_y0=None, reference_a=None):
-        """검량선 그래프 및 참조값 비교"""
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-        # 농도별 평균 및 표준편차
-        grouped = df.groupby('conc_value').agg({
-            'area': ['mean', 'std'],
-            'concentration': 'first'
-        })
-
-        conc_values = grouped.index.values
-        area_mean = grouped[('area', 'mean')].values
-        area_std = grouped[('area', 'std')].values
-        conc_labels = grouped[('concentration', 'first')].values
-
-        # Panel 1: 검량선
-        ax1 = axes[0]
-        ax1.errorbar(conc_values, area_mean, yerr=area_std,
-                    fmt='o', markersize=10, capsize=5, capthick=2,
-                    color='blue', ecolor='red', label='실측값 (평균 ± 표준편차)')
-
-        # 선형 회귀
-        if len(conc_values) > 1:
-            from scipy.stats import linregress
-            slope, intercept, r_value, p_value, std_err = linregress(conc_values, area_mean)
-
-            x_line = np.linspace(0, max(conc_values) * 1.1, 100)
-            y_line = slope * x_line + intercept
-
-            ax1.plot(x_line, y_line, 'b--', linewidth=2,
-                    label=f'실측 회귀선\ny = {slope:.2f}x + {intercept:.2f}\nR² = {r_value**2:.4f}')
-
-            # 참조값이 있으면 비교
-            if reference_y0 is not None and reference_a is not None:
-                y_ref = reference_a * x_line + reference_y0
-                ax1.plot(x_line, y_ref, 'g--', linewidth=2, alpha=0.8,
-                        label=f'참조 회귀선\ny = {reference_a:.2f}x + {reference_y0:.2f}')
-
-                print(f"\n{'='*80}")
-                print("회귀선 비교")
-                print(f"{'='*80}")
-                print(f"실측값:")
-                print(f"  기울기 (a): {slope:.2f}")
-                print(f"  절편 (y0): {intercept:.2f}")
-                print(f"  R²: {r_value**2:.4f}")
-                print(f"\n참조값:")
-                print(f"  기울기 (a): {reference_a:.2f}")
-                print(f"  절편 (y0): {reference_y0:.2f}")
-                print(f"\n차이:")
-                print(f"  기울기 차이: {slope - reference_a:.2f} ({(slope - reference_a)/reference_a*100:.1f}%)")
-                print(f"  절편 차이: {intercept - reference_y0:.2f} ({(intercept - reference_y0)/reference_y0*100:.1f}%)")
-
-        ax1.set_xlabel('농도 (mM)', fontsize=12, fontweight='bold')
-        ax1.set_ylabel('피크 면적', fontsize=12, fontweight='bold')
-        ax1.set_title('검량선 (Calibration Curve)', fontsize=13, fontweight='bold')
-        ax1.legend(fontsize=9)
-        ax1.grid(True, alpha=0.3)
-
-        # Panel 2: 반복 측정 산점도
-        ax2 = axes[1]
-        colors = plt.cm.tab10(np.linspace(0, 1, len(conc_values)))
-
-        for i, (conc_val, conc_label) in enumerate(zip(conc_values, conc_labels)):
-            conc_data = df[df['conc_value'] == conc_val]
-            x_scatter = np.ones(len(conc_data)) * conc_val
-            y_scatter = conc_data['area'].values
-
-            ax2.scatter(x_scatter, y_scatter, s=100, alpha=0.6,
-                       color=colors[i], label=conc_label)
-
-        ax2.set_xlabel('농도 (mM)', fontsize=12, fontweight='bold')
-        ax2.set_ylabel('피크 면적', fontsize=12, fontweight='bold')
-        ax2.set_title('반복 측정 분포', fontsize=13, fontweight='bold')
-        ax2.legend(fontsize=9, ncol=2)
-        ax2.grid(True, alpha=0.3)
-
-        plt.tight_layout()
-        plot_file = output_dir / 'calibration_curve.png'
-        plt.savefig(plot_file, dpi=150, bbox_inches='tight')
-        print(f"검량선 그래프 저장: {plot_file}")
-        plt.close()
 
     def _plot_peak_information(self, df, output_dir):
         """일반 샘플 피크 정보 시각화"""
