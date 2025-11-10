@@ -475,8 +475,14 @@ class PeakDeconvolution:
                 center = popt[i * 3 + 1]
                 sigma = popt[i * 3 + 2]
 
-                # Calculate area: integral of Gaussian = amplitude * sigma * sqrt(2*pi)
-                area = amp * sigma * np.sqrt(2 * np.pi)
+                # Calculate area using Chemstation-compatible method (sum of intensities)
+                # Generate Gaussian curve at each time point
+                component_curve = gaussian(rt, amp, center, sigma)
+                area = np.sum(component_curve)
+
+                # Alternative: Physical integration (commented out)
+                # area = amp * sigma * np.sqrt(2 * np.pi)  # Analytical Gaussian integral
+
                 total_area += area
 
                 # Find peak boundaries (at 1% of peak height)

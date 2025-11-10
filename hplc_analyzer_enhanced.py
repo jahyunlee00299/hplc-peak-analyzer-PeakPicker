@@ -184,10 +184,16 @@ class EnhancedHPLCAnalyzer:
                     right = idx
                     break
 
-            # Calculate area by direct integration (intensity is already baseline-corrected)
+            # Calculate area using Chemstation-compatible method
+            # Chemstation uses sum of intensities, not physical integration
             peak_time = time[left:right+1]
             peak_intensity = intensity[left:right+1]
-            area = trapezoid(peak_intensity, peak_time)
+
+            # Sum method (Chemstation-style): area = sum of all intensity values
+            area = np.sum(peak_intensity)
+
+            # Alternative: Physical integration (commented out)
+            # area = trapezoid(peak_intensity, peak_time)  # Units: mRU·min
 
             # Calculate SNR
             snr = intensity[peak_idx] / noise_level if noise_level > 0 else float('inf')
