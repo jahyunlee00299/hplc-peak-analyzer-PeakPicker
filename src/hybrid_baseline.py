@@ -574,10 +574,9 @@ class HybridBaselineCorrector:
                 max_allowed_slope = peak_range * 0.02
 
                 if current_slope <= max_allowed_slope:
-                    # 기울기가 충분히 완화되었으면 직선 베이스라인 적용
-                    linear_baseline[anchor_left:anchor_right+1] = np.linspace(
-                        baseline_left, baseline_right, anchor_right - anchor_left + 1
-                    )
+                    # 평평한 수평 베이스라인 적용 (두 값 중 더 낮은 값 사용)
+                    flat_baseline_value = min(baseline_left, baseline_right)
+                    linear_baseline[anchor_left:anchor_right+1] = flat_baseline_value
                 else:
                     # 기울기가 여전히 너무 가파르면 원본 베이스라인 유지
                     # 이 피크에 대해서는 직선 베이스라인을 적용하지 않음
@@ -683,7 +682,7 @@ class HybridBaselineCorrector:
 
     def optimize_baseline_with_linear_peaks(self) -> Tuple[np.ndarray, Dict]:
         """
-        피크 영역에 직선 베이스라인을 적용하고, robust vs weighted를 피크 너비로 비교
+        피크 영역에 평평한 베이스라인을 적용하고, robust vs weighted를 피크 너비로 비교
 
         Returns:
             최적 베이스라인과 파라미터 정보
@@ -694,18 +693,29 @@ class HybridBaselineCorrector:
             percentile=10
         )
 
-        # robust_fit과 weighted_spline 방법으로 베이스라인 생성
+        # robust_fit 방법으로 베이스라인 생성
         baseline_robust = self.generate_hybrid_baseline(method='robust_fit')
-        baseline_weighted = self.generate_hybrid_baseline(method='weighted_spline')
 
-        # 피크 너비 비교하여 최적 베이스라인 선택
-        hybrid_baseline, selection_info = self.compare_baselines_by_peak_width(
-            baseline_robust, baseline_weighted
+        # 피크 검출
+        corrected = np.maximum(self.intensity - baseline_robust, 0)
+        noise_level = np.percentile(corrected, 25) * 1.5
+        peaks, _ = signal.find_peaks(
+            corrected,
+            prominence=np.ptp(corrected) * 0.005,
+            height=noise_level * 3,
+            width=0
         )
 
+        # 피크 영역에 평평한 베이스라인 적용
+        if len(peaks) > 0:
+            hybrid_baseline = self.apply_linear_baseline_to_peaks(baseline_robust, peaks)
+        else:
+            hybrid_baseline = baseline_robust
+
         params = {
-            'method': 'hybrid_width_comparison',
-            'selection_info': selection_info
+            'method': 'robust_fit_with_flat_peaks',
+            'num_peaks': len(peaks),
+            'peaks_rt': [self.time[p] for p in peaks] if len(peaks) > 0 else []
         }
 
         return hybrid_baseline, params
