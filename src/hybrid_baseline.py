@@ -268,7 +268,28 @@ class HybridBaselineCorrector:
                 baseline = f(np.arange(len(self.intensity)))
 
         # 베이스라인 안전 제약: 극단적인 값 방지
-        # 로컬 윈도우에서 원본 신호의 최대값을 초과하지 않도록 제한
+        # 1. 초반 1-3분 구간을 기준 베이스라인으로 사용 (LC 특성)
+        reference_start_time = 1.0  # min
+        reference_end_time = 3.0    # min
+
+        # 시간 범위를 인덱스로 변환
+        time_per_point = (self.time[-1] - self.time[0]) / len(self.time)
+        ref_start_idx = int(reference_start_time / time_per_point)
+        ref_end_idx = int(reference_end_time / time_per_point)
+
+        if ref_start_idx < ref_end_idx < len(self.intensity):
+            # 1-3분 구간의 낮은 값을 기준으로 사용 (10th percentile)
+            reference_region = self.intensity[ref_start_idx:ref_end_idx]
+            reference_baseline = np.percentile(reference_region, 10)
+
+            # 베이스라인이 기준점에서 ±신호범위만큼 벗어나는 것 허용
+            signal_range = np.ptp(self.intensity)  # peak-to-peak
+            lower_bound = reference_baseline - signal_range * 0.5
+            upper_bound = reference_baseline + signal_range * 1.5
+
+            baseline = np.clip(baseline, lower_bound, upper_bound)
+
+        # 2. 로컬 윈도우에서 원본 신호의 최대값을 초과하지 않도록 제한
         from scipy.ndimage import maximum_filter
         window_size = 201  # ~1분 윈도우
         local_max = maximum_filter(self.intensity, size=window_size, mode='nearest')
