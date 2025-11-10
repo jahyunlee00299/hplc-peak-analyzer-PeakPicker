@@ -26,10 +26,10 @@ class IterativePeakRecovery:
         self.original_intensity = intensity.copy()
         self.current_intensity = intensity.copy()
 
-        # 음수 값 처리
-        if np.min(self.current_intensity) < 0:
-            self.current_intensity = self.current_intensity - np.min(self.current_intensity)
-            self.original_intensity = self.current_intensity.copy()
+        # 음수 값 보존: 음수 피크 검출을 위해 자동 변환 제거
+        # if np.min(self.current_intensity) < 0:
+        #     self.current_intensity = self.current_intensity - np.min(self.current_intensity)
+        #     self.original_intensity = self.current_intensity.copy()
 
         self.iterations = []
 
@@ -44,14 +44,19 @@ class IterativePeakRecovery:
         return max(noise_std, np.ptp(intensity) * 0.001)
 
     def detect_peaks(self, intensity, prominence_factor=0.005, height_factor=3):
-        """피크 검출"""
+        """
+        양방향 피크 검출: 양수 피크와 음수 피크를 모두 검출
+        """
         noise_level = self.estimate_noise(intensity)
         signal_range = np.ptp(intensity)
 
         min_prominence = max(signal_range * prominence_factor, noise_level * 3)
         min_height = noise_level * height_factor
 
-        peaks, properties = signal.find_peaks(
+        peak_info = []
+
+        # 1. 양수 피크 검출 (기존 방식)
+        positive_peaks, pos_properties = signal.find_peaks(
             intensity,
             prominence=min_prominence,
             height=min_height,
@@ -59,12 +64,11 @@ class IterativePeakRecovery:
             distance=20
         )
 
-        peak_info = []
-        for i, peak_idx in enumerate(peaks):
+        for i, peak_idx in enumerate(positive_peaks):
             # 피크 경계 찾기
-            if 'left_bases' in properties:
-                left = properties['left_bases'][i]
-                right = properties['right_bases'][i]
+            if 'left_bases' in pos_properties:
+                left = pos_properties['left_bases'][i]
+                right = pos_properties['right_bases'][i]
             else:
                 left = max(0, peak_idx - 10)
                 right = min(len(intensity) - 1, peak_idx + 10)
@@ -79,12 +83,52 @@ class IterativePeakRecovery:
                 'rt': self.time[peak_idx],
                 'height': intensity[peak_idx],
                 'area': area,
-                'prominence': properties['prominences'][i] if 'prominences' in properties else 0,
+                'prominence': pos_properties['prominences'][i] if 'prominences' in pos_properties else 0,
                 'left': left,
-                'right': right
+                'right': right,
+                'polarity': 'positive'  # 양수 피크 표시
             })
 
-        return peaks, peak_info
+        # 2. 음수 피크 검출 (신호 반전)
+        inverted_intensity = -intensity
+        negative_peaks, neg_properties = signal.find_peaks(
+            inverted_intensity,
+            prominence=min_prominence,
+            height=min_height,
+            width=3,
+            distance=20
+        )
+
+        for i, peak_idx in enumerate(negative_peaks):
+            # 피크 경계 찾기
+            if 'left_bases' in neg_properties:
+                left = neg_properties['left_bases'][i]
+                right = neg_properties['right_bases'][i]
+            else:
+                left = max(0, peak_idx - 10)
+                right = min(len(intensity) - 1, peak_idx + 10)
+
+            # 면적 계산 (음수이므로 절대값)
+            peak_time = self.time[left:right+1]
+            peak_intensity = intensity[left:right+1]
+            area = abs(trapezoid(peak_intensity, peak_time))
+
+            peak_info.append({
+                'index': peak_idx,
+                'rt': self.time[peak_idx],
+                'height': intensity[peak_idx],  # 실제 음수 값
+                'area': area,  # 절대값
+                'prominence': neg_properties['prominences'][i] if 'prominences' in neg_properties else 0,
+                'left': left,
+                'right': right,
+                'polarity': 'negative'  # 음수 피크 표시
+            })
+
+        # RT 순으로 정렬
+        peak_info.sort(key=lambda p: p['rt'])
+        all_peaks = np.array([p['index'] for p in peak_info])
+
+        return all_peaks, peak_info
 
     def validate_candidate_peak(self, rt, original_intensity, corrected_intensity,
                                existing_peaks_rt, tolerance=0.15, debug=False):
@@ -304,7 +348,8 @@ class IterativePeakRecovery:
             corrector = HybridBaselineCorrector(self.time, self.current_intensity)
             baseline, best_params = corrector.optimize_baseline_with_linear_peaks()
             corrected = self.current_intensity - baseline
-            corrected = np.maximum(corrected, 0)
+            # 음수 피크를 위해 음수 제거 제거
+            # corrected = np.maximum(corrected, 0)
 
             # 메인 피크 검출
             main_peaks, main_peak_info = self.detect_peaks(corrected)
