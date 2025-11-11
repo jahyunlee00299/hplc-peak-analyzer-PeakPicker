@@ -342,7 +342,9 @@ class HybridBaselineCorrector:
                     [second_last_pt.value, last_pt.value]
                 )
                 baseline[start_idx:end_idx + 1] = linear_baseline
-            # baseline = np.minimum(baseline, self.intensity)  # 주석 처리
+
+        # 베이스라인이 원본 신호를 초과하지 않도록 제약
+        baseline = np.minimum(baseline, self.intensity)
 
         return baseline
 
