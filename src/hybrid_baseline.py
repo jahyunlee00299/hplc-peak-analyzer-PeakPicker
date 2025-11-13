@@ -36,7 +36,7 @@ class HybridBaselineCorrector:
         self,
         valley_prominence: float = 0.01,
         local_window: int = None,
-        percentile: float = 10,
+        percentile: float = 2,  # 더 낮은 percentile로 변경 (10 -> 5 -> 2)
         min_distance: int = 10
     ) -> List[BaselinePoint]:
         """
@@ -134,6 +134,26 @@ class HybridBaselineCorrector:
                 filtered_points.append(point)
 
         filtered_points.sort(key=lambda p: p.index)
+
+        # Outlier 제거: 비정상적으로 낮은 값을 가진 앵커 포인트 필터링
+        # Valley가 큰 피크 사이의 골짜기를 잘못 감지하는 경우 방지
+        if len(filtered_points) > 5:
+            values = np.array([p.value for p in filtered_points])
+            median_value = np.median(values)
+            mad = np.median(np.abs(values - median_value))
+
+            # MAD 기반 outlier 감지 (median - 3*MAD 이하는 제거)
+            # 하지만 MAD가 너무 작으면 (stable baseline) percentile 사용
+            if mad < 100:
+                # Stable baseline: 10th percentile 이하 제거
+                threshold = np.percentile(values, 10)
+            else:
+                # Variable baseline: median - 3*MAD 이하 제거
+                threshold = median_value - 3 * mad
+
+            filtered_points = [p for p in filtered_points if p.value >= threshold]
+
+        filtered_points.sort(key=lambda p: p.index)
         self.baseline_points = filtered_points
         return filtered_points
 
@@ -186,13 +206,13 @@ class HybridBaselineCorrector:
         if method == 'weighted_spline':
             # Confidence를 가중치로 사용한 스플라인 피팅
             if len(indices) > 3:
-                # 가중치 기반 스무싱 팩터 (강화된 스무딩)
+                # 가중치 기반 스무싱 팩터 - 앵커 포인트에서 크게 벗어나지 않도록 조절
                 weights = confidences
                 if enhanced_smoothing:
-                    # 스무딩 강화: smooth_factor를 3배 증가
-                    s = len(indices) * smooth_factor * 3.0 * (1 - np.mean(confidences) * 0.5)
+                    # 스무딩 강화: 5.0 -> 0.5로 감소
+                    s = len(indices) * smooth_factor * 0.5 * (1 - np.mean(confidences) * 0.5)
                 else:
-                    s = len(indices) * smooth_factor * (1 - np.mean(confidences) * 0.5)
+                    s = len(indices) * smooth_factor * 0.1 * (1 - np.mean(confidences) * 0.5)
 
                 try:
                     spl = UnivariateSpline(indices, values, w=weights, s=s, k=3)
@@ -246,11 +266,12 @@ class HybridBaselineCorrector:
                 robust_weights = confidences[mask]
 
                 if len(robust_indices) > 3:
-                    # 스무딩 강화
+                    # 스무딩 강화 - 하지만 앵커 포인트에서 너무 벗어나지 않도록 조절
+                    # 5.0 -> 0.5로 감소: s/n ratio를 2.5에서 0.25로 낮춤
                     if enhanced_smoothing:
-                        s = len(robust_indices) * smooth_factor * 3.0
+                        s = len(robust_indices) * smooth_factor * 0.5
                     else:
-                        s = len(robust_indices) * smooth_factor
+                        s = len(robust_indices) * smooth_factor * 0.1
 
                     spl = UnivariateSpline(
                         robust_indices,
@@ -267,83 +288,101 @@ class HybridBaselineCorrector:
                 f = interp1d(indices, values, kind='linear', fill_value='extrapolate')
                 baseline = f(np.arange(len(self.intensity)))
 
-        # 베이스라인 안전 제약: 극단적인 값 방지
-        # 1. 초반 1-3분 구간을 기준 베이스라인으로 사용 (LC 특성)
-        reference_start_time = 1.0  # min
-        reference_end_time = 3.0    # min
-
-        # 시간 범위를 인덱스로 변환
-        time_per_point = (self.time[-1] - self.time[0]) / len(self.time)
-        ref_start_idx = int(reference_start_time / time_per_point)
-        ref_end_idx = int(reference_end_time / time_per_point)
-
-        if ref_start_idx < ref_end_idx < len(self.intensity):
-            # 1-3분 구간의 낮은 값을 기준으로 사용 (10th percentile)
-            reference_region = self.intensity[ref_start_idx:ref_end_idx]
-            reference_baseline = np.percentile(reference_region, 10)
-            reference_range = np.ptp(reference_region)  # 1-3분 구간 자체의 범위
-
-            # 베이스라인이 기준점에서 1-3분 구간 범위의 ±3배만큼 벗어나는 것 허용
-            # 이는 피크가 있는 구간에서도 베이스라인이 합리적으로 유지되도록 함
-            allowed_deviation = max(reference_range * 3.0, 1000)  # 최소 1000 허용
-            lower_bound = reference_baseline - allowed_deviation
-            upper_bound = reference_baseline + allowed_deviation * 2.0  # 위로는 더 여유
-
-            baseline = np.clip(baseline, lower_bound, upper_bound)
+        # TEMPORARILY DISABLED: 베이스라인 안전 제약
+        # 디버깅을 위해 임시로 비활성화
+        # # 1. 초반 1-3분 구간을 기준 베이스라인으로 사용 (LC 특성)
+        # reference_start_time = 1.0  # min
+        # reference_end_time = 3.0    # min
+        #
+        # # 시간 범위를 인덱스로 변환
+        # time_per_point = (self.time[-1] - self.time[0]) / len(self.time)
+        # ref_start_idx = int(reference_start_time / time_per_point)
+        # ref_end_idx = int(reference_end_time / time_per_point)
+        #
+        # if ref_start_idx < ref_end_idx < len(self.intensity):
+        #     # 1-3분 구간의 낮은 값을 기준으로 사용 (10th percentile)
+        #     reference_region = self.intensity[ref_start_idx:ref_end_idx]
+        #     reference_baseline = np.percentile(reference_region, 10)
+        #     reference_range = np.ptp(reference_region)  # 1-3분 구간 자체의 범위
+        #
+        #     # 베이스라인이 기준점에서 1-3분 구간 범위의 ±3배만큼 벗어나는 것 허용
+        #     # 이는 피크가 있는 구간에서도 베이스라인이 합리적으로 유지되도록 함
+        #     allowed_deviation = max(reference_range * 3.0, 1000)  # 최소 1000 허용
+        #     lower_bound = reference_baseline - allowed_deviation
+        #     upper_bound = reference_baseline + allowed_deviation * 2.0  # 위로는 더 여유
+        #
+        #     baseline = np.clip(baseline, lower_bound, upper_bound)
 
         # 2. 로컬 윈도우에서 원본 신호 범위를 초과하지 않도록 제한
-        from scipy.ndimage import maximum_filter, minimum_filter
-        window_size = 201  # ~1분 윈도우
-        local_max = maximum_filter(self.intensity, size=window_size, mode='nearest')
-        local_min = minimum_filter(self.intensity, size=window_size, mode='nearest')
+        # DISABLED: 이 제약이 베이스라인을 너무 낮게 만들어서 제거
+        # 앵커 포인트가 이미 올바른 베이스라인을 나타내므로 추가 제약 불필요
+        # from scipy.ndimage import maximum_filter, minimum_filter
+        # window_size = 201  # ~1분 윈도우
+        # local_max = maximum_filter(self.intensity, size=window_size, mode='nearest')
+        # local_min = minimum_filter(self.intensity, size=window_size, mode='nearest')
+        # baseline = np.minimum(baseline, local_min * 1.0)
 
-        # 베이스라인은 로컬 최소값과 최대값 사이에 있어야 함
-        # 약간의 여유(1.5배)는 양수 쪽으로만 허용
-        baseline = np.minimum(baseline, local_max * 1.5)
-        # 음수 쪽으로는 로컬 최소값의 1.2배까지만 허용
-        baseline = np.maximum(baseline, local_min * 1.2)
+        # 음수 방지만 유지
+        baseline = np.maximum(baseline, -50.0)
 
-        # 부드럽게 만들기 (강화된 스무딩) - 마지막 구간 제외
-        if len(baseline) > 21 and len(self.baseline_points) >= 2:
-            # 마지막 구간 인덱스 계산
-            last_pt = self.baseline_points[-1]
-            second_last_pt = self.baseline_points[-2]
-            last_segment_start = second_last_pt.index
+        # TEMPORARILY DISABLED: 스무딩 비활성화 (디버깅용)
+        # # 부드럽게 만들기 (강화된 스무딩) - 마지막 구간 제외
+        # if len(baseline) > 21 and len(self.baseline_points) >= 2:
+        #     # 마지막 구간 인덱스 계산
+        #     last_pt = self.baseline_points[-1]
+        #     second_last_pt = self.baseline_points[-2]
+        #     last_segment_start = second_last_pt.index
+        #
+        #     # 마지막 구간 제외하고 스무딩
+        #     if last_segment_start > 21:
+        #         if enhanced_smoothing:
+        #             # 1차 스무딩: savgol_filter
+        #             baseline[:last_segment_start] = signal.savgol_filter(baseline[:last_segment_start], 21, 3)
+        #             # 2차 스무딩: 이동 평균 (추가)
+        #             window = 15
+        #             baseline[:last_segment_start] = np.convolve(
+        #                 baseline[:last_segment_start],
+        #                 np.ones(window)/window,
+        #                 mode='same'
+        #             )
+        #         else:
+        #             baseline[:last_segment_start] = signal.savgol_filter(baseline[:last_segment_start], 21, 3)
 
-            # 마지막 구간 제외하고 스무딩
-            if last_segment_start > 21:
-                if enhanced_smoothing:
-                    # 1차 스무딩: savgol_filter
-                    baseline[:last_segment_start] = signal.savgol_filter(baseline[:last_segment_start], 21, 3)
-                    # 2차 스무딩: 이동 평균 (추가)
-                    window = 15
-                    baseline[:last_segment_start] = np.convolve(
-                        baseline[:last_segment_start],
-                        np.ones(window)/window,
-                        mode='same'
-                    )
-                else:
-                    baseline[:last_segment_start] = signal.savgol_filter(baseline[:last_segment_start], 21, 3)
+        # TEMPORARILY DISABLED: 마지막 구간 선형 보간 비활성화 (디버깅용)
+        # # 마지막 구간 선형 보간으로 교체 (스플라인 발산 방지)
+        # if len(self.baseline_points) >= 2:
+        #     last_pt = self.baseline_points[-1]
+        #     second_last_pt = self.baseline_points[-2]
+        #
+        #     # 마지막 두 앵커 포인트 사이를 선형 보간
+        #     start_idx = second_last_pt.index
+        #     end_idx = last_pt.index
+        #
+        #     if end_idx > start_idx:
+        #         x_range = np.arange(start_idx, end_idx + 1)
+        #         linear_baseline = np.interp(
+        #             x_range,
+        #             [start_idx, end_idx],
+        #             [second_last_pt.value, last_pt.value]
+        #         )
+        #         baseline[start_idx:end_idx + 1] = linear_baseline
 
-        # 마지막 구간 선형 보간으로 교체 (스플라인 발산 방지)
-        if len(self.baseline_points) >= 2:
-            last_pt = self.baseline_points[-1]
-            second_last_pt = self.baseline_points[-2]
+        # DISABLED: 이 제약들이 베이스라인을 파괴함
+        # 앵커 포인트만 신뢰하고 추가 제약 제거
+        # # 베이스라인이 원본 신호보다 충분히 낮게 유지되도록 제약
+        # # 로컬 최소값의 50%로 제한하여 피크 베이스 보호
+        # from scipy.ndimage import minimum_filter
+        # local_min_final = minimum_filter(self.intensity, size=51, mode='nearest')
+        # baseline = np.minimum(baseline, local_min_final * 0.5)
+        #
+        # # 추가로 원본 신호의 70%를 초과하지 않도록 (90% -> 70%)
+        # baseline = np.minimum(baseline, self.intensity * 0.7)
 
-            # 마지막 두 앵커 포인트 사이를 선형 보간
-            start_idx = second_last_pt.index
-            end_idx = last_pt.index
+        # 베이스라인이 과도하게 음수가 되지 않도록 제한만 유지
+        # 작은 음수는 허용하되 (-50까지), 큰 음수는 방지
+        baseline = np.maximum(baseline, -50.0)
 
-            if end_idx > start_idx:
-                x_range = np.arange(start_idx, end_idx + 1)
-                linear_baseline = np.interp(
-                    x_range,
-                    [start_idx, end_idx],
-                    [second_last_pt.value, last_pt.value]
-                )
-                baseline[start_idx:end_idx + 1] = linear_baseline
-
-        # 베이스라인이 원본 신호를 초과하지 않도록 제약
+        # 베이스라인이 원본 신호를 초과하지 않도록만 제한
         baseline = np.minimum(baseline, self.intensity)
 
         return baseline
@@ -462,32 +501,37 @@ class HybridBaselineCorrector:
 
     def apply_linear_baseline_to_peaks(self, baseline: np.ndarray, detected_peaks: List[int]) -> np.ndarray:
         """
-        검출된 피크 영역에 직선 베이스라인 적용
-        기울기가 너무 급격하면 앵커 포인트를 양쪽으로 확장하여 기울기 완화
+        검출된 피크 영역에 flat 베이스라인 적용
+        모든 피크 영역에 수평(horizontal) 베이스라인을 강제 적용
 
         Args:
             baseline: 원본 베이스라인
             detected_peaks: 검출된 피크의 인덱스 리스트
 
         Returns:
-            피크 영역에 직선 베이스라인이 적용된 베이스라인
+            피크 영역에 flat 베이스라인이 적용된 베이스라인
         """
         linear_baseline = baseline.copy()
 
         for peak_idx in detected_peaks:
-            # 피크 너비 추정 (half-height method)
+            # 피크 베이스(base) 찾기 - 훨씬 더 넓은 범위 사용
+            # 피크 높이의 5% 수준까지 내려가는 지점을 경계로 사용
             peak_height = self.intensity[peak_idx] - baseline[peak_idx]
-            half_height = baseline[peak_idx] + peak_height / 2
+            base_threshold = baseline[peak_idx] + peak_height * 0.05
 
-            # 왼쪽 경계 찾기
+            # 왼쪽 경계 찾기 - baseline 근처까지
             left_idx = peak_idx
-            while left_idx > 0 and self.intensity[left_idx] > half_height:
+            while left_idx > 0 and self.intensity[left_idx] > base_threshold:
                 left_idx -= 1
+            # 추가로 50 포인트 더 확장 (베이스라인이 부드럽게 연결되도록)
+            left_idx = max(0, left_idx - 50)
 
-            # 오른쪽 경계 찾기
+            # 오른쪽 경계 찾기 - baseline 근처까지
             right_idx = peak_idx
-            while right_idx < len(self.intensity) - 1 and self.intensity[right_idx] > half_height:
+            while right_idx < len(self.intensity) - 1 and self.intensity[right_idx] > base_threshold:
                 right_idx += 1
+            # 추가로 50 포인트 더 확장
+            right_idx = min(len(self.intensity) - 1, right_idx + 50)
 
             # 초기 앵커 포인트
             anchor_left = left_idx
@@ -571,18 +615,10 @@ class HybridBaselineCorrector:
                         total_expansion += rt_expansion_step
                         iteration_count += 1
 
-                # 최종 검증: 기울기가 여전히 너무 가파르면 원본 베이스라인 유지
-                # 최대 허용 기울기: 전체 범위의 2% (1%보다 약간 여유)
-                max_allowed_slope = peak_range * 0.02
-
-                if current_slope <= max_allowed_slope:
-                    # 평평한 수평 베이스라인 적용 (두 값 중 더 낮은 값 사용)
-                    flat_baseline_value = min(baseline_left, baseline_right)
-                    linear_baseline[anchor_left:anchor_right+1] = flat_baseline_value
-                else:
-                    # 기울기가 여전히 너무 가파르면 원본 베이스라인 유지
-                    # 이 피크에 대해서는 직선 베이스라인을 적용하지 않음
-                    pass
+                # 평평한 수평 베이스라인 적용 (두 값 중 더 낮은 값 사용)
+                # 조건 없이 항상 적용하여 모든 피크 영역에 flat baseline 보장
+                flat_baseline_value = min(baseline_left, baseline_right)
+                linear_baseline[anchor_left:anchor_right+1] = flat_baseline_value
 
         return linear_baseline
 

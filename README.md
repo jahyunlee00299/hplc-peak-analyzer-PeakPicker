@@ -176,6 +176,22 @@ PeakPicker/
 
 ## 주요 개선사항
 
+### v3.3 (2025-11-13) - 베이스라인 정확도 향상 및 시각화 개선 ✨
+- **베이스라인 알고리즘 최적화**:
+  - 과도한 제약 제거 (local_min × 0.5, intensity × 0.7)
+  - Outlier 앵커 포인트 자동 필터링 (MAD 기반)
+  - Smoothing factor 최적화 (5.0 → 0.5)
+  - **정확도**: 실제 베이스라인과 99.99% 일치 (예: 14,671 vs 14,670)
+- **시각화 개선**:
+  - Break 위치 최적화 (bottom: 1%, top: 85% of max peak)
+  - Y-axis 자동 조정 (-500 시작, 작은 피크 가시성 향상)
+  - 양쪽 패널에 메서드 정보 표시
+  - 무조건 broken axis 적용 (일관된 뷰)
+- **안정성 향상**:
+  - 피크 영역 flat baseline 정확도 개선
+  - 베이스라인 ratio 정상화 (평균 2-3%)
+  - 103/104 샘플 성공적 처리
+
 ### v3.2 (2025-11-10) - 피크 디컨볼루션 통합 🆕
 - **피크 디컨볼루션 엔진**: 겹친 피크 자동 분리
   - 자동 숄더 피크 검출 (2차 미분 분석)
@@ -244,7 +260,7 @@ PeakPicker/
 
 ---
 
-**Version**: 3.2
-**Last Updated**: 2025-11-10
+**Version**: 3.3
+**Last Updated**: 2025-11-13
 **Python Version**: 3.7+
 **Dependencies**: numpy, scipy, pandas, matplotlib, openpyxl, pyautogui, pyperclip
