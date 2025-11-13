@@ -321,15 +321,14 @@ def run_visualization(data_dir):
             time = df_csv[0].values
             intensity = df_csv[1].values
 
-            # Calculate baseline (robust_fit with smooth spline)
+            # Calculate baseline (with linear baseline in peak regions)
             corrector = HybridBaselineCorrector(time, intensity)
-            corrector.find_baseline_anchor_points(valley_prominence=0.01, percentile=10)
-            baseline = corrector.generate_hybrid_baseline(method='robust_fit')
+            baseline, params = corrector.optimize_baseline_with_linear_peaks()
             corrected = intensity - baseline
             corrected = np.maximum(corrected, 0)
 
             # Store baseline statistics
-            method = 'robust_fit'
+            method = params.get('method', 'robust_fit_with_flat_peaks')
             baseline_area = np.trapz(baseline, time)
             signal_area = np.trapz(intensity, time)
             baseline_ratio = baseline_area / signal_area if signal_area > 0 else 0
@@ -344,35 +343,142 @@ def run_visualization(data_dir):
                 'Max_Baseline': baseline.max()
             })
 
-            # Create baseline plot
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8))
+            # Create baseline plot with y-axis break
+            from scipy.signal import find_peaks
 
-            # Plot 1: Original + Baseline
-            ax1.plot(time, intensity, 'b-', linewidth=1.5, label='Original Signal', alpha=0.7)
-            ax1.plot(time, baseline, 'r-', linewidth=2, label='Baseline', alpha=0.8)
-            ax1.fill_between(time, baseline, intensity, alpha=0.2, color='yellow', label='Area to Remove')
+            # Find peaks to determine break points
+            peaks, properties = find_peaks(intensity, height=intensity.max() * 0.01, prominence=intensity.max() * 0.005)
 
-            ax1.set_xlabel('Retention Time (min)', fontsize=12)
-            ax1.set_ylabel('Intensity', fontsize=12)
-            ax1.set_title(f'{sample_name} - Baseline Correction', fontsize=14, fontweight='bold')
-            ax1.legend(fontsize=10)
-            ax1.grid(True, alpha=0.3)
+            # Determine break range - ALWAYS apply break
+            if len(peaks) > 0:
+                peak_heights = intensity[peaks]
+                max_peak = peak_heights.max()
+                # Always use break: set break_start at 1% of max peak, break_end at 85%
+                break_start = max_peak * 0.01
+                break_end = max_peak * 0.85
+            else:
+                # Even if no peaks detected, still create a break based on signal max
+                max_signal = intensity.max()
+                break_start = max_signal * 0.01
+                break_end = max_signal * 0.85
 
-            # Add method info
-            info_text = f'Method: {method}\nBaseline Ratio: {baseline_ratio*100:.2f}%'
-            ax1.text(0.02, 0.98, info_text, transform=ax1.transAxes,
-                    fontsize=10, verticalalignment='top',
-                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+            # Create figure with broken axis (2 columns like deconvolution plot)
+            fig = plt.figure(figsize=(16, 10))
 
-            # Plot 2: Corrected Signal
-            ax2.plot(time, corrected, 'g-', linewidth=1.5, label='Corrected Signal')
-            ax2.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+            # Create 4x2 grid: for broken axis with 2 columns
+            height_ratios = [2, 0.25, 0, 6]
+            gs = fig.add_gridspec(4, 2, height_ratios=height_ratios, hspace=0.25, wspace=0.3)
 
-            ax2.set_xlabel('Retention Time (min)', fontsize=12)
-            ax2.set_ylabel('Intensity', fontsize=12)
-            ax2.set_title(f'{sample_name} - After Baseline Correction', fontsize=14, fontweight='bold')
-            ax2.legend(fontsize=10)
-            ax2.grid(True, alpha=0.3)
+            # Calculate break marks size based on height_ratios
+            total_height = sum(height_ratios)
+            break_mark_ratio = height_ratios[1] / total_height  # ratio of break marks area
+            d = 0.015  # horizontal width of break marks
+
+            # Calculate corrected signal
+            corrected = intensity - baseline
+            corrected = np.maximum(corrected, 0)
+
+            # ALWAYS use broken axis
+            if True:
+                import matplotlib.ticker as ticker
+
+                # Left column: Original Signal + Baseline
+                ax1_top = fig.add_subplot(gs[0, 0])     # Tallest peaks
+                ax1_bottom = fig.add_subplot(gs[3, 0])  # Smallest peaks
+
+                # Plot on both axes
+                for ax in [ax1_top, ax1_bottom]:
+                    ax.plot(time, intensity, 'b-', linewidth=1.5, label='Original Signal', alpha=0.7)
+                    ax.plot(time, baseline, 'r-', linewidth=0.5, label='Baseline', alpha=0.8)
+                    ax.fill_between(time, baseline, intensity, alpha=0.2, color='yellow', label='Area to Remove')
+                    ax.grid(True, alpha=0.3)
+
+                # Set limits
+                ax1_top.set_ylim(break_end, intensity.max() * 1.01)
+                # Set y-axis minimum for original signal: use -500 unless signal goes lower
+                if intensity.min() < -500:
+                    y_min_original = intensity.min() * 1.1  # 10% margin
+                else:
+                    y_min_original = -500
+                ax1_bottom.set_ylim(y_min_original, break_start)
+
+                # Hide spines for broken axis effect
+                ax1_top.spines['bottom'].set_visible(False)
+                ax1_bottom.spines['top'].set_visible(False)
+                ax1_top.xaxis.set_visible(False)
+                ax1_top.tick_params(labeltop=False)
+
+                # Add break marks - position calculated from height_ratios
+                kwargs = dict(transform=ax1_top.transAxes, color='k', clip_on=False, linewidth=1)
+                ax1_top.plot((-d, +d), (-break_mark_ratio/2, +break_mark_ratio/2), **kwargs)
+                ax1_top.plot((1 - d, 1 + d), (-break_mark_ratio/2, +break_mark_ratio/2), **kwargs)
+                kwargs.update(transform=ax1_bottom.transAxes)
+                ax1_bottom.plot((-d, +d), (1 - break_mark_ratio/2, 1 + break_mark_ratio/2), **kwargs)
+                ax1_bottom.plot((1 - d, 1 + d), (1 - break_mark_ratio/2, 1 + break_mark_ratio/2), **kwargs)
+
+                # Labels and titles
+                ax1_top.set_title(f'{sample_name} - Original Signal', fontsize=14, fontweight='bold', pad=20)
+                ax1_top.legend(fontsize=10, loc='upper right')
+                ax1_top.set_ylabel('Intensity', fontsize=12)
+                ax1_bottom.set_ylabel('Intensity', fontsize=12)
+                ax1_bottom.set_xlabel('Retention Time (min)', fontsize=12)
+
+                # Set more frequent y-axis ticks
+                ax1_bottom.yaxis.set_major_locator(ticker.MaxNLocator(nbins=10, integer=False))
+
+                # Add method info to bottom left plot (same as right)
+                info_text = f'Method: {method}\nBaseline Ratio: {baseline_ratio*100:.2f}%'
+                ax1_bottom.text(0.02, 0.98, info_text, transform=ax1_bottom.transAxes,
+                        fontsize=10, verticalalignment='top',
+                        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+                # Right column: Baseline Corrected Signal
+                ax2_top = fig.add_subplot(gs[0, 1])
+                ax2_bottom = fig.add_subplot(gs[3, 1])
+
+                # Plot corrected signal on both axes
+                for ax in [ax2_top, ax2_bottom]:
+                    ax.plot(time, corrected, 'g-', linewidth=1.5, label='Corrected Signal', alpha=0.7)
+                    ax.grid(True, alpha=0.3)
+
+                # Set limits for corrected signal
+                ax2_top.set_ylim(break_end, corrected.max() * 1.01)
+                # Set y-axis minimum: use -500 unless signal goes lower
+                if corrected.min() < -500:
+                    y_min_corrected = corrected.min() * 1.1  # 10% margin
+                else:
+                    y_min_corrected = -500
+                ax2_bottom.set_ylim(y_min_corrected, break_start)
+
+                # Broken axis styling for corrected signal
+                ax2_top.spines['bottom'].set_visible(False)
+                ax2_bottom.spines['top'].set_visible(False)
+                ax2_top.xaxis.set_visible(False)
+                ax2_top.tick_params(labeltop=False)
+
+                # Add break marks for corrected signal - position calculated from height_ratios
+                kwargs = dict(transform=ax2_top.transAxes, color='k', clip_on=False, linewidth=1)
+                ax2_top.plot((-d, +d), (-break_mark_ratio/2, +break_mark_ratio/2), **kwargs)
+                ax2_top.plot((1 - d, 1 + d), (-break_mark_ratio/2, +break_mark_ratio/2), **kwargs)
+                kwargs.update(transform=ax2_bottom.transAxes)
+                ax2_bottom.plot((-d, +d), (1 - break_mark_ratio/2, 1 + break_mark_ratio/2), **kwargs)
+                ax2_bottom.plot((1 - d, 1 + d), (1 - break_mark_ratio/2, 1 + break_mark_ratio/2), **kwargs)
+
+                # Labels and titles for corrected signal
+                ax2_top.set_title(f'{sample_name} - Baseline Corrected', fontsize=14, fontweight='bold', pad=20)
+                ax2_top.legend(fontsize=10, loc='upper right')
+                ax2_top.set_ylabel('Intensity', fontsize=12)
+                ax2_bottom.set_ylabel('Intensity', fontsize=12)
+                ax2_bottom.set_xlabel('Retention Time (min)', fontsize=12)
+
+                # Set more frequent y-axis ticks
+                ax2_bottom.yaxis.set_major_locator(ticker.MaxNLocator(nbins=10, integer=False))
+
+                # Add method info to bottom right plot
+                info_text = f'Method: {method}\nBaseline Ratio: {baseline_ratio*100:.2f}%'
+                ax2_bottom.text(0.02, 0.98, info_text, transform=ax2_bottom.transAxes,
+                        fontsize=10, verticalalignment='top',
+                        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
             plt.tight_layout()
             output_file = baseline_plots_dir / f"{sample_name}_baseline.png"
@@ -430,29 +536,164 @@ def run_visualization(data_dir):
                 time = df_csv[0].values
                 intensity = df_csv[1].values
 
-                # Create figure
-                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10))
+                # Determine break range based on peak heights (similar to baseline plot)
+                peak_heights = df_peaks['height'].values
+                break_start_deconv = None
+                break_end_deconv = None
 
-                # Plot 1: Full chromatogram
-                ax1.plot(time, intensity, 'b-', linewidth=1.5, label='Chromatogram', alpha=0.7)
-                for idx, row in df_peaks.iterrows():
-                    rt = row['retention_time']
-                    height = row['height']
-                    ax1.plot(rt, height, 'ro', markersize=8, alpha=0.7)
-                    ax1.text(rt, height * 1.1, f"{idx+1}", ha='center', fontsize=9)
+                if len(peak_heights) > 1:
+                    sorted_heights = np.sort(peak_heights)[::-1]
+                    gaps = sorted_heights[:-1] - sorted_heights[1:]
 
-                ax1.set_xlabel('Retention Time (min)', fontsize=12)
-                ax1.set_ylabel('Intensity', fontsize=12)
-                ax1.set_title(f'{sample_name} - Peak Detection', fontsize=14, fontweight='bold')
-                ax1.legend(fontsize=10)
-                ax1.grid(True, alpha=0.3)
+                    if len(gaps) > 0 and gaps.max() > sorted_heights[0] * 0.3:
+                        gap_idx = np.argmax(gaps)
+                        smaller_peaks = sorted_heights[gap_idx + 1:]
+                        taller_peaks = sorted_heights[:gap_idx + 1]
 
-                # Plot 2: Deconvolved peaks
-                ax2.plot(time, intensity, 'gray', linewidth=1.5, label='Original', alpha=0.5)
+                        break_start_deconv = np.max(smaller_peaks) * 1.1
+                        break_end_deconv = np.min(taller_peaks) * 0.9
+
+                        if break_start_deconv >= break_end_deconv:
+                            break_start_deconv = break_end_deconv = None
+
+                # Create figure with broken axis (same format as baseline plot)
+                fig = plt.figure(figsize=(16, 10))
+
+                if break_start_deconv and break_end_deconv:
+                    # Create 4x2 grid: broken axis for each column (same as baseline plot)
+                    height_ratios = [2, 0.25, 0, 6]
+                    gs = fig.add_gridspec(4, 2, height_ratios=height_ratios, hspace=0.25, wspace=0.3)
+
+                    # Calculate break marks size based on height_ratios
+                    total_height = sum(height_ratios)
+                    break_mark_ratio = height_ratios[1] / total_height  # ratio of break marks area
+                    d = 0.015  # horizontal width of break marks
+
+                    # Peak Detection - Left column with broken axis
+                    import matplotlib.ticker as ticker
+                    ax1_top = fig.add_subplot(gs[0, 0])     # Tallest peaks
+                    ax1_bottom = fig.add_subplot(gs[3, 0])  # Smallest peaks
+
+                    # Plot on both Peak Detection axes
+                    for ax in [ax1_top, ax1_bottom]:
+                        ax.plot(time, intensity, 'b-', linewidth=1.5, label='Chromatogram', alpha=0.7)
+                        ax.grid(True, alpha=0.3)
+
+                    # Set limits
+                    ax1_top.set_ylim(break_end_deconv, intensity.max() * 1.01)
+                    bottom_y_min = min(0, intensity.min())
+                    ax1_bottom.set_ylim(bottom_y_min, break_start_deconv)
+
+                    # Hide spines for broken axis effect
+                    ax1_top.spines['bottom'].set_visible(False)
+                    ax1_bottom.spines['top'].set_visible(False)
+                    ax1_top.xaxis.set_visible(False)
+                    ax1_top.tick_params(labeltop=False)
+
+                    # Add break marks - position calculated from height_ratios
+                    kwargs = dict(transform=ax1_top.transAxes, color='k', clip_on=False, linewidth=1)
+                    ax1_top.plot((-d, +d), (-break_mark_ratio/2, +break_mark_ratio/2), **kwargs)
+                    ax1_top.plot((1 - d, 1 + d), (-break_mark_ratio/2, +break_mark_ratio/2), **kwargs)
+                    kwargs.update(transform=ax1_bottom.transAxes)
+                    ax1_bottom.plot((-d, +d), (1 - break_mark_ratio/2, 1 + break_mark_ratio/2), **kwargs)
+                    ax1_bottom.plot((1 - d, 1 + d), (1 - break_mark_ratio/2, 1 + break_mark_ratio/2), **kwargs)
+
+                    # Labels and titles
+                    ax1_top.set_title(f'{sample_name} - Peak Detection', fontsize=14, fontweight='bold', pad=20)
+                    ax1_top.legend(fontsize=10, loc='upper right')
+                    ax1_top.set_ylabel('Intensity', fontsize=12)
+                    ax1_bottom.set_ylabel('Intensity', fontsize=12)
+                    ax1_bottom.set_xlabel('Retention Time (min)', fontsize=12)
+
+                    # Set more frequent y-axis ticks
+                    ax1_bottom.yaxis.set_major_locator(ticker.MaxNLocator(nbins=10, integer=False))
+
+                    # Add peak markers to appropriate sections
+                    for idx, row in df_peaks.iterrows():
+                        rt = row['retention_time']
+                        height = row['height']
+
+                        if height >= break_end_deconv:
+                            ax = ax1_top
+                        else:
+                            ax = ax1_bottom
+
+                        ax.plot(rt, height, 'ro', markersize=8, alpha=0.7)
+                        text_y = height + (ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.03
+                        ax.text(rt, text_y, f"{idx+1}", ha='center', fontsize=9, fontweight='bold')
+
+                    # Deconvolution - Right column with broken axis
+                    ax2_top = fig.add_subplot(gs[0, 1])
+                    ax2_bottom = fig.add_subplot(gs[3, 1])
+
+                    # Plot deconvolution on both axes
+                    for ax in [ax2_top, ax2_bottom]:
+                        ax.plot(time, intensity, 'gray', linewidth=1.5, label='Original', alpha=0.5)
+                        ax.grid(True, alpha=0.3)
+
+                    # Set limits for deconvolution axes
+                    ax2_top.set_ylim(break_end_deconv, intensity.max() * 1.01)
+                    ax2_bottom.set_ylim(bottom_y_min, break_start_deconv)
+
+                    # Broken axis styling for deconvolution
+                    ax2_top.spines['bottom'].set_visible(False)
+                    ax2_bottom.spines['top'].set_visible(False)
+                    ax2_top.xaxis.set_visible(False)
+                    ax2_top.tick_params(labeltop=False)
+
+                    # Add break marks for deconvolution - position calculated from height_ratios
+                    kwargs = dict(transform=ax2_top.transAxes, color='k', clip_on=False, linewidth=1)
+                    ax2_top.plot((-d, +d), (-break_mark_ratio/2, +break_mark_ratio/2), **kwargs)
+                    ax2_top.plot((1 - d, 1 + d), (-break_mark_ratio/2, +break_mark_ratio/2), **kwargs)
+                    kwargs.update(transform=ax2_bottom.transAxes)
+                    ax2_bottom.plot((-d, +d), (1 - break_mark_ratio/2, 1 + break_mark_ratio/2), **kwargs)
+                    ax2_bottom.plot((1 - d, 1 + d), (1 - break_mark_ratio/2, 1 + break_mark_ratio/2), **kwargs)
+
+                    # Labels and titles for deconvolution
+                    ax2_top.set_title(f'{sample_name} - Deconvolution', fontsize=14, fontweight='bold', pad=20)
+                    ax2_top.legend(fontsize=10, loc='upper right')
+                    ax2_top.set_ylabel('Intensity', fontsize=12)
+                    ax2_bottom.set_ylabel('Intensity', fontsize=12)
+                    ax2_bottom.set_xlabel('Retention Time (min)', fontsize=12)
+
+                    # Set more frequent y-axis ticks
+                    ax2_bottom.yaxis.set_major_locator(ticker.MaxNLocator(nbins=10, integer=False))
+                else:
+                    # No break needed - use standard layout
+                    ax1 = fig.add_subplot(2, 1, 1)
+                    ax1.plot(time, intensity, 'b-', linewidth=1.5, label='Chromatogram', alpha=0.7)
+
+                    # Plot peaks and labels
+                    for idx, row in df_peaks.iterrows():
+                        rt = row['retention_time']
+                        height = row['height']
+                        ax1.plot(rt, height, 'ro', markersize=8, alpha=0.7)
+
+                    # Set y-axis limit first (1% margin)
+                    ax1.set_ylim(bottom=0, top=intensity.max() * 1.01)
+
+                    # Add labels after setting limits to avoid overlap
+                    for idx, row in df_peaks.iterrows():
+                        rt = row['retention_time']
+                        height = row['height']
+                        # Position text with small offset above the point
+                        text_y = height + (ax1.get_ylim()[1] - ax1.get_ylim()[0]) * 0.02
+                        ax1.text(rt, text_y, f"{idx+1}", ha='center', fontsize=9, fontweight='bold')
+
+                    ax1.set_xlabel('Retention Time (min)', fontsize=12)
+                    ax1.set_ylabel('Intensity', fontsize=12)
+                    ax1.set_title(f'{sample_name} - Peak Detection', fontsize=14, fontweight='bold', pad=45)
+                    ax1.legend(fontsize=10)
+                    ax1.grid(True, alpha=0.3)
+
+                    ax2_top = fig.add_subplot(2, 1, 2)
+                    ax2_bottom = None
+                    ax2_top.plot(time, intensity, 'gray', linewidth=1.5, label='Original', alpha=0.5)
 
                 colors = plt.cm.tab10(np.linspace(0, 1, 10))
                 grouped = df_deconv.groupby('Original_Peak_Number')
 
+                # Plot Gaussian curves on appropriate subplots
                 for peak_num, group in grouped:
                     if len(group) > 1:
                         for idx, row in group.iterrows():
@@ -468,17 +709,35 @@ def run_visualization(data_dir):
                             if row['Is_Shoulder']:
                                 label += " (shoulder)"
 
-                            ax2.plot(t_range, gaussian_curve, '--', color=color,
-                                    linewidth=2, alpha=0.8, label=label)
-                            ax2.plot(rt, amp, 'o', color=color, markersize=8)
+                            # Determine which subplot to plot on based on amplitude
+                            if break_start_deconv and break_end_deconv:
+                                if amp >= break_end_deconv:
+                                    ax = ax2_top
+                                else:
+                                    ax = ax2_bottom
 
-                ax2.set_xlabel('Retention Time (min)', fontsize=12)
-                ax2.set_ylabel('Intensity', fontsize=12)
-                ax2.set_title(f'{sample_name} - Deconvolved Components', fontsize=14, fontweight='bold')
-                ax2.legend(fontsize=9, ncol=2)
-                ax2.grid(True, alpha=0.3)
+                                ax.plot(t_range, gaussian_curve, '--', color=color,
+                                       linewidth=2, alpha=0.8, label=label)
+                                ax.plot(rt, amp, 'o', color=color, markersize=8)
+                            else:
+                                # Plot on single axis (no break case)
+                                ax2_top.plot(t_range, gaussian_curve, '--', color=color,
+                                           linewidth=2, alpha=0.8, label=label)
+                                ax2_top.plot(rt, amp, 'o', color=color, markersize=8)
+
+                # Add legends to all deconvolution subplots
+                if break_start_deconv and break_end_deconv:
+                    ax2_top.legend(fontsize=9, ncol=2, loc='upper right')
+                    ax2_bottom.legend(fontsize=9, ncol=2, loc='upper right')
+                else:
+                    ax2_top.set_xlabel('Retention Time (min)', fontsize=12)
+                    ax2_top.set_ylabel('Intensity', fontsize=12)
+                    ax2_top.set_title(f'{sample_name} - Deconvolved Components', fontsize=14, fontweight='bold', pad=45)
+                    ax2_top.legend(fontsize=9, ncol=2)
+                    ax2_top.grid(True, alpha=0.3)
 
                 plt.tight_layout()
+
                 output_file = deconv_plots_dir / f"{sample_name}_deconvolution.png"
                 plt.savefig(output_file, dpi=150, bbox_inches='tight')
                 plt.close()
