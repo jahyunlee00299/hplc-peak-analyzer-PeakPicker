@@ -76,16 +76,17 @@ class EnhancedHPLCAnalyzer:
 
             # Apply hybrid baseline correction
             if self.use_hybrid_baseline:
-                print("  Applying baseline correction (robust_fit)...")
+                print("  Applying baseline correction (with linear peaks)...")
                 corrector = HybridBaselineCorrector(time, intensity)
 
-                # Use robust_fit method with smooth spline
-                corrector.find_baseline_anchor_points(valley_prominence=0.01, percentile=10)
-                baseline = corrector.generate_hybrid_baseline(method='robust_fit')
+                # Use optimize_baseline_with_linear_peaks method
+                baseline, params = corrector.optimize_baseline_with_linear_peaks()
                 corrected = intensity - baseline
                 corrected = np.maximum(corrected, 0)  # No negative values
 
-                print(f"  Baseline method: robust_fit")
+                baseline_method = params.get('method', 'robust_fit_with_flat_peaks')
+                num_peaks_detected = params.get('num_peaks', 0)
+                print(f"  Baseline method: {baseline_method} (detected {num_peaks_detected} peaks for flat baseline)")
             else:
                 corrected = intensity
                 baseline = np.zeros_like(intensity)
@@ -129,7 +130,11 @@ class EnhancedHPLCAnalyzer:
 
     def _detect_peaks_adaptive(self, time: np.ndarray, intensity: np.ndarray) -> tuple:
         """
-        Adaptive peak detection
+        Two-pass adaptive peak detection for samples with large and small peaks
+
+        Pass 1: Detect major peaks using signal-range-based threshold
+        Pass 2: Detect minor peaks using noise-based threshold
+        Then merge and deduplicate results
 
         Args:
             time: Time array
@@ -140,20 +145,73 @@ class EnhancedHPLCAnalyzer:
         """
         # Estimate noise level
         noise_level = self._estimate_noise(intensity)
-
-        # Dynamic thresholds
         signal_range = np.ptp(intensity)
-        min_prominence = max(signal_range * 0.005, noise_level * 3)
-        min_height = noise_level * 3
 
-        # Find peaks
-        peaks, properties = signal.find_peaks(
+        # PASS 1: Detect major peaks (high threshold based on signal range)
+        major_prominence = max(signal_range * 0.005, noise_level * 3)
+        major_min_height = noise_level * 3
+        major_peaks, major_props = signal.find_peaks(
             intensity,
-            prominence=min_prominence,
-            height=min_height,
+            prominence=major_prominence,
+            height=major_min_height,
             width=3,
             distance=20
         )
+
+        # PASS 2: Detect minor peaks (low threshold based on noise level)
+        # Use a much lower prominence threshold to catch small peaks
+        # Significantly reduced to 2x noise level for very sensitive small peak detection
+        minor_prominence = noise_level * 2  # ~2x noise level for small peaks
+        minor_min_height = noise_level * 2  # Lower height threshold for small peaks
+        minor_peaks, minor_props = signal.find_peaks(
+            intensity,
+            prominence=minor_prominence,
+            height=minor_min_height,
+            width=2,  # Relaxed from 3 to allow narrower peaks
+            distance=5  # Reduced from 10 to catch closer small peaks
+        )
+
+        # Merge peaks and remove duplicates
+        # Keep major peaks, add minor peaks that aren't too close to major peaks
+        all_peaks = list(major_peaks)
+        all_props_prominences = list(major_props['prominences'])
+        all_props_widths = list(major_props.get('widths', [0] * len(major_peaks)))
+        all_props_left_bases = list(major_props.get('left_bases', []))
+        all_props_right_bases = list(major_props.get('right_bases', []))
+
+        min_distance = 10  # Minimum distance to consider peaks as separate
+
+        for i, minor_peak in enumerate(minor_peaks):
+            # Check if this minor peak is too close to any major peak
+            is_duplicate = False
+            for major_peak in major_peaks:
+                if abs(minor_peak - major_peak) < min_distance:
+                    is_duplicate = True
+                    break
+
+            if not is_duplicate:
+                all_peaks.append(minor_peak)
+                all_props_prominences.append(minor_props['prominences'][i])
+                all_props_widths.append(minor_props.get('widths', [0] * len(minor_peaks))[i])
+                if 'left_bases' in minor_props:
+                    all_props_left_bases.append(minor_props['left_bases'][i])
+                if 'right_bases' in minor_props:
+                    all_props_right_bases.append(minor_props['right_bases'][i])
+
+        # Sort peaks by retention time
+        sort_indices = np.argsort(all_peaks)
+        peaks = np.array(all_peaks)[sort_indices]
+        prominences = np.array(all_props_prominences)[sort_indices]
+        widths = np.array(all_props_widths)[sort_indices] if all_props_widths else np.zeros(len(peaks))
+
+        # Reconstruct properties dict
+        properties = {
+            'prominences': prominences,
+            'widths': widths
+        }
+        if all_props_left_bases and all_props_right_bases:
+            properties['left_bases'] = np.array(all_props_left_bases)[sort_indices]
+            properties['right_bases'] = np.array(all_props_right_bases)[sort_indices]
 
         # Calculate peak properties
         peak_data = []
@@ -164,7 +222,7 @@ class EnhancedHPLCAnalyzer:
                 right = int(properties['right_bases'][i])
             else:
                 # Fallback: use width if available
-                if 'widths' in properties:
+                if 'widths' in properties and properties['widths'][i] > 0:
                     width_samples = properties['widths'][i]
                 else:
                     width_samples = 20
@@ -199,16 +257,44 @@ class EnhancedHPLCAnalyzer:
         return peaks, peak_data
 
     def _estimate_noise(self, intensity: np.ndarray) -> float:
-        """Estimate noise level"""
-        # Use lower percentile
+        """
+        Estimate noise level from baseline regions
+
+        For samples with very large peaks, we need to estimate noise from
+        quiet regions, not from the overall signal range.
+        """
+        # Use lower percentile to find quiet regions
+        # Use a small positive threshold to avoid empty mask when all values are >= 0
         noise_region = np.percentile(intensity, 25)
-        quiet_mask = intensity < noise_region * 1.5
-        if np.any(quiet_mask):
+        threshold = max(noise_region * 1.5, np.percentile(intensity, 30))
+        quiet_mask = intensity < threshold
+
+        if np.any(quiet_mask) and np.sum(quiet_mask) > 10:
             noise_std = np.std(intensity[quiet_mask])
         else:
-            noise_std = np.std(intensity) * 0.1
+            # Fallback: use very low percentile
+            low_percentile = np.percentile(intensity, 10)
+            if low_percentile > 0:
+                noise_std = np.std(intensity[intensity < low_percentile])
+            else:
+                # If 10th percentile is 0, use 20th percentile
+                noise_std = np.std(intensity[intensity < np.percentile(intensity, 20)])
 
-        return max(noise_std, np.ptp(intensity) * 0.001)
+            if noise_std == 0 or np.isnan(noise_std):
+                noise_std = np.std(intensity) * 0.01
+
+        # Don't use signal range for noise estimation when there are large peaks
+        # Just use a minimum floor based on the quiet region
+        min_noise = max(np.percentile(intensity, 5) * 0.01, 1.0)
+
+        # Ensure we return a valid number
+        result = max(noise_std, min_noise, 1.0)  # At least 1.0 to avoid division by zero
+
+        # Final safety check for nan
+        if np.isnan(result) or result <= 0:
+            result = max(np.std(intensity) * 0.01, 1.0)
+
+        return result
 
     def _apply_deconvolution(
         self,

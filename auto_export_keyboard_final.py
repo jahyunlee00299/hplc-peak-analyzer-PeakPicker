@@ -419,29 +419,43 @@ def export_one_file(d_folder_path, output_csv_path):
         # Step 9: Enter 2번 (Export 완료)
         print("    9. Export 실행...")
         pyautogui.press('enter')
-        time.sleep(0.01)  # 원래 0.5
+        time.sleep(0.2)  # 첫 번째 Enter 후 대기
         pyautogui.press('enter')
-        time.sleep(0.01)  # 원래 2.0 -> Export 완료 대기
+        time.sleep(1.5)  # Export 시작 대기 (0.01 -> 1.5초)
 
         # Step 10: export.csv 복사
         temp_export = r"C:\Chem32\1\TEMP\export.csv"
 
-        # 파일 생성 대기 (최대 10초)
-        for i in range(20):
+        # 파일 생성 및 완전한 쓰기 완료 대기 (최대 30초)
+        print("    10. Export 파일 생성 대기...")
+        prev_size = 0
+        stable_count = 0
+
+        for i in range(100):  # 100회 * 0.3초 = 최대 30초
             if os.path.exists(temp_export):
                 mtime = os.path.getmtime(temp_export)
                 age = time.time() - mtime
 
-                if age < 15:  # 최근 15초 이내에 수정됨
-                    # 파일 복사
-                    shutil.copy(temp_export, output_csv_path)
-                    size = os.path.getsize(output_csv_path)
-                    print(f"    [성공] {size:,} bytes")
-                    return True
+                if age < 35:  # 최근 35초 이내에 수정됨
+                    current_size = os.path.getsize(temp_export)
 
-            time.sleep(0.1)
+                    # 파일 크기가 안정화되었는지 확인 (3회 연속 같은 크기)
+                    if current_size == prev_size and current_size > 0:
+                        stable_count += 1
+                        if stable_count >= 3:  # 3회 연속 크기 변화 없음 = 쓰기 완료
+                            # 파일 복사
+                            shutil.copy(temp_export, output_csv_path)
+                            final_size = os.path.getsize(output_csv_path)
+                            print(f"    [성공] {final_size:,} bytes (대기: {(i+1)*0.3:.1f}초)")
+                            return True
+                    else:
+                        stable_count = 0  # 크기 변화 있음, 카운트 리셋
 
-        print(f"    [실패] Export 파일이 생성되지 않음")
+                    prev_size = current_size
+
+            time.sleep(0.3)  # 0.1 -> 0.3초로 증가
+
+        print(f"    [실패] Export 파일이 생성되지 않거나 쓰기가 완료되지 않음")
         return False
 
     except Exception as e:

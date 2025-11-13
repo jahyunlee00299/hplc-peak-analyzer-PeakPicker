@@ -27,9 +27,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def run_auto_export():
+def run_auto_export(auto_confirm=False):
     """
     Run auto export to generate CSV files from Chemstation.
+
+    Args:
+        auto_confirm: Skip confirmation prompt
 
     Returns:
         output_dir: Directory where CSV files were saved
@@ -72,10 +75,13 @@ def run_auto_export():
 
     # Confirm
     print("\n" + "="*80)
-    confirm = input(f"\n{len(d_folders)}개 파일을 Export 하시겠습니까? (y/n): ").strip().lower()
-    if confirm != 'y':
-        print("\n[X] Export 취소됨")
-        return None
+    if not auto_confirm:
+        confirm = input(f"\n{len(d_folders)}개 파일을 Export 하시겠습니까? (y/n): ").strip().lower()
+        if confirm != 'y':
+            print("\n[X] Export 취소됨")
+            return None
+    else:
+        print(f"\n[자동 실행] {len(d_folders)}개 파일을 Export합니다...")
 
     # Run export
     print("\n5초 후 시작...")
@@ -155,7 +161,7 @@ def run_auto_export():
     return output_dir
 
 
-def run_analysis(data_dir, enable_deconvolution=True, asymmetry_threshold=1.2):
+def run_analysis(data_dir, enable_deconvolution=True, asymmetry_threshold=1.2, auto_confirm=False):
     """
     Run HPLC analysis on CSV files.
 
@@ -163,6 +169,7 @@ def run_analysis(data_dir, enable_deconvolution=True, asymmetry_threshold=1.2):
         data_dir: Directory containing CSV files
         enable_deconvolution: Enable peak deconvolution
         asymmetry_threshold: Asymmetry threshold for deconvolution
+        auto_confirm: Skip confirmation prompt
 
     Returns:
         True if successful, False otherwise
@@ -200,10 +207,13 @@ def run_analysis(data_dir, enable_deconvolution=True, asymmetry_threshold=1.2):
         print(f"  - 비대칭도 임계값: {asymmetry_threshold}")
 
     # Confirm
-    confirm = input(f"\n분석을 시작하시겠습니까? (y/n): ").strip().lower()
-    if confirm != 'y':
-        print("\n[X] 분석 취소됨")
-        return False
+    if not auto_confirm:
+        confirm = input(f"\n분석을 시작하시겠습니까? (y/n): ").strip().lower()
+        if confirm != 'y':
+            print("\n[X] 분석 취소됨")
+            return False
+    else:
+        print(f"\n[자동 실행] 분석을 시작합니다...")
 
     print("\n" + "="*80)
     print("분석 시작")
@@ -353,14 +363,14 @@ def run_visualization(data_dir):
             if len(peaks) > 0:
                 peak_heights = intensity[peaks]
                 max_peak = peak_heights.max()
-                # Always use break: set break_start at 1% of max peak, break_end at 85%
-                break_start = max_peak * 0.01
-                break_end = max_peak * 0.85
+                # Always use break: set break_start at 5% of max peak, break_end at 95%
+                break_start = max_peak * 0.05
+                break_end = max_peak * 0.95
             else:
                 # Even if no peaks detected, still create a break based on signal max
                 max_signal = intensity.max()
-                break_start = max_signal * 0.01
-                break_end = max_signal * 0.85
+                break_start = max_signal * 0.4
+                break_end = max_signal * 0.8
 
             # Create figure with broken axis (2 columns like deconvolution plot)
             fig = plt.figure(figsize=(16, 10))
@@ -399,7 +409,7 @@ def run_visualization(data_dir):
                 if intensity.min() < -500:
                     y_min_original = intensity.min() * 1.1  # 10% margin
                 else:
-                    y_min_original = -500
+                    y_min_original = -200
                 ax1_bottom.set_ylim(y_min_original, break_start)
 
                 # Hide spines for broken axis effect
@@ -447,7 +457,7 @@ def run_visualization(data_dir):
                 if corrected.min() < -500:
                     y_min_corrected = corrected.min() * 1.1  # 10% margin
                 else:
-                    y_min_corrected = -500
+                    y_min_corrected = -200
                 ax2_bottom.set_ylim(y_min_corrected, break_start)
 
                 # Broken axis styling for corrected signal
@@ -561,7 +571,7 @@ def run_visualization(data_dir):
 
                 if break_start_deconv and break_end_deconv:
                     # Create 4x2 grid: broken axis for each column (same as baseline plot)
-                    height_ratios = [2, 0.25, 0, 6]
+                    height_ratios = [2, 0.25, 0.1, 6]
                     gs = fig.add_gridspec(4, 2, height_ratios=height_ratios, hspace=0.25, wspace=0.3)
 
                     # Calculate break marks size based on height_ratios
@@ -932,6 +942,11 @@ def main():
         default=1.2,
         help='Asymmetry threshold for deconvolution (default: 1.2)'
     )
+    parser.add_argument(
+        '--yes', '-y',
+        action='store_true',
+        help='Skip all confirmation prompts (auto-confirm)'
+    )
 
     args = parser.parse_args()
 
@@ -945,7 +960,7 @@ def main():
         print(f"\n[SKIP] Export 단계 건너뜀")
         print(f"       데이터 디렉토리: {data_dir}")
     else:
-        data_dir = run_auto_export()
+        data_dir = run_auto_export(auto_confirm=args.yes)
 
         if data_dir is None:
             print("\n프로그램을 종료합니다.")
@@ -955,7 +970,8 @@ def main():
     success = run_analysis(
         data_dir,
         enable_deconvolution=not args.no_deconvolution,
-        asymmetry_threshold=args.asymmetry_threshold
+        asymmetry_threshold=args.asymmetry_threshold,
+        auto_confirm=args.yes
     )
 
     if not success:
