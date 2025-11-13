@@ -25,8 +25,20 @@
 ### 방법 1: 통합 워크플로우 (추천) 🆕
 
 ```bash
-# Export → 분석 → 디컨볼루션을 한번에 실행
+# 기본: 대화형 모드 (각 단계마다 확인)
 python run_complete_workflow.py
+
+# 완전 자동 모드: 확인 절차 없이 모든 단계 자동 실행 ⚡
+python run_complete_workflow.py --yes
+
+# 기존 CSV 파일만 분석 (Export 건너뛰기)
+python run_complete_workflow.py --skip-export --data-dir "result/실험폴더명" --yes
+
+# 디컨볼루션 비활성화
+python run_complete_workflow.py --no-deconvolution --yes
+
+# 비대칭도 임계값 조정
+python run_complete_workflow.py --asymmetry-threshold 1.5 --yes
 ```
 
 이 스크립트는:
@@ -34,6 +46,8 @@ python run_complete_workflow.py
 2. 베이스라인 보정 및 피크 검출
 3. 필요시 자동 피크 디컨볼루션
 4. Excel 리포트 생성
+5. 베이스라인 및 디컨볼루션 플롯 생성
+6. 서머리 파일 생성 (BASELINE_SUMMARY.xlsx, PEAK_SUMMARY.xlsx)
 
 ### 방법 2: 완전 자동화 워크플로우 (Export부터)
 
