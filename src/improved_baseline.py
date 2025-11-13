@@ -44,7 +44,7 @@ class ImprovedBaselineCorrector:
     def find_anchors(
         self,
         valley_prominence_factor: float = 0.01,
-        local_min_percentile: float = 10,
+        local_min_percentile: float = 5,
         min_anchor_distance: int = 15,
         smoothing_window: Optional[int] = None
     ) -> List[BaselineAnchor]:
@@ -353,7 +353,7 @@ class ImprovedBaselineCorrector:
                     if slope > max_allowed_slope:
                         # 구간의 최소값으로 조정
                         segment = self.intensity[indices[i]:indices[i+1]+1]
-                        segment_min = np.percentile(segment, 5)
+                        segment_min = np.percentile(segment, 2.5)
 
                         # 더 낮은 값으로 조정
                         if value_diff > 0:  # 증가 구간
