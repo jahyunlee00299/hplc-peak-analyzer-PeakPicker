@@ -216,19 +216,57 @@ class EnhancedHPLCAnalyzer:
         # Calculate peak properties
         peak_data = []
         for i, peak_idx in enumerate(peaks):
-            # Use scipy's calculated peak bases for better boundary detection
-            if 'left_bases' in properties and 'right_bases' in properties:
-                left = int(properties['left_bases'][i])
-                right = int(properties['right_bases'][i])
-            else:
-                # Fallback: use width if available
-                if 'widths' in properties and properties['widths'][i] > 0:
-                    width_samples = properties['widths'][i]
-                else:
-                    width_samples = 20
-                half_width = int(width_samples * 1.5)  # Conservative extension
-                left = max(0, peak_idx - half_width)
-                right = min(len(intensity) - 1, peak_idx + half_width)
+            # IMPROVED: Use relative height-based boundary detection
+            # This prevents abnormally wide peaks caused by baseline issues
+            peak_height = intensity[peak_idx]
+
+            # Find boundaries where signal drops to 1% of peak height
+            # This is more robust than scipy's prominence-based boundaries
+            threshold = peak_height * 0.01  # 1% of peak height
+
+            # Search left boundary
+            left = peak_idx
+            while left > 0 and intensity[left] > threshold:
+                left -= 1
+
+            # Search right boundary
+            right = peak_idx
+            while right < len(intensity) - 1 and intensity[right] > threshold:
+                right += 1
+
+            # Prevent peak boundaries from overlapping with adjacent peaks
+            # Check if there's a next peak
+            if i < len(peaks) - 1:
+                next_peak_idx = peaks[i + 1]
+                # Find the valley (minimum) between this peak and next peak
+                valley_region = intensity[peak_idx:next_peak_idx]
+                if len(valley_region) > 0:
+                    valley_idx = peak_idx + np.argmin(valley_region)
+                    # Right boundary should not exceed the valley
+                    right = min(right, valley_idx)
+
+            # Check if there's a previous peak
+            if i > 0:
+                prev_peak_idx = peaks[i - 1]
+                # Find the valley between previous peak and this peak
+                valley_region = intensity[prev_peak_idx:peak_idx]
+                if len(valley_region) > 0:
+                    valley_idx = prev_peak_idx + np.argmin(valley_region)
+                    # Left boundary should not exceed the valley
+                    left = max(left, valley_idx)
+
+            # Apply maximum width constraint (e.g., 2 minutes for HPLC)
+            # This prevents unreasonably wide peaks
+            max_width_samples = int(2.0 / np.mean(np.diff(time)))  # 2 minutes
+            if right - left > max_width_samples:
+                # Shrink symmetrically around peak
+                half_max_width = max_width_samples // 2
+                left = max(0, peak_idx - half_max_width)
+                right = min(len(intensity) - 1, peak_idx + half_max_width)
+
+            # Ensure boundaries are valid
+            left = max(0, left)
+            right = min(len(intensity) - 1, right)
 
             # Calculate area using trapezoid integration with time in seconds
             # This matches Chemstation's physical integration approach
