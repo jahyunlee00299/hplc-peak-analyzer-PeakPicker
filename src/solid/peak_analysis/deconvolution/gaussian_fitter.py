@@ -3,15 +3,38 @@ Gaussian Curve Fitter
 =====================
 
 Fits Gaussian peaks for deconvolution.
-Single Responsibility: Only fits curves.
+
+SOLID Principles Applied:
+- SRP: Each class has single responsibility (fitting only)
+- OCP: New fitter strategies can be added without modifying existing code
+- LSP: All strategies can substitute ICurveFitterStrategy
+- DIP: Depends on interfaces, not concrete implementations
 """
 
+from __future__ import annotations
 from typing import List, Tuple
+from abc import ABC, abstractmethod
 import numpy as np
+import logging
 
-from ...interfaces import ICurveFitterStrategy, ICurveFitter
+from ...interfaces import (
+    ICurveFitterStrategy,
+    ICurveFitter,
+    IDeconvolver,
+    IDeconvolutionAnalyzer,
+    IPeakCenterEstimator,
+)
 from ...domain import DeconvolvedPeak, DeconvolutionResult
 from ...config import GaussianFitConfig, DeconvolutionConfig
+
+
+# Configure logging for consistent error handling
+logger = logging.getLogger(__name__)
+
+
+class DeconvolutionError(Exception):
+    """Custom exception for deconvolution errors."""
+    pass
 
 
 def gaussian(x: np.ndarray, amplitude: float, center: float, sigma: float) -> np.ndarray:
@@ -36,6 +59,9 @@ def multi_gaussian(x: np.ndarray, *params) -> np.ndarray:
 class GaussianFitterStrategy(ICurveFitterStrategy):
     """
     Multi-Gaussian fitting strategy for deconvolution.
+
+    Implements ICurveFitterStrategy (LSP).
+    Depends on ICurveFitter abstraction (DIP).
     """
 
     def __init__(
@@ -49,7 +75,7 @@ class GaussianFitterStrategy(ICurveFitterStrategy):
         Parameters
         ----------
         curve_fitter : ICurveFitter
-            Curve fitting implementation
+            Curve fitting implementation (DIP - depends on interface)
         config : GaussianFitConfig, optional
             Configuration
         """
@@ -83,6 +109,11 @@ class GaussianFitterStrategy(ICurveFitterStrategy):
         -------
         Tuple[List[DeconvolvedPeak], float, float]
             (peaks, r2_score, rmse)
+
+        Raises
+        ------
+        DeconvolutionError
+            If fitting fails critically
         """
         n_peaks = len(centers)
 
@@ -126,58 +157,71 @@ class GaussianFitterStrategy(ICurveFitterStrategy):
             rmse = float(np.sqrt(np.mean((signal - fitted) ** 2)))
 
             # Extract peaks
-            peaks = []
-            total_area = 0
-
-            for i in range(n_peaks):
-                amp = float(popt[i * 3])
-                center = float(popt[i * 3 + 1])
-                sigma = float(popt[i * 3 + 2])
-
-                # Calculate area
-                component = gaussian(time, amp, center, sigma)
-                area = float(np.sum(component))
-                total_area += area
-
-                # Find boundaries
-                threshold = amp * 0.01
-                above = component > threshold
-                if np.any(above):
-                    indices = np.where(above)[0]
-                    start_rt = float(time[indices[0]])
-                    end_rt = float(time[indices[-1]])
-                else:
-                    start_rt = center - 3 * sigma
-                    end_rt = center + 3 * sigma
-
-                # Determine if shoulder
-                max_amp = max([popt[j * 3] for j in range(n_peaks)])
-                is_shoulder = amp < max_amp * 0.8
-
-                peaks.append(DeconvolvedPeak(
-                    retention_time=center,
-                    amplitude=amp,
-                    sigma=sigma,
-                    area=area,
-                    area_percent=0,  # Calculate after total known
-                    fit_quality=r2,
-                    is_shoulder=is_shoulder,
-                    asymmetry=1.0,  # Gaussian is symmetric
-                    start_rt=start_rt,
-                    end_rt=end_rt
-                ))
-
-            # Calculate area percentages
-            for peak in peaks:
-                peak.area_percent = (peak.area / total_area * 100) if total_area > 0 else 0
-
-            # Sort by retention time
-            peaks.sort(key=lambda x: x.retention_time)
+            peaks = self._extract_peaks(time, popt, n_peaks, r2)
 
             return peaks, r2, rmse
 
         except Exception as e:
+            logger.warning(f"Gaussian fitting failed: {e}")
             return [], 0.0, float('inf')
+
+    def _extract_peaks(
+        self,
+        time: np.ndarray,
+        popt: np.ndarray,
+        n_peaks: int,
+        r2: float
+    ) -> List[DeconvolvedPeak]:
+        """Extract DeconvolvedPeak objects from fitted parameters."""
+        peaks = []
+        total_area = 0
+
+        for i in range(n_peaks):
+            amp = float(popt[i * 3])
+            center = float(popt[i * 3 + 1])
+            sigma = float(popt[i * 3 + 2])
+
+            # Calculate area
+            component = gaussian(time, amp, center, sigma)
+            area = float(np.sum(component))
+            total_area += area
+
+            # Find boundaries
+            threshold = amp * 0.01
+            above = component > threshold
+            if np.any(above):
+                indices = np.where(above)[0]
+                start_rt = float(time[indices[0]])
+                end_rt = float(time[indices[-1]])
+            else:
+                start_rt = center - 3 * sigma
+                end_rt = center + 3 * sigma
+
+            # Determine if shoulder
+            max_amp = max([popt[j * 3] for j in range(n_peaks)])
+            is_shoulder = amp < max_amp * 0.8
+
+            peaks.append(DeconvolvedPeak(
+                retention_time=center,
+                amplitude=amp,
+                sigma=sigma,
+                area=area,
+                area_percent=0,  # Calculate after total known
+                fit_quality=r2,
+                is_shoulder=is_shoulder,
+                asymmetry=1.0,  # Gaussian is symmetric
+                start_rt=start_rt,
+                end_rt=end_rt
+            ))
+
+        # Calculate area percentages
+        for peak in peaks:
+            peak.area_percent = (peak.area / total_area * 100) if total_area > 0 else 0
+
+        # Sort by retention time
+        peaks.sort(key=lambda x: x.retention_time)
+
+        return peaks
 
     def _estimate_sigma(self, time: np.ndarray, signal: np.ndarray, center_idx: int) -> float:
         """Estimate sigma from FWHM."""
@@ -213,18 +257,24 @@ class GaussianFitterStrategy(ICurveFitterStrategy):
         return float(1 - (ss_res / ss_tot))
 
 
-class PeakDeconvolver:
+class PeakDeconvolver(IDeconvolver):
     """
     High-level deconvolution orchestrator.
 
     Composes analyzer, estimator, and fitter.
+
+    SOLID Principles:
+    - SRP: Only orchestrates deconvolution workflow
+    - OCP: New fitter strategies can be injected
+    - LSP: Implements IDeconvolver interface
+    - DIP: Depends on interfaces (IDeconvolutionAnalyzer, IPeakCenterEstimator, ICurveFitterStrategy)
     """
 
     def __init__(
         self,
-        analyzer: 'ShoulderDeconvolutionAnalyzer',
-        center_estimator: 'PeakCenterEstimator',
-        fitter: GaussianFitterStrategy,
+        analyzer: IDeconvolutionAnalyzer,
+        center_estimator: IPeakCenterEstimator,
+        fitter: ICurveFitterStrategy,
         config: DeconvolutionConfig = None
     ):
         """
@@ -232,12 +282,12 @@ class PeakDeconvolver:
 
         Parameters
         ----------
-        analyzer : ShoulderDeconvolutionAnalyzer
-            Analyzer for deconvolution need
-        center_estimator : PeakCenterEstimator
-            Center estimator
-        fitter : GaussianFitterStrategy
-            Curve fitter
+        analyzer : IDeconvolutionAnalyzer
+            Analyzer for deconvolution need (DIP - interface)
+        center_estimator : IPeakCenterEstimator
+            Center estimator (DIP - interface)
+        fitter : ICurveFitterStrategy
+            Curve fitter strategy (DIP - interface)
         config : DeconvolutionConfig, optional
             Configuration
         """
@@ -283,7 +333,10 @@ class PeakDeconvolver:
         signal_peak = signal[peak_start_idx:peak_end_idx + 1]
 
         if len(rt_peak) < 5:
-            return self._failed_result(time[peak_start_idx], "Peak region too small")
+            return self._create_failed_result(
+                float(time[peak_start_idx]),
+                "Peak region too small"
+            )
 
         # Find main peak
         main_idx = np.argmax(signal_peak)
@@ -294,7 +347,7 @@ class PeakDeconvolver:
             global_idx = peak_start_idx + main_idx
             needs, reason = self.analyzer.needs_deconvolution(time, signal, global_idx)
             if not needs:
-                return self._failed_result(main_rt, f"Not needed: {reason}")
+                return self._create_failed_result(main_rt, f"Not needed: {reason}")
 
         # Estimate centers if not provided
         if initial_centers is None:
@@ -303,9 +356,21 @@ class PeakDeconvolver:
             )
 
         if len(initial_centers) == 0:
-            return self._failed_result(main_rt, "No centers detected")
+            return self._create_failed_result(main_rt, "No centers detected")
 
         # Try fitting with increasing components
+        best_result = self._find_best_fit(rt_peak, signal_peak, initial_centers, main_rt)
+
+        return best_result
+
+    def _find_best_fit(
+        self,
+        rt_peak: np.ndarray,
+        signal_peak: np.ndarray,
+        initial_centers: List[float],
+        main_rt: float
+    ) -> DeconvolutionResult:
+        """Find best fit by trying increasing number of components."""
         best_peaks = []
         best_r2 = -np.inf
         best_rmse = float('inf')
@@ -326,7 +391,7 @@ class PeakDeconvolver:
                 break
 
         if best_r2 < self.config.fit_tolerance:
-            return self._failed_result(main_rt, f"Poor fit: R²={best_r2:.3f}")
+            return self._create_failed_result(main_rt, f"Poor fit: R²={best_r2:.3f}")
 
         return DeconvolutionResult(
             original_peak_rt=main_rt,
@@ -335,13 +400,14 @@ class PeakDeconvolver:
             total_area=sum(p.area for p in best_peaks),
             fit_quality=best_r2,
             rmse=best_rmse,
-            method=f"{best_n}-Gaussian",
+            method=f"{best_n}-{self.fitter.name}",
             success=True,
             message=f"Successfully fitted {best_n} peaks (R²={best_r2:.3f})"
         )
 
-    def _failed_result(self, rt: float, message: str) -> DeconvolutionResult:
-        """Create failed result."""
+    def _create_failed_result(self, rt: float, message: str) -> DeconvolutionResult:
+        """Create failed result with consistent structure."""
+        logger.debug(f"Deconvolution failed at RT={rt:.3f}: {message}")
         return DeconvolutionResult(
             original_peak_rt=rt,
             n_components=0,
@@ -355,5 +421,136 @@ class PeakDeconvolver:
         )
 
 
-# Import for type hints
-from .analyzer import ShoulderDeconvolutionAnalyzer, PeakCenterEstimator
+# =============================================================================
+# Factory for OCP compliance - new strategies can be added without modification
+# =============================================================================
+
+class FitterStrategyFactory:
+    """
+    Factory for creating curve fitter strategies.
+
+    Open/Closed Principle: New strategies can be registered
+    without modifying existing code.
+    """
+
+    _strategies: dict = {}
+
+    @classmethod
+    def register(cls, name: str, strategy_class: type):
+        """
+        Register a new fitter strategy.
+
+        Parameters
+        ----------
+        name : str
+            Strategy name
+        strategy_class : type
+            Strategy class (must implement ICurveFitterStrategy)
+        """
+        cls._strategies[name] = strategy_class
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        curve_fitter: ICurveFitter,
+        config: GaussianFitConfig = None
+    ) -> ICurveFitterStrategy:
+        """
+        Create a fitter strategy by name.
+
+        Parameters
+        ----------
+        name : str
+            Strategy name
+        curve_fitter : ICurveFitter
+            Curve fitter implementation
+        config : GaussianFitConfig, optional
+            Configuration
+
+        Returns
+        -------
+        ICurveFitterStrategy
+            Fitter strategy instance
+
+        Raises
+        ------
+        ValueError
+            If strategy name is not registered
+        """
+        if name not in cls._strategies:
+            available = list(cls._strategies.keys())
+            raise ValueError(f"Unknown strategy '{name}'. Available: {available}")
+
+        return cls._strategies[name](curve_fitter, config)
+
+    @classmethod
+    def available_strategies(cls) -> List[str]:
+        """Return list of available strategy names."""
+        return list(cls._strategies.keys())
+
+
+# Register default strategy
+FitterStrategyFactory.register("gaussian", GaussianFitterStrategy)
+FitterStrategyFactory.register("multi-gaussian", GaussianFitterStrategy)
+
+
+# =============================================================================
+# Convenience function for creating fully configured deconvolver
+# =============================================================================
+
+def create_deconvolver(
+    signal_processor,
+    curve_fitter: ICurveFitter,
+    config: DeconvolutionConfig = None,
+    strategy_name: str = "gaussian"
+) -> PeakDeconvolver:
+    """
+    Factory function to create a fully configured PeakDeconvolver.
+
+    This is a convenience function that wires up all dependencies
+    following Dependency Injection pattern.
+
+    Parameters
+    ----------
+    signal_processor : ISignalProcessor
+        Signal processing implementation
+    curve_fitter : ICurveFitter
+        Curve fitting implementation
+    config : DeconvolutionConfig, optional
+        Configuration
+    strategy_name : str
+        Fitter strategy name (default: "gaussian")
+
+    Returns
+    -------
+    PeakDeconvolver
+        Fully configured deconvolver
+    """
+    from .analyzer import ShoulderDeconvolutionAnalyzer, PeakCenterEstimator, AsymmetryCalculator
+
+    config = config or DeconvolutionConfig()
+
+    # Create components with proper dependency injection
+    asymmetry_calc = AsymmetryCalculator()
+    analyzer = ShoulderDeconvolutionAnalyzer(
+        signal_processor=signal_processor,
+        asymmetry_calculator=asymmetry_calc,
+        config=config
+    )
+    estimator = PeakCenterEstimator(
+        signal_processor=signal_processor,
+        config=config
+    )
+    fitter = FitterStrategyFactory.create(
+        strategy_name,
+        curve_fitter,
+        GaussianFitConfig()
+    )
+
+    return PeakDeconvolver(
+        analyzer=analyzer,
+        center_estimator=estimator,
+        fitter=fitter,
+        config=config
+    )
