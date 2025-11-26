@@ -640,26 +640,54 @@ class HybridBaselineCorrector:
         """
         bridged_baseline = baseline.copy()
 
-        # 신호 범위 기준 임계값 계산
-        signal_median = np.median(self.intensity)
-        signal_range = np.ptp(self.intensity)
+        # 1. 안정적인 베이스라인 참조값 계산
+        # 상위 75% 중 하위 값들 (피크 제외, 음수 제외)
+        positive_intensity = self.intensity[self.intensity > 0]
+        if len(positive_intensity) < 10:
+            return bridged_baseline
 
-        # 음수 또는 비정상적으로 낮은 영역 감지 기준
-        # 중앙값보다 신호범위의 threshold_ratio 이상 낮으면 비정상
-        low_threshold = signal_median - signal_range * threshold_ratio
+        # 양수 값들 중 하위 30%의 중앙값 = 안정적인 베이스라인 수준
+        sorted_positive = np.sort(positive_intensity)
+        stable_baseline_values = sorted_positive[:len(sorted_positive) // 3]
+        stable_baseline_level = np.median(stable_baseline_values) if len(stable_baseline_values) > 0 else np.median(positive_intensity)
 
-        # 비정상적으로 낮은 구간 찾기
-        low_mask = self.intensity < low_threshold
+        # 2. 급격히 낮아지는 구간 감지 (여러 조건 결합)
+        # 조건 1: 음수 값
+        # 조건 2: 안정 베이스라인의 50% 미만
+        # 조건 3: 급격한 하락 (기울기 기반)
+        low_threshold = stable_baseline_level * 0.5
+
+        # 급격한 하락 감지 (derivative)
+        derivative = np.diff(self.intensity, prepend=self.intensity[0])
+        rapid_drop_threshold = -np.std(np.abs(derivative)) * 3
+
+        # 세 조건 중 하나라도 해당하면 마스킹
+        low_mask = (
+            (self.intensity < 0) |  # 음수
+            (self.intensity < low_threshold) |  # 임계값 미만
+            (derivative < rapid_drop_threshold)  # 급락
+        )
 
         if not np.any(low_mask):
             return bridged_baseline
 
-        # 연속된 낮은 구간 찾기
+        # 3. 연속된 낮은 구간 찾기 (마진 추가)
+        # 작은 간격은 연결하여 하나의 큰 영역으로 처리
+        expanded_mask = low_mask.copy()
+
+        # 마진 확장: 전후 10포인트도 포함
+        for i in range(len(expanded_mask)):
+            if low_mask[i]:
+                start = max(0, i - 10)
+                end = min(len(expanded_mask), i + 11)
+                expanded_mask[start:end] = True
+
+        # 연속 구간 찾기
         regions = []
         in_region = False
         start = 0
 
-        for i, is_low in enumerate(low_mask):
+        for i, is_low in enumerate(expanded_mask):
             if is_low and not in_region:
                 start = i
                 in_region = True
@@ -668,40 +696,68 @@ class HybridBaselineCorrector:
                 in_region = False
 
         if in_region:
-            regions.append((start, len(low_mask) - 1))
+            regions.append((start, len(expanded_mask) - 1))
 
-        # 각 낮은 구간에 대해 직선 브릿지 적용
+        # 4. 각 낮은 구간에 대해 직선 브릿지 적용
         for region_start, region_end in regions:
             # 구간이 너무 작으면 스킵 (노이즈일 가능성)
-            if region_end - region_start < 10:
+            if region_end - region_start < 3:
                 continue
 
-            # 브릿지 시작/끝점 찾기 (구간 바깥의 정상 신호 위치)
-            # 왼쪽 앵커: 구간 시작 전 정상 신호
-            left_anchor = region_start
-            search_range = min(50, region_start)
-            for i in range(region_start - 1, region_start - search_range - 1, -1):
-                if i >= 0 and self.intensity[i] >= low_threshold:
-                    left_anchor = i
-                    break
+            # 5. 안정적인 앵커 포인트 찾기
+            # 왼쪽: 구간 시작 전에서 안정 베이스라인 수준 이상인 지점
+            left_anchor = 0
+            search_start = max(0, region_start - 500)  # 최대 500포인트 검색
 
-            # 오른쪽 앵커: 구간 끝 후 정상 신호
-            right_anchor = region_end
-            search_range = min(50, len(self.intensity) - region_end - 1)
-            for i in range(region_end + 1, region_end + search_range + 1):
-                if i < len(self.intensity) and self.intensity[i] >= low_threshold:
-                    right_anchor = i
-                    break
+            for i in range(region_start - 1, search_start - 1, -1):
+                if i >= 0:
+                    # 안정 베이스라인 수준의 80% 이상이고, 급락 중이 아닌 지점
+                    if self.intensity[i] >= stable_baseline_level * 0.8 and derivative[i] >= rapid_drop_threshold:
+                        left_anchor = i
+                        break
 
-            # 앵커 포인트에서의 베이스라인 값 (원본 베이스라인 또는 신호의 낮은 값)
-            left_value = min(baseline[left_anchor], self.intensity[left_anchor])
-            right_value = min(baseline[right_anchor], self.intensity[right_anchor])
+            # 오른쪽: 구간 끝 후에서 안정 베이스라인 수준 이상인 지점
+            right_anchor = len(self.intensity) - 1
+            search_end = min(len(self.intensity), region_end + 500)
 
-            # 두 값 모두 음수가 아닌지 확인하고, 음수면 0 근처로 조정
-            left_value = max(left_value, 0)
-            right_value = max(right_value, 0)
+            for i in range(region_end + 1, search_end):
+                if i < len(self.intensity):
+                    # 안정 베이스라인 수준의 80% 이상이고, 급상승 중이 아닌 지점
+                    if self.intensity[i] >= stable_baseline_level * 0.8 and derivative[i] <= -rapid_drop_threshold:
+                        right_anchor = i
+                        break
 
-            # 직선 보간으로 브릿지
+            # 6. 앵커 포인트 값 결정 (중앙값 사용 - 더 안정적)
+            # 왼쪽 앵커 값: 앵커 주변 50포인트의 하위 25% 중앙값
+            left_region_start = max(0, left_anchor - 50)
+            left_region_end = left_anchor + 1
+            left_region = self.intensity[left_region_start:left_region_end]
+            left_region_stable = left_region[(left_region > 0) & (left_region >= stable_baseline_level * 0.5)]
+
+            if len(left_region_stable) > 0:
+                # 하위 25%의 중앙값 사용 (피크 영향 제거)
+                sorted_left = np.sort(left_region_stable)
+                left_value = np.median(sorted_left[:max(1, len(sorted_left) // 4)])
+            else:
+                left_value = stable_baseline_level
+
+            # 오른쪽 앵커 값
+            right_region_start = right_anchor
+            right_region_end = min(len(self.intensity), right_anchor + 50)
+            right_region = self.intensity[right_region_start:right_region_end]
+            right_region_stable = right_region[(right_region > 0) & (right_region >= stable_baseline_level * 0.5)]
+
+            if len(right_region_stable) > 0:
+                sorted_right = np.sort(right_region_stable)
+                right_value = np.median(sorted_right[:max(1, len(sorted_right) // 4)])
+            else:
+                right_value = stable_baseline_level
+
+            # 7. 앵커 값이 너무 낮으면 안정 베이스라인 수준으로 보정
+            left_value = max(left_value, stable_baseline_level * 0.7)
+            right_value = max(right_value, stable_baseline_level * 0.7)
+
+            # 8. 직선 보간으로 브릿지
             if right_anchor > left_anchor:
                 x_range = np.arange(left_anchor, right_anchor + 1)
                 bridge_line = np.interp(
@@ -709,7 +765,11 @@ class HybridBaselineCorrector:
                     [left_anchor, right_anchor],
                     [left_value, right_value]
                 )
-                bridged_baseline[left_anchor:right_anchor + 1] = bridge_line
+                # 기존 베이스라인보다 높은 경우에만 브릿지 적용
+                # (이미 좋은 베이스라인을 낮추지 않도록)
+                for idx, val in zip(range(left_anchor, right_anchor + 1), bridge_line):
+                    if bridged_baseline[idx] < val:
+                        bridged_baseline[idx] = val
 
         return bridged_baseline
 
