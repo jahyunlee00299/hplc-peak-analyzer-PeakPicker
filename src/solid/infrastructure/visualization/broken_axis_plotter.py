@@ -40,10 +40,15 @@ class BreakPoint:
     upper_range: Tuple[float, float]   # 상단 축 범위 (min, max)
     gap_ratio: float                   # 생략된 영역 비율
     reason: str                        # 브레이크 적용 이유
+    has_negative_break: bool = False   # 음수 영역 브레이크 여부
+    negative_range: Optional[Tuple[float, float]] = None  # 음수 영역 범위
 
     @property
-    def ylims(self) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+    def ylims(self) -> Tuple[Tuple[float, float], ...]:
         """brokenaxes용 ylims 반환"""
+        if self.has_negative_break and self.negative_range is not None:
+            # 음수 영역 + 하단 + 상단 (3개 영역)
+            return (self.negative_range, self.lower_range, self.upper_range)
         return (self.lower_range, self.upper_range)
 
 
@@ -148,21 +153,25 @@ class PeakHeightAnalyzer:
         self,
         peak_heights: np.ndarray,
         signal_min: float = 0,
-        signal_max: float = None
+        signal_max: float = None,
+        all_peak_heights: np.ndarray = None
     ) -> Optional[BreakPoint]:
         """
         피크 높이 갭 기반 브레이크 포인트 찾기
 
         가장 큰 높이 갭이 있는 위치에서 Y축을 끊음.
+        모든 피크가 브레이크 영역에 걸리지 않도록 경계를 조정함.
 
         Parameters
         ----------
         peak_heights : np.ndarray
-            피크 높이 배열
+            피크 높이 배열 (양수)
         signal_min : float
             신호 최소값
         signal_max : float
             신호 최대값 (None이면 피크 최대값 사용)
+        all_peak_heights : np.ndarray, optional
+            모든 피크 높이 (음수 포함, 경계 조정용)
 
         Returns
         -------
@@ -177,18 +186,45 @@ class PeakHeightAnalyzer:
         max_gap = analysis['max_gap']
         high_value = max_gap['high']
         low_value = max_gap['low']
+        gap_index = max_gap['index']
 
-        # 마진 적용
-        margin = (high_value - low_value) * self.margin_factor
+        # all_peak_heights가 없으면 peak_heights 사용
+        if all_peak_heights is None:
+            all_peak_heights = peak_heights
 
-        lower_max = low_value + margin
-        upper_min = high_value - margin
+        sorted_heights = np.sort(peak_heights)[::-1]  # 내림차순
+
+        # === 핵심 개선: 브레이크 영역에 피크가 걸리지 않도록 경계 조정 ===
+        # 상위 그룹: gap_index까지의 피크들
+        upper_group = sorted_heights[:gap_index + 1]
+        # 하위 그룹: gap_index 이후의 피크들
+        lower_group = sorted_heights[gap_index + 1:]
+
+        # 하위 그룹의 최대값 위에 여유를 두고 lower_max 설정
+        # 모든 작은 피크들이 하단 영역에 완전히 들어가도록
+        lower_group_max = np.max(lower_group) if len(lower_group) > 0 else low_value
+        lower_max = lower_group_max * (1 + self.margin_factor)
+
+        # 상위 그룹의 최소값 아래에 여유를 두고 upper_min 설정
+        # 모든 큰 피크들이 상단 영역에 완전히 들어가도록
+        upper_group_min = np.min(upper_group) if len(upper_group) > 0 else high_value
+        upper_min = upper_group_min * (1 - self.margin_factor)
+
+        # 브레이크 영역에 피크가 없는지 확인
+        # 만약 겹치면 경계 재조정
+        if lower_max >= upper_min:
+            # 갭이 충분하지 않음 - 강제로 중간에 배치
+            mid_point = (lower_group_max + upper_group_min) / 2
+            lower_max = mid_point * 0.95
+            upper_min = mid_point * 1.05
 
         # 최종 범위 결정
         if signal_max is None:
             signal_max = high_value * 1.05
 
+        # 하단 범위: signal_min부터 lower_max까지
         lower_range = (signal_min, lower_max)
+        # 상단 범위: upper_min부터 signal_max까지
         upper_range = (upper_min, signal_max * 1.05)
 
         # 생략 비율 계산
@@ -200,7 +236,7 @@ class PeakHeightAnalyzer:
             lower_range=lower_range,
             upper_range=upper_range,
             gap_ratio=gap_ratio,
-            reason=f"피크 갭 감지: {high_value:.0f} vs {low_value:.0f} (비율: {max_gap['ratio']:.1f}x)"
+            reason=f"Peak gap: {high_value:.0f} vs {low_value:.0f} ({max_gap['ratio']:.1f}x)"
         )
 
     def find_break_point_by_percentile(
@@ -251,15 +287,173 @@ class PeakHeightAnalyzer:
             reason=f"백분위수 갭: P{self.percentile_threshold}={q_low:.0f}, P99={q_high:.0f}"
         )
 
+    def analyze_negative_peaks(
+        self,
+        intensity: np.ndarray,
+        threshold_ratio: float = 0.1
+    ) -> Dict[str, Any]:
+        """
+        음수 피크 분석
+
+        Parameters
+        ----------
+        intensity : np.ndarray
+            강도 배열 (음수 포함 가능)
+        threshold_ratio : float
+            유의미한 음수 피크로 간주할 최소 비율 (양수 최대값 대비)
+
+        Returns
+        -------
+        Dict
+            음수 피크 분석 결과
+        """
+        signal_max = np.max(intensity)
+        signal_min = np.min(intensity)
+
+        # 음수 영역이 있는지 확인
+        if signal_min >= 0:
+            return {
+                'has_negative': False,
+                'negative_peaks': [],
+                'min_value': 0,
+                'reason': 'No negative values'
+            }
+
+        # 음수 피크 탐지
+        negative_signal = -intensity  # 반전
+        from scipy import signal as sig
+
+        # 음수 영역에서 피크 찾기 (반전된 신호에서 양수 피크)
+        neg_peaks, properties = sig.find_peaks(
+            negative_signal,
+            prominence=abs(signal_min) * 0.1,
+            height=0
+        )
+
+        if len(neg_peaks) == 0:
+            return {
+                'has_negative': True,
+                'negative_peaks': [],
+                'min_value': signal_min,
+                'reason': 'Negative baseline but no distinct negative peaks'
+            }
+
+        neg_peak_heights = -intensity[neg_peaks]  # 음수값의 절대값
+
+        # 유의미한 음수 피크 판정
+        threshold = signal_max * threshold_ratio
+        significant_neg_peaks = neg_peak_heights[neg_peak_heights > threshold]
+
+        return {
+            'has_negative': True,
+            'has_significant_negative': len(significant_neg_peaks) > 0,
+            'negative_peaks': neg_peaks.tolist(),
+            'negative_heights': neg_peak_heights.tolist(),
+            'min_value': signal_min,
+            'max_negative_height': float(np.max(neg_peak_heights)) if len(neg_peak_heights) > 0 else 0,
+            'reason': f'{len(neg_peaks)} negative peaks found, min={signal_min:.0f}'
+        }
+
+    def find_break_with_negative(
+        self,
+        intensity: np.ndarray,
+        peak_heights: np.ndarray,
+        signal_min: float,
+        signal_max: float
+    ) -> Optional[BreakPoint]:
+        """
+        음수 피크를 포함한 브레이크 포인트 찾기
+
+        양수 영역의 피크 갭과 음수 영역의 피크를 모두 고려.
+
+        Parameters
+        ----------
+        intensity : np.ndarray
+            강도 배열
+        peak_heights : np.ndarray
+            양수 피크 높이 배열
+        signal_min : float
+            신호 최소값
+        signal_max : float
+            신호 최대값
+
+        Returns
+        -------
+        Optional[BreakPoint]
+            음수 영역을 포함한 브레이크 포인트
+        """
+        # 1. 양수 영역 브레이크 분석
+        pos_break = self.find_break_point_by_peak_gap(
+            peak_heights[peak_heights > 0] if np.any(peak_heights > 0) else peak_heights,
+            signal_min=0,
+            signal_max=signal_max
+        )
+
+        # 2. 음수 영역 분석
+        neg_analysis = self.analyze_negative_peaks(intensity)
+
+        if not neg_analysis['has_negative'] or signal_min >= 0:
+            # 음수 없으면 양수 브레이크만 반환
+            return pos_break
+
+        # 3. 음수 영역이 있는 경우
+        min_val = neg_analysis['min_value']
+
+        # 음수 피크가 있고 양수 브레이크도 필요한 경우
+        if pos_break is not None:
+            # 음수 영역에서 브레이크 필요 여부 확인
+            # 음수 최소값과 0 사이에 큰 갭이 있는지
+            if abs(min_val) > signal_max * 0.1:  # 음수가 양수 최대의 10% 이상
+                # 음수 영역에 대한 브레이크 추가
+                # 음수 피크의 꼭지가 잘리지 않도록 설정
+                neg_peak_max = neg_analysis.get('max_negative_height', abs(min_val))
+
+                # 음수 영역: min_val ~ -neg_peak_max * margin
+                negative_range = (min_val * 1.05, -neg_peak_max * (1 - self.margin_factor))
+
+                # 0 근처 영역과 양수 하단 사이에 갭 생성
+                # 0 근처: -small ~ small
+                zero_margin = max(abs(min_val) * 0.1, signal_max * 0.02)
+
+                return BreakPoint(
+                    lower_range=(-zero_margin, pos_break.lower_range[1]),
+                    upper_range=pos_break.upper_range,
+                    gap_ratio=pos_break.gap_ratio,
+                    reason=f"{pos_break.reason} + negative region",
+                    has_negative_break=True,
+                    negative_range=negative_range
+                )
+
+        # 양수 브레이크는 없지만 음수 영역이 큰 경우
+        if abs(min_val) > signal_max * 0.3:  # 음수가 양수의 30% 이상
+            neg_peak_max = neg_analysis.get('max_negative_height', abs(min_val))
+            negative_range = (min_val * 1.05, -neg_peak_max * (1 - self.margin_factor))
+            zero_margin = max(abs(min_val) * 0.1, signal_max * 0.02)
+
+            return BreakPoint(
+                lower_range=(-zero_margin, signal_max * 1.05),
+                upper_range=(signal_max * 1.05, signal_max * 1.05),  # dummy
+                gap_ratio=0,
+                reason=f"Negative peaks: min={min_val:.0f}",
+                has_negative_break=True,
+                negative_range=negative_range
+            )
+
+        return pos_break
+
     def find_optimal_break_point(
         self,
         intensity: np.ndarray,
         peak_heights: np.ndarray = None,
         peak_indices: np.ndarray = None,
-        strategy: BreakStrategy = BreakStrategy.AUTO
+        strategy: BreakStrategy = BreakStrategy.AUTO,
+        include_negative: bool = True
     ) -> Optional[BreakPoint]:
         """
         최적 브레이크 포인트 찾기 (통합 메서드)
+
+        모든 피크 꼭지가 브레이크 영역에 걸리지 않도록 보장.
+        음수 피크도 처리 가능.
 
         Parameters
         ----------
@@ -271,11 +465,13 @@ class PeakHeightAnalyzer:
             피크 인덱스 배열
         strategy : BreakStrategy
             브레이크 전략
+        include_negative : bool
+            음수 피크 영역도 브레이크 적용 여부
 
         Returns
         -------
         Optional[BreakPoint]
-            최적 브레이크 포인트
+            최적 브레이크 포인트 (피크가 브레이크 영역에 걸리지 않음 보장)
         """
         if strategy == BreakStrategy.NONE:
             return None
@@ -283,9 +479,11 @@ class PeakHeightAnalyzer:
         # 피크 높이가 없으면 자동 탐지
         if peak_heights is None:
             from scipy import signal as sig
+
+            # 양수 피크 탐지
             peaks, properties = sig.find_peaks(
                 intensity,
-                prominence=np.std(intensity) * 2,
+                prominence=np.std(intensity[intensity > 0]) * 2 if np.any(intensity > 0) else 1,
                 distance=10
             )
             if len(peaks) > 0:
@@ -294,24 +492,46 @@ class PeakHeightAnalyzer:
             else:
                 peak_heights = np.array([np.max(intensity)])
 
-        signal_min = max(0, np.min(intensity))
+        signal_min = np.min(intensity)
         signal_max = np.max(intensity)
 
+        # 양수 피크만 추출 (브레이크 계산용)
+        pos_peak_heights = peak_heights[peak_heights > 0] if np.any(peak_heights > 0) else peak_heights
+
         if strategy == BreakStrategy.PEAK_GAP:
-            return self.find_break_point_by_peak_gap(
-                peak_heights, signal_min, signal_max
+            bp = self.find_break_point_by_peak_gap(
+                pos_peak_heights,
+                signal_min=max(0, signal_min),
+                signal_max=signal_max,
+                all_peak_heights=peak_heights
             )
+            # 음수 처리
+            if include_negative and signal_min < 0:
+                bp = self.find_break_with_negative(intensity, peak_heights, signal_min, signal_max)
+            return bp
 
         elif strategy == BreakStrategy.PERCENTILE:
             return self.find_break_point_by_percentile(intensity, peak_heights)
 
         elif strategy == BreakStrategy.AUTO:
-            # 자동: 피크 갭 먼저 시도, 실패시 백분위수
+            # 자동: 피크 갭 먼저 시도
             bp = self.find_break_point_by_peak_gap(
-                peak_heights, signal_min, signal_max
+                pos_peak_heights,
+                signal_min=max(0, signal_min),
+                signal_max=signal_max,
+                all_peak_heights=peak_heights
             )
+
+            # 음수 영역 처리
+            if include_negative and signal_min < 0:
+                bp_with_neg = self.find_break_with_negative(intensity, peak_heights, signal_min, signal_max)
+                if bp_with_neg is not None:
+                    bp = bp_with_neg
+
+            # 피크 갭 실패 시 백분위수 시도
             if bp is None:
                 bp = self.find_break_point_by_percentile(intensity, peak_heights)
+
             return bp
 
         return None
