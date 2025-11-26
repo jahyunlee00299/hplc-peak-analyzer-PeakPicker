@@ -416,26 +416,18 @@ class HybridBaselineCorrector:
         # # 추가로 원본 신호의 70%를 초과하지 않도록 (90% -> 70%)
         # baseline = np.minimum(baseline, self.intensity * 0.7)
 
-        # 베이스라인이 과도하게 음수가 되지 않도록 제한
-        baseline = np.maximum(baseline, -50.0)
+        # 베이스라인이 과도하게 음수가 되지 않도록 제한 (완화된 기준)
+        # 신호 범위의 10%까지 음수 허용
+        signal_range = np.ptp(self.intensity)
+        min_baseline = -signal_range * 0.1
+        baseline = np.maximum(baseline, min_baseline)
 
-        # 베이스라인이 원본 신호를 초과하지 않도록 제한 (브릿지 전에 적용)
-        # 단, 신호가 양수인 구간에서만 적용 (음수 구간은 브릿지로 처리)
-        positive_signal_mask = self.intensity > 0
-        baseline_constrained = baseline.copy()
-        baseline_constrained[positive_signal_mask] = np.minimum(
-            baseline[positive_signal_mask],
-            self.intensity[positive_signal_mask]
-        )
-        baseline = baseline_constrained
+        # 베이스라인이 원본 신호를 초과하지 않도록 제한
+        baseline = np.minimum(baseline, self.intensity)
 
-        # 음수 영역 브릿지 처리: 신호가 음수로 내려가는 구간에서
-        # 베이스라인이 따라 내려가지 않도록 직선으로 연결
-        # 이 함수가 마지막에 호출되어 음수 영역을 브릿지로 덮어씀
-        baseline = self.bridge_negative_regions(baseline, threshold_ratio=0.1)
-
-        # 최종 안전장치: 베이스라인은 절대로 0 미만이 되어서는 안됨
-        baseline = np.maximum(baseline, 0)
+        # 음수 영역 브릿지 처리 (선택적으로 적용)
+        # 극단적인 음수 딥만 브릿지 처리
+        baseline = self.bridge_negative_regions(baseline, threshold_ratio=0.2)
 
         return baseline
 
@@ -634,59 +626,54 @@ class HybridBaselineCorrector:
 
         return linear_baseline
 
-    def bridge_negative_regions(self, baseline: np.ndarray, threshold_ratio: float = 0.1) -> np.ndarray:
+    def bridge_negative_regions(self, baseline: np.ndarray, threshold_ratio: float = 0.2) -> np.ndarray:
         """
-        음수 영역이나 급격히 낮아지는 구간을 직선으로 연결
+        극단적으로 낮은 음수 영역만 브릿지 처리 (완화된 기준)
+
+        일반적인 음수 피크는 허용하고, 매우 급격한 딥만 처리
         """
         bridged_baseline = baseline.copy()
 
-        # 1. 안정적인 베이스라인 수준 계산 (양수 신호만)
-        positive_mask = self.intensity > 0
-        if np.sum(positive_mask) < 10:
+        # 1. 신호 통계 계산
+        signal_range = np.ptp(self.intensity)
+        signal_median = np.median(self.intensity)
+
+        # 2. 극단적인 음수 딥만 감지 (신호 범위의 threshold_ratio 이상 급락)
+        # 예: threshold_ratio=0.2면 신호 범위의 20% 이상 급락한 영역만 처리
+        extreme_threshold = signal_median - signal_range * threshold_ratio
+        extreme_negative_mask = self.intensity < extreme_threshold
+
+        if not np.any(extreme_negative_mask):
             return bridged_baseline
 
-        positive_intensity = self.intensity[positive_mask]
-        # 하위 30%의 중앙값 = 안정적인 베이스라인 수준
-        sorted_positive = np.sort(positive_intensity)
-        stable_level = np.median(sorted_positive[:len(sorted_positive) // 3])
+        # 3. 극단적 음수 지점만 브릿지 처리
+        extreme_indices = np.where(extreme_negative_mask)[0]
 
-        # 2. 신호가 0 이하인 모든 지점을 찾기
-        negative_mask = self.intensity <= 0
+        for idx in extreme_indices:
+            # 주변 정상 신호 값으로 대체
+            left_val = signal_median
+            right_val = signal_median
 
-        if not np.any(negative_mask):
-            return bridged_baseline
-
-        # 3. 음수 구간의 베이스라인을 주변 양수 구간의 값으로 대체
-        # 각 음수 지점에 대해 가장 가까운 양수 지점들의 베이스라인 값으로 보간
-        negative_indices = np.where(negative_mask)[0]
-
-        for neg_idx in negative_indices:
-            # 왼쪽에서 가장 가까운 양수 지점 찾기
-            left_val = stable_level
-            for i in range(neg_idx - 1, -1, -1):
-                if self.intensity[i] > 0:
-                    left_val = max(baseline[i], stable_level * 0.5)
+            # 왼쪽에서 정상 신호 찾기
+            for i in range(idx - 1, max(0, idx - 50) - 1, -1):
+                if self.intensity[i] >= extreme_threshold:
+                    left_val = baseline[i]
                     break
 
-            # 오른쪽에서 가장 가까운 양수 지점 찾기
-            right_val = stable_level
-            for i in range(neg_idx + 1, len(self.intensity)):
-                if self.intensity[i] > 0:
-                    right_val = max(baseline[i], stable_level * 0.5)
+            # 오른쪽에서 정상 신호 찾기
+            for i in range(idx + 1, min(len(self.intensity), idx + 50)):
+                if self.intensity[i] >= extreme_threshold:
+                    right_val = baseline[i]
                     break
 
-            # 두 값의 평균 또는 최소값 사용
-            bridge_val = max((left_val + right_val) / 2, stable_level * 0.5)
-            bridged_baseline[neg_idx] = bridge_val
+            # 평균값으로 브릿지
+            bridge_val = (left_val + right_val) / 2
+            bridged_baseline[idx] = bridge_val
 
-        # 4. 스무딩: 급격한 변화 방지
+        # 4. 스무딩 (브릿지된 영역만)
         from scipy.ndimage import uniform_filter1d
-        # 음수였던 구간만 스무딩
         smoothed = uniform_filter1d(bridged_baseline, size=5)
-        bridged_baseline[negative_mask] = smoothed[negative_mask]
-
-        # 5. 최종 보장: 베이스라인은 항상 0 이상
-        bridged_baseline = np.maximum(bridged_baseline, 0)
+        bridged_baseline[extreme_negative_mask] = smoothed[extreme_negative_mask]
 
         return bridged_baseline
 
