@@ -423,6 +423,10 @@ class HybridBaselineCorrector:
         # 베이스라인이 원본 신호를 초과하지 않도록만 제한
         baseline = np.minimum(baseline, self.intensity)
 
+        # 음수 영역 브릿지 처리: 신호가 음수로 내려가는 구간에서
+        # 베이스라인이 따라 내려가지 않도록 직선으로 연결
+        baseline = self.bridge_negative_regions(baseline, threshold_ratio=0.1)
+
         return baseline
 
     def post_process_corrected_signal(
@@ -619,6 +623,95 @@ class HybridBaselineCorrector:
                     linear_baseline[left_base_idx:right_base_idx + 1] = linear_segment
 
         return linear_baseline
+
+    def bridge_negative_regions(self, baseline: np.ndarray, threshold_ratio: float = 0.1) -> np.ndarray:
+        """
+        음수 영역이나 급격히 낮아지는 구간을 직선으로 연결
+
+        신호가 음수로 내려가거나 비정상적으로 낮아지는 구간에서
+        베이스라인이 따라 내려가지 않도록 직선으로 브릿지 처리
+
+        Args:
+            baseline: 원본 베이스라인
+            threshold_ratio: 신호 범위 대비 음수 임계값 비율
+
+        Returns:
+            음수 구간이 브릿지 처리된 베이스라인
+        """
+        bridged_baseline = baseline.copy()
+
+        # 신호 범위 기준 임계값 계산
+        signal_median = np.median(self.intensity)
+        signal_range = np.ptp(self.intensity)
+
+        # 음수 또는 비정상적으로 낮은 영역 감지 기준
+        # 중앙값보다 신호범위의 threshold_ratio 이상 낮으면 비정상
+        low_threshold = signal_median - signal_range * threshold_ratio
+
+        # 비정상적으로 낮은 구간 찾기
+        low_mask = self.intensity < low_threshold
+
+        if not np.any(low_mask):
+            return bridged_baseline
+
+        # 연속된 낮은 구간 찾기
+        regions = []
+        in_region = False
+        start = 0
+
+        for i, is_low in enumerate(low_mask):
+            if is_low and not in_region:
+                start = i
+                in_region = True
+            elif not is_low and in_region:
+                regions.append((start, i - 1))
+                in_region = False
+
+        if in_region:
+            regions.append((start, len(low_mask) - 1))
+
+        # 각 낮은 구간에 대해 직선 브릿지 적용
+        for region_start, region_end in regions:
+            # 구간이 너무 작으면 스킵 (노이즈일 가능성)
+            if region_end - region_start < 10:
+                continue
+
+            # 브릿지 시작/끝점 찾기 (구간 바깥의 정상 신호 위치)
+            # 왼쪽 앵커: 구간 시작 전 정상 신호
+            left_anchor = region_start
+            search_range = min(50, region_start)
+            for i in range(region_start - 1, region_start - search_range - 1, -1):
+                if i >= 0 and self.intensity[i] >= low_threshold:
+                    left_anchor = i
+                    break
+
+            # 오른쪽 앵커: 구간 끝 후 정상 신호
+            right_anchor = region_end
+            search_range = min(50, len(self.intensity) - region_end - 1)
+            for i in range(region_end + 1, region_end + search_range + 1):
+                if i < len(self.intensity) and self.intensity[i] >= low_threshold:
+                    right_anchor = i
+                    break
+
+            # 앵커 포인트에서의 베이스라인 값 (원본 베이스라인 또는 신호의 낮은 값)
+            left_value = min(baseline[left_anchor], self.intensity[left_anchor])
+            right_value = min(baseline[right_anchor], self.intensity[right_anchor])
+
+            # 두 값 모두 음수가 아닌지 확인하고, 음수면 0 근처로 조정
+            left_value = max(left_value, 0)
+            right_value = max(right_value, 0)
+
+            # 직선 보간으로 브릿지
+            if right_anchor > left_anchor:
+                x_range = np.arange(left_anchor, right_anchor + 1)
+                bridge_line = np.interp(
+                    x_range,
+                    [left_anchor, right_anchor],
+                    [left_value, right_value]
+                )
+                bridged_baseline[left_anchor:right_anchor + 1] = bridge_line
+
+        return bridged_baseline
 
     def compare_baselines_by_peak_width(
         self,
