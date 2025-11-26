@@ -650,7 +650,6 @@ class HybridBaselineCorrector:
         # 1. 안정적인 베이스라인 참조값 계산 (양수 값만 사용)
         positive_intensity = self.intensity[self.intensity > 0]
         if len(positive_intensity) < 10:
-            # 양수 값이 거의 없으면 처리 불가
             return bridged_baseline
 
         # 양수 값들 중 하위 30%의 중앙값 = 안정적인 베이스라인 수준
@@ -658,20 +657,15 @@ class HybridBaselineCorrector:
         stable_baseline_values = sorted_positive[:len(sorted_positive) // 3]
         stable_baseline_level = np.median(stable_baseline_values) if len(stable_baseline_values) > 0 else np.median(positive_intensity)
 
-        # 2. 문제 영역 감지 (더 공격적인 기준)
-        # - 신호가 0 이하
-        # - 신호가 안정 베이스라인의 30% 미만 (급락 영역)
-        # - 베이스라인이 0 이하
+        # 2. 문제 영역 감지: 신호가 0 이하이거나 급락한 구간
         low_threshold = stable_baseline_level * 0.3
-        problem_mask = (self.intensity <= 0) | (self.intensity < low_threshold) | (baseline <= 0)
+        problem_mask = (self.intensity <= 0) | (self.intensity < low_threshold)
 
         if not np.any(problem_mask):
             return bridged_baseline
 
-        # 3. 연속된 문제 구간 찾기 + 마진 확장
+        # 3. 연속된 문제 구간 찾기 (마진 확장 포함)
         expanded_mask = problem_mask.copy()
-
-        # 마진 확장: 전후 30포인트도 포함 (더 넓은 마진)
         indices = np.where(problem_mask)[0]
         for idx in indices:
             start = max(0, idx - 30)
@@ -696,59 +690,38 @@ class HybridBaselineCorrector:
 
         # 4. 각 문제 구간에 대해 직선 브릿지 적용
         for region_start, region_end in regions:
-            # 5. 왼쪽 앵커 찾기: 구간 시작 전 안정적인 지점
-            left_anchor = 0
+            # 왼쪽 앵커: 문제 구간 시작 전의 안정적인 양수 지점
+            left_anchor = max(0, region_start - 1)
             left_value = stable_baseline_level
 
-            for i in range(region_start - 1, -1, -1):
-                # 안정적인 신호: 양수이고 stable_baseline의 50% 이상
-                if self.intensity[i] > 0 and self.intensity[i] >= stable_baseline_level * 0.5:
+            # 왼쪽에서 가장 가까운 양수이고 안정적인 지점 찾기
+            for i in range(region_start - 1, max(0, region_start - 100) - 1, -1):
+                if self.intensity[i] > stable_baseline_level * 0.5:
                     left_anchor = i
-                    # 앵커 주변의 안정적인 베이스라인 값 사용
-                    search_start = max(0, i - 50)
-                    region_vals = self.intensity[search_start:i+1]
-                    # 양수이고 피크가 아닌 값들 (베이스라인 수준의 2배 미만)
-                    stable_vals = region_vals[(region_vals > 0) & (region_vals < stable_baseline_level * 2)]
-                    if len(stable_vals) > 0:
-                        left_value = np.median(stable_vals)
-                    else:
-                        left_value = min(self.intensity[i], stable_baseline_level)
+                    left_value = min(self.intensity[i], baseline[i]) if baseline[i] > 0 else self.intensity[i]
                     break
 
-            # 6. 오른쪽 앵커 찾기
-            right_anchor = len(self.intensity) - 1
+            # 오른쪽 앵커: 문제 구간 끝 후의 안정적인 양수 지점
+            right_anchor = min(len(self.intensity) - 1, region_end + 1)
             right_value = stable_baseline_level
 
-            for i in range(region_end + 1, len(self.intensity)):
-                if self.intensity[i] > 0 and self.intensity[i] >= stable_baseline_level * 0.5:
+            for i in range(region_end + 1, min(len(self.intensity), region_end + 100)):
+                if self.intensity[i] > stable_baseline_level * 0.5:
                     right_anchor = i
-                    search_end = min(len(self.intensity), i + 50)
-                    region_vals = self.intensity[i:search_end]
-                    stable_vals = region_vals[(region_vals > 0) & (region_vals < stable_baseline_level * 2)]
-                    if len(stable_vals) > 0:
-                        right_value = np.median(stable_vals)
-                    else:
-                        right_value = min(self.intensity[i], stable_baseline_level)
+                    right_value = min(self.intensity[i], baseline[i]) if baseline[i] > 0 else self.intensity[i]
                     break
 
-            # 7. 앵커 값은 항상 양수이고 합리적인 범위 내로 제한
-            left_value = max(left_value, stable_baseline_level * 0.5, 0)
-            right_value = max(right_value, stable_baseline_level * 0.5, 0)
+            # 앵커 값이 합리적인 범위 내로 제한 (양수 보장)
+            left_value = max(left_value, stable_baseline_level * 0.5, 1.0)
+            right_value = max(right_value, stable_baseline_level * 0.5, 1.0)
 
-            # 8. 직선 보간으로 브릿지
+            # 직선 보간으로 브릿지 (무조건 적용)
             if right_anchor > left_anchor:
-                x_range = np.arange(left_anchor, right_anchor + 1)
-                bridge_line = np.interp(
-                    x_range,
-                    [left_anchor, right_anchor],
-                    [left_value, right_value]
-                )
-                # 브릿지 적용: 기존 베이스라인보다 높은 경우에만 (베이스라인을 올림)
-                for idx, val in zip(range(left_anchor, right_anchor + 1), bridge_line):
-                    if bridged_baseline[idx] < val:
-                        bridged_baseline[idx] = val
+                bridge_line = np.linspace(left_value, right_value, right_anchor - left_anchor + 1)
+                # 문제 구간에 무조건 브릿지 적용
+                bridged_baseline[left_anchor:right_anchor + 1] = bridge_line
 
-        # 9. 최종 안전 장치: 베이스라인이 0 미만이면 0으로
+        # 최종 안전 장치: 베이스라인이 0 미만이면 0으로
         bridged_baseline = np.maximum(bridged_baseline, 0)
 
         return bridged_baseline
