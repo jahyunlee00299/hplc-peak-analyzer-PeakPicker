@@ -539,124 +539,84 @@ class HybridBaselineCorrector:
 
     def apply_linear_baseline_to_peaks(self, baseline: np.ndarray, detected_peaks: List[int]) -> np.ndarray:
         """
-        검출된 피크 영역에 flat 베이스라인 적용
-        모든 피크 영역에 수평(horizontal) 베이스라인을 강제 적용
+        검출된 피크 영역에 선형(linear) 베이스라인 적용
+        피크 양쪽의 실제 베이스라인 지점을 찾아 직선으로 연결
 
         Args:
             baseline: 원본 베이스라인
             detected_peaks: 검출된 피크의 인덱스 리스트
 
         Returns:
-            피크 영역에 flat 베이스라인이 적용된 베이스라인
+            피크 영역에 linear 베이스라인이 적용된 베이스라인
         """
         linear_baseline = baseline.copy()
 
         for peak_idx in detected_peaks:
-            # 피크 베이스(base) 찾기 - 훨씬 더 넓은 범위 사용
-            # 피크 높이의 5% 수준까지 내려가는 지점을 경계로 사용
+            # 피크 높이 계산
             peak_height = self.intensity[peak_idx] - baseline[peak_idx]
-            base_threshold = baseline[peak_idx] + peak_height * 0.05
+            if peak_height <= 0:
+                continue
 
-            # 왼쪽 경계 찾기 - baseline 근처까지
+            # 피크 베이스(1% 높이) 지점 찾기
+            base_threshold = baseline[peak_idx] + peak_height * 0.01
+
+            # 왼쪽 베이스 지점 찾기 - 신호가 베이스라인 근처로 내려가는 지점
             left_idx = peak_idx
-            while left_idx > 0 and self.intensity[left_idx] > base_threshold:
+            while left_idx > 0:
+                # 신호가 베이스라인 + 1% 높이 이하로 내려가면 중지
+                if self.intensity[left_idx] <= base_threshold:
+                    break
+                # 또는 신호가 베이스라인과 거의 같아지면 중지
+                if self.intensity[left_idx] <= baseline[left_idx] * 1.02:
+                    break
                 left_idx -= 1
-            # 추가로 50 포인트 더 확장 (베이스라인이 부드럽게 연결되도록)
-            left_idx = max(0, left_idx - 50)
 
-            # 오른쪽 경계 찾기 - baseline 근처까지
+            # 오른쪽 베이스 지점 찾기
             right_idx = peak_idx
-            while right_idx < len(self.intensity) - 1 and self.intensity[right_idx] > base_threshold:
+            while right_idx < len(self.intensity) - 1:
+                if self.intensity[right_idx] <= base_threshold:
+                    break
+                if self.intensity[right_idx] <= baseline[right_idx] * 1.02:
+                    break
                 right_idx += 1
-            # 추가로 50 포인트 더 확장
-            right_idx = min(len(self.intensity) - 1, right_idx + 50)
 
-            # 초기 앵커 포인트
-            anchor_left = left_idx
-            anchor_right = right_idx
+            # 피크 영역이 유효한 경우에만 처리
+            if right_idx > left_idx + 5:
+                # 실제 베이스라인 값 사용 (보간된 baseline이 아닌 원본 신호의 낮은 지점)
+                # 피크 양쪽에서 가장 낮은 지점을 찾음
+                search_range = 20  # 경계에서 20포인트 내에서 검색
 
-            # 기울기 완화: 너무 급격하면 앵커 포인트 확장
-            if right_idx > left_idx:
-                baseline_left = max(0, baseline[anchor_left])
-                baseline_right = max(0, baseline[anchor_right])
+                # 왼쪽 실제 베이스라인 값
+                left_search_start = max(0, left_idx - search_range)
+                left_search_end = left_idx + 5
+                left_region = self.intensity[left_search_start:left_search_end]
+                if len(left_region) > 0:
+                    left_base_value = np.min(left_region)
+                    left_base_idx = left_search_start + np.argmin(left_region)
+                else:
+                    left_base_value = baseline[left_idx]
+                    left_base_idx = left_idx
 
-                # 시간 간격 계산
-                time_diff = self.time[anchor_right] - self.time[anchor_left]
-                if time_diff > 0:
-                    # 초기 기울기 계산 (강도/시간)
-                    current_slope = abs(baseline_right - baseline_left) / time_diff
+                # 오른쪽 실제 베이스라인 값
+                right_search_start = right_idx - 5
+                right_search_end = min(len(self.intensity), right_idx + search_range)
+                right_region = self.intensity[right_search_start:right_search_end]
+                if len(right_region) > 0:
+                    right_base_value = np.min(right_region)
+                    right_base_idx = right_search_start + np.argmin(right_region)
+                else:
+                    right_base_value = baseline[right_idx]
+                    right_base_idx = right_idx
 
-                    # 피크 높이 대비 기울기 비율로 급격함 판단
-                    peak_range = np.ptp(self.intensity)
-                    # 매우 엄격한 임계값: 전체 범위의 1% 이상이면 평평하지 않음
-                    slope_threshold = peak_range * 0.01
-
-                    # RT 기준으로 확장 (시간 간격 기준)
-                    rt_expansion_step = 0.1  # 0.1분(6초)씩 양쪽으로 확장
-                    max_rt_expansion = 5.0  # 최대 5분까지 확장
-                    total_expansion = 0.0
-
-                    iteration_count = 0
-                    max_iterations = 100  # 최대 반복 횟수 증가
-
-                    # 기울기가 거의 평평해질 때까지 반복
-                    while current_slope > slope_threshold and total_expansion < max_rt_expansion and iteration_count < max_iterations:
-                        # 현재 RT 범위
-                        current_rt_left = self.time[anchor_left]
-                        current_rt_right = self.time[anchor_right]
-
-                        # RT 기준으로 확장할 새로운 위치 찾기
-                        target_rt_left = current_rt_left - rt_expansion_step
-                        target_rt_right = current_rt_right + rt_expansion_step
-
-                        # RT를 인덱스로 변환
-                        new_left = anchor_left
-                        for i in range(anchor_left - 1, -1, -1):
-                            if self.time[i] <= target_rt_left:
-                                new_left = i
-                                break
-
-                        new_right = anchor_right
-                        for i in range(anchor_right + 1, len(self.time)):
-                            if self.time[i] >= target_rt_right:
-                                new_right = i
-                                break
-
-                        # 더 이상 확장할 수 없으면 중단
-                        if new_left == anchor_left and new_right == anchor_right:
-                            break
-
-                        # 확장된 위치의 베이스라인 값
-                        new_baseline_left = max(0, baseline[new_left])
-                        new_baseline_right = max(0, baseline[new_right])
-
-                        # 새로운 기울기 계산
-                        new_time_diff = self.time[new_right] - self.time[new_left]
-                        if new_time_diff > 0:
-                            new_slope = abs(new_baseline_right - new_baseline_left) / new_time_diff
-
-                            # 기울기가 완화되었거나 거의 평평하면 적용
-                            if new_slope < current_slope or new_slope <= slope_threshold:
-                                anchor_left = new_left
-                                anchor_right = new_right
-                                baseline_left = new_baseline_left
-                                baseline_right = new_baseline_right
-                                current_slope = new_slope
-
-                                # 거의 평평하면 조기 종료
-                                if new_slope <= slope_threshold:
-                                    break
-                            else:
-                                # 기울기가 더 나빠지면 중단
-                                break
-
-                        total_expansion += rt_expansion_step
-                        iteration_count += 1
-
-                # 평평한 수평 베이스라인 적용 (두 값 중 더 낮은 값 사용)
-                # 조건 없이 항상 적용하여 모든 피크 영역에 flat baseline 보장
-                flat_baseline_value = min(baseline_left, baseline_right)
-                linear_baseline[anchor_left:anchor_right+1] = flat_baseline_value
+                # 선형 보간으로 피크 아래 베이스라인 생성
+                if right_base_idx > left_base_idx:
+                    x_range = np.arange(left_base_idx, right_base_idx + 1)
+                    linear_segment = np.interp(
+                        x_range,
+                        [left_base_idx, right_base_idx],
+                        [left_base_value, right_base_value]
+                    )
+                    linear_baseline[left_base_idx:right_base_idx + 1] = linear_segment
 
         return linear_baseline
 
