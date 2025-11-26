@@ -206,6 +206,69 @@ def multi_voigt(x, *params):
     return result
 
 
+def multi_emg(x, *params):
+    """
+    Multiple Exponentially Modified Gaussian (EMG) peaks superimposed.
+
+    Ideal for fitting asymmetric peaks with tailing commonly seen in HPLC.
+
+    Parameters
+    ----------
+    x : array-like
+        X-axis values (retention times)
+    *params : variable length argument list
+        Parameters for each peak: [amp1, center1, sigma1, tau1, amp2, center2, sigma2, tau2, ...]
+        Must be in groups of 4 (amplitude, center, sigma, tau)
+
+    Returns
+    -------
+    array-like
+        Sum of all EMG peaks at each x position
+    """
+    if len(params) % 4 != 0:
+        raise ValueError("Parameters must be in groups of 4 (amplitude, center, sigma, tau)")
+
+    n_peaks = len(params) // 4
+    result = np.zeros_like(x, dtype=float)
+
+    for i in range(n_peaks):
+        amplitude = params[i * 4]
+        center = params[i * 4 + 1]
+        sigma = params[i * 4 + 2]
+        tau = params[i * 4 + 3]
+        result += exponentially_modified_gaussian(x, amplitude, center, sigma, tau)
+
+    return result
+
+
+def estimate_tau_from_asymmetry(asymmetry, sigma):
+    """
+    Estimate EMG tau parameter from peak asymmetry factor.
+
+    Parameters
+    ----------
+    asymmetry : float
+        Asymmetry factor (b/a at 10% height)
+        1.0 = symmetric, >1.0 = tailing, <1.0 = fronting
+    sigma : float
+        Gaussian width parameter
+
+    Returns
+    -------
+    float
+        Estimated tau value for EMG model
+    """
+    # Empirical relationship: tau ≈ sigma * (asymmetry - 1) for moderate tailing
+    # For asymmetry close to 1, tau should be small
+    if asymmetry <= 1.0:
+        return sigma * 0.01  # Near-symmetric, minimal tau
+    elif asymmetry < 1.5:
+        return sigma * (asymmetry - 1.0) * 0.5
+    else:
+        # Strong tailing
+        return sigma * (asymmetry - 1.0) * 0.7
+
+
 def estimate_peak_width(x, y, center_idx):
     """
     Estimate peak width (sigma) from data.

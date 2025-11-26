@@ -21,7 +21,8 @@ import warnings
 
 from src.peak_models import (
     gaussian, multi_gaussian, estimate_peak_width,
-    calculate_peak_asymmetry
+    calculate_peak_asymmetry, exponentially_modified_gaussian,
+    multi_emg, estimate_tau_from_asymmetry
 )
 
 
@@ -38,6 +39,8 @@ class DeconvolvedPeak:
     asymmetry: float  # Asymmetry factor
     start_rt: float  # Peak start time
     end_rt: float  # Peak end time
+    model: str = 'gaussian'  # Peak model type: 'gaussian' or 'emg'
+    tau: float = 0.0  # EMG tau parameter (only for EMG model)
 
 
 @dataclass
@@ -68,7 +71,9 @@ class PeakDeconvolution:
         min_shoulder_ratio: float = 0.1,
         max_components: int = 4,
         smooth_window: int = 5,
-        fit_tolerance: float = 0.85
+        fit_tolerance: float = 0.85,
+        auto_select_model: bool = True,
+        emg_asymmetry_threshold: float = 1.3
     ):
         """
         Initialize peak deconvolution analyzer.
@@ -87,12 +92,18 @@ class PeakDeconvolution:
             Window size for derivative smoothing
         fit_tolerance : float, default=0.85
             Minimum R² value to accept fit (0-1)
+        auto_select_model : bool, default=True
+            Automatically select between Gaussian and EMG models based on asymmetry
+        emg_asymmetry_threshold : float, default=1.3
+            Asymmetry threshold above which EMG model is preferred
         """
         self.min_asymmetry = min_asymmetry
         self.min_shoulder_ratio = min_shoulder_ratio
         self.max_components = max_components
         self.smooth_window = smooth_window
         self.fit_tolerance = fit_tolerance
+        self.auto_select_model = auto_select_model
+        self.emg_asymmetry_threshold = emg_asymmetry_threshold
 
     def needs_deconvolution(
         self,
@@ -321,12 +332,21 @@ class PeakDeconvolution:
         best_r2 = -np.inf
 
         for n_peaks in range(1, min(len(initial_centers) + 1, self.max_components + 1)):
-            result = self._fit_n_gaussians(
-                rt_peak,
-                signal_peak,
-                initial_centers[:n_peaks],
-                main_peak_rt
-            )
+            # Use automatic model selection if enabled
+            if self.auto_select_model:
+                result = self._select_best_model(
+                    rt_peak,
+                    signal_peak,
+                    initial_centers[:n_peaks],
+                    main_peak_rt
+                )
+            else:
+                result = self._fit_n_gaussians(
+                    rt_peak,
+                    signal_peak,
+                    initial_centers[:n_peaks],
+                    main_peak_rt
+                )
 
             if result.success and result.fit_quality > best_r2:
                 best_r2 = result.fit_quality
@@ -475,12 +495,13 @@ class PeakDeconvolution:
                 center = popt[i * 3 + 1]
                 sigma = popt[i * 3 + 2]
 
-                # Calculate area using Chemstation-compatible method (sum of intensities)
-                # Generate Gaussian curve at each time point
+                # Calculate area using trapezoid integration (correct physical integration)
+                # This accounts for RT spacing for accurate area calculation
                 component_curve = gaussian(rt, amp, center, sigma)
-                area = np.sum(component_curve)
+                area = np.trapz(component_curve, rt)  # Proper integration over RT
 
-                # Alternative: Physical integration (commented out)
+                # Note: Alternative methods:
+                # area = np.sum(component_curve) * dt  # Requires uniform dt
                 # area = amp * sigma * np.sqrt(2 * np.pi)  # Analytical Gaussian integral
 
                 total_area += area
@@ -567,6 +588,226 @@ class PeakDeconvolution:
             return 0.0
 
         return 1 - (ss_res / ss_tot)
+
+    def _fit_n_emg(
+        self,
+        rt: np.ndarray,
+        signal: np.ndarray,
+        centers: List[float],
+        original_rt: float
+    ) -> DeconvolutionResult:
+        """
+        Fit N EMG (Exponentially Modified Gaussian) peaks to data.
+
+        Better for asymmetric peaks with tailing.
+
+        Parameters
+        ----------
+        rt : np.ndarray
+            Retention time array
+        signal : np.ndarray
+            Signal intensity array
+        centers : List[float]
+            Initial guesses for peak centers
+        original_rt : float
+            Original peak center RT
+
+        Returns
+        -------
+        DeconvolutionResult
+            Fitting result
+        """
+        n_peaks = len(centers)
+
+        # Prepare initial parameters: [amp1, center1, sigma1, tau1, ...]
+        p0 = []
+        bounds_lower = []
+        bounds_upper = []
+
+        for center in centers:
+            # Find closest index
+            center_idx = np.argmin(np.abs(rt - center))
+
+            # Estimate amplitude
+            amp = signal[center_idx]
+
+            # Estimate sigma
+            sigma = estimate_peak_width(rt, signal, center_idx)
+
+            # Estimate tau from asymmetry
+            asymmetry = calculate_peak_asymmetry(rt, signal, center_idx)
+            tau = estimate_tau_from_asymmetry(asymmetry, sigma)
+
+            p0.extend([amp, center, sigma, tau])
+
+            # Bounds
+            bounds_lower.extend([amp * 0.1, center - sigma * 3, sigma * 0.1, 0.001])
+            bounds_upper.extend([amp * 2.0, center + sigma * 3, sigma * 5.0, sigma * 3.0])
+
+        try:
+            # Perform curve fitting
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')
+
+                popt, pcov = curve_fit(
+                    multi_emg,
+                    rt,
+                    signal,
+                    p0=p0,
+                    bounds=(bounds_lower, bounds_upper),
+                    maxfev=15000
+                )
+
+            # Calculate fit quality
+            fitted_signal = multi_emg(rt, *popt)
+            r2 = self._calculate_r2(signal, fitted_signal)
+            rmse = np.sqrt(np.mean((signal - fitted_signal) ** 2))
+
+            # Check if fit is acceptable
+            if r2 < self.fit_tolerance:
+                return self._create_failed_result(
+                    original_rt,
+                    f"Poor EMG fit quality: R²={r2:.3f}"
+                )
+
+            # Extract individual components
+            components = []
+            total_area = 0
+
+            for i in range(n_peaks):
+                amp = popt[i * 4]
+                center = popt[i * 4 + 1]
+                sigma = popt[i * 4 + 2]
+                tau = popt[i * 4 + 3]
+
+                # Calculate area using trapezoid integration
+                component_curve = exponentially_modified_gaussian(rt, amp, center, sigma, tau)
+                area = np.trapz(component_curve, rt)
+
+                total_area += area
+
+                # Find peak boundaries (at 1% of peak max)
+                peak_max = np.max(component_curve)
+                threshold = peak_max * 0.01
+                above_threshold = component_curve > threshold
+                if np.any(above_threshold):
+                    indices = np.where(above_threshold)[0]
+                    start_rt = rt[indices[0]]
+                    end_rt = rt[indices[-1]]
+                else:
+                    start_rt = center - 3 * sigma
+                    end_rt = center + 3 * sigma + tau
+
+                # Determine if this is a shoulder peak
+                is_shoulder = amp < max([popt[j * 4] for j in range(n_peaks)]) * 0.8
+
+                # Calculate asymmetry for this component
+                center_idx = np.argmin(np.abs(rt - center))
+                asymmetry = calculate_peak_asymmetry(rt, component_curve, center_idx)
+
+                components.append(DeconvolvedPeak(
+                    retention_time=center,
+                    amplitude=amp,
+                    sigma=sigma,
+                    area=area,
+                    area_percent=0,
+                    fit_quality=r2,
+                    is_shoulder=is_shoulder,
+                    asymmetry=asymmetry,
+                    start_rt=start_rt,
+                    end_rt=end_rt,
+                    model='emg',
+                    tau=tau
+                ))
+
+            # Calculate area percentages
+            for comp in components:
+                comp.area_percent = (comp.area / total_area) * 100
+
+            # Sort components by retention time
+            components.sort(key=lambda x: x.retention_time)
+
+            return DeconvolutionResult(
+                original_peak_rt=original_rt,
+                n_components=n_peaks,
+                components=components,
+                total_area=total_area,
+                fit_quality=r2,
+                rmse=rmse,
+                method=f"{n_peaks}-EMG",
+                success=True,
+                message=f"Successfully fitted {n_peaks} EMG peaks (R²={r2:.3f})"
+            )
+
+        except Exception as e:
+            return self._create_failed_result(
+                original_rt,
+                f"EMG fitting error: {str(e)}"
+            )
+
+    def _select_best_model(
+        self,
+        rt: np.ndarray,
+        signal: np.ndarray,
+        centers: List[float],
+        original_rt: float
+    ) -> DeconvolutionResult:
+        """
+        Automatically select the best peak model (Gaussian or EMG) based on fit quality.
+
+        Parameters
+        ----------
+        rt : np.ndarray
+            Retention time array
+        signal : np.ndarray
+            Signal intensity array
+        centers : List[float]
+            Initial guesses for peak centers
+        original_rt : float
+            Original peak center RT
+
+        Returns
+        -------
+        DeconvolutionResult
+            Best fitting result
+        """
+        # Calculate overall peak asymmetry
+        peak_idx = np.argmax(signal)
+        asymmetry = calculate_peak_asymmetry(rt, signal, peak_idx)
+
+        # If highly asymmetric, try EMG first
+        if asymmetry > self.emg_asymmetry_threshold:
+            # Try EMG model first
+            emg_result = self._fit_n_emg(rt, signal, centers, original_rt)
+            if emg_result.success and emg_result.fit_quality > 0.9:
+                return emg_result
+
+            # Fallback to Gaussian if EMG didn't work well
+            gaussian_result = self._fit_n_gaussians(rt, signal, centers, original_rt)
+
+            # Compare and return best
+            if emg_result.success and gaussian_result.success:
+                return emg_result if emg_result.fit_quality >= gaussian_result.fit_quality else gaussian_result
+            elif emg_result.success:
+                return emg_result
+            else:
+                return gaussian_result
+        else:
+            # Try Gaussian first for symmetric peaks
+            gaussian_result = self._fit_n_gaussians(rt, signal, centers, original_rt)
+            if gaussian_result.success and gaussian_result.fit_quality > 0.95:
+                return gaussian_result
+
+            # Try EMG if Gaussian fit is not great
+            emg_result = self._fit_n_emg(rt, signal, centers, original_rt)
+
+            # Compare and return best
+            if gaussian_result.success and emg_result.success:
+                return gaussian_result if gaussian_result.fit_quality >= emg_result.fit_quality else emg_result
+            elif gaussian_result.success:
+                return gaussian_result
+            else:
+                return emg_result
 
     def _create_failed_result(
         self,

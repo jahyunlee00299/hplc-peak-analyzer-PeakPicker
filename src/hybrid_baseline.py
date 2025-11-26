@@ -36,13 +36,48 @@ class HybridBaselineCorrector:
         self,
         valley_prominence: float = 0.01,
         local_window: int = None,
-        percentile: float = 2,  # 더 낮은 percentile로 변경 (10 -> 5 -> 2)
+        percentile: float = None,  # Adaptive percentile (None = auto)
         min_distance: int = 10
     ) -> List[BaselinePoint]:
         """
         Valley와 Local Minimum을 결합하여 최적의 베이스라인 앵커 포인트 찾기
+
+        Parameters
+        ----------
+        valley_prominence : float
+            Valley detection prominence factor
+        local_window : int
+            Window size for local minimum search
+        percentile : float or None
+            Percentile threshold for local minimum selection.
+            If None, automatically determined based on signal characteristics.
+        min_distance : int
+            Minimum distance between anchor points
         """
         baseline_points = []
+
+        # Adaptive percentile calculation based on signal characteristics
+        if percentile is None:
+            # Estimate noise level using MAD of signal derivative
+            derivative = np.diff(self.intensity)
+            noise_mad = np.median(np.abs(derivative - np.median(derivative)))
+            signal_range = np.ptp(self.intensity)
+
+            # Higher noise -> higher percentile (more conservative)
+            # Lower noise -> lower percentile (more sensitive)
+            if signal_range > 0:
+                noise_ratio = noise_mad / signal_range
+                if noise_ratio > 0.05:
+                    # Noisy signal: use 10th percentile
+                    percentile = 10
+                elif noise_ratio > 0.02:
+                    # Moderate noise: use 5th percentile
+                    percentile = 5
+                else:
+                    # Low noise: use 2nd percentile
+                    percentile = 2
+            else:
+                percentile = 5  # Default
 
         # 1. Valley points 찾기
         valleys = self._find_valleys(valley_prominence)
@@ -143,8 +178,11 @@ class HybridBaselineCorrector:
             mad = np.median(np.abs(values - median_value))
 
             # MAD 기반 outlier 감지 (median - 3*MAD 이하는 제거)
-            # 하지만 MAD가 너무 작으면 (stable baseline) percentile 사용
-            if mad < 100:
+            # 신호 범위 대비 MAD가 작으면 stable baseline으로 판단
+            signal_range = np.ptp(self.intensity)  # 전체 신호 범위
+            relative_mad_threshold = signal_range * 0.02  # 신호 범위의 2%
+
+            if mad < relative_mad_threshold:
                 # Stable baseline: 10th percentile 이하 제거
                 threshold = np.percentile(values, 10)
             else:
