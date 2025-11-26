@@ -434,6 +434,9 @@ class HybridBaselineCorrector:
         # 이 함수가 마지막에 호출되어 음수 영역을 브릿지로 덮어씀
         baseline = self.bridge_negative_regions(baseline, threshold_ratio=0.1)
 
+        # 최종 안전장치: 베이스라인은 절대로 0 미만이 되어서는 안됨
+        baseline = np.maximum(baseline, 0)
+
         return baseline
 
     def post_process_corrected_signal(
