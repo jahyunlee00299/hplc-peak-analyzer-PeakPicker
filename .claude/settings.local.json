@@ -29,7 +29,17 @@
       "Bash(git checkout:*)",
       "Bash(find:*)",
       "Bash(iconv:*)",
-      "Bash(git merge claude/baseline-peak-handling-011CUq1SxwLTPQmGxyufu61S --no-ff -m \"$(cat <<''EOF''\nMerge branch ''claude/baseline-peak-handling-011CUq1SxwLTPQmGxyufu61S''\n\nAdd linear baseline for peak regions with intelligent method selection\n\nThis merge introduces a major improvement to baseline correction by applying linear baselines in peak regions and intelligently selecting between robust_fit and weighted_spline methods based on peak width analysis.\n\nKey features:\n- Linear baseline in peak regions for accurate area integration\n- Automatic peak-width-based method selection (robust vs weighted)\n- 90% of samples achieve perfect detection on first attempt\n- Comprehensive visualization tools for method comparison\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git merge claude/baseline-peak-handling-011CUq1SxwLTPQmGxyufu61S --no-ff -m \"$(cat <<''EOF''\nMerge branch ''claude/baseline-peak-handling-011CUq1SxwLTPQmGxyufu61S''\n\nAdd linear baseline for peak regions with intelligent method selection\n\nThis merge introduces a major improvement to baseline correction by applying linear baselines in peak regions and intelligently selecting between robust_fit and weighted_spline methods based on peak width analysis.\n\nKey features:\n- Linear baseline in peak regions for accurate area integration\n- Automatic peak-width-based method selection (robust vs weighted)\n- 90% of samples achieve perfect detection on first attempt\n- Comprehensive visualization tools for method comparison\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(timeout 5 bash -c \"echo ''''y'''' | python run_complete_workflow.py --skip-export --data-dir ''''result/DEF_LC 2025-05-19 17-57-25'''' --asymmetry-threshold 1.2\")",
+      "Bash(timeout 30 python:*)",
+      "Bash(timeout 60 python:*)",
+      "Bash(timeout 180 python:*)",
+      "Bash(pkill:*)",
+      "Bash(timeout 60 bash:*)",
+      "Bash(timeout 180 bash -c:*)",
+      "Bash(timeout 120 python:*)",
+      "Bash(shuf)",
+      "Bash(timeout 600 python run_complete_workflow.py:*)"
     ],
     "deny": [],
     "ask": []
