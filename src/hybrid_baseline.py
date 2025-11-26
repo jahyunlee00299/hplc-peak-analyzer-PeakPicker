@@ -634,94 +634,55 @@ class HybridBaselineCorrector:
     def bridge_negative_regions(self, baseline: np.ndarray, threshold_ratio: float = 0.1) -> np.ndarray:
         """
         음수 영역이나 급격히 낮아지는 구간을 직선으로 연결
-
-        신호가 음수로 내려가거나 비정상적으로 낮아지는 구간에서
-        베이스라인이 따라 내려가지 않도록 직선으로 브릿지 처리
-
-        Args:
-            baseline: 원본 베이스라인
-            threshold_ratio: 신호 범위 대비 음수 임계값 비율
-
-        Returns:
-            음수 구간이 브릿지 처리된 베이스라인
         """
         bridged_baseline = baseline.copy()
 
-        # 1. 안정적인 베이스라인 참조값 계산 (양수 값만 사용)
-        positive_intensity = self.intensity[self.intensity > 0]
-        if len(positive_intensity) < 10:
+        # 1. 안정적인 베이스라인 수준 계산 (양수 신호만)
+        positive_mask = self.intensity > 0
+        if np.sum(positive_mask) < 10:
             return bridged_baseline
 
-        # 양수 값들 중 하위 30%의 중앙값 = 안정적인 베이스라인 수준
+        positive_intensity = self.intensity[positive_mask]
+        # 하위 30%의 중앙값 = 안정적인 베이스라인 수준
         sorted_positive = np.sort(positive_intensity)
-        stable_baseline_values = sorted_positive[:len(sorted_positive) // 3]
-        stable_baseline_level = np.median(stable_baseline_values) if len(stable_baseline_values) > 0 else np.median(positive_intensity)
+        stable_level = np.median(sorted_positive[:len(sorted_positive) // 3])
 
-        # 2. 문제 영역 감지: 신호가 0 이하이거나 급락한 구간
-        low_threshold = stable_baseline_level * 0.3
-        problem_mask = (self.intensity <= 0) | (self.intensity < low_threshold)
+        # 2. 신호가 0 이하인 모든 지점을 찾기
+        negative_mask = self.intensity <= 0
 
-        if not np.any(problem_mask):
+        if not np.any(negative_mask):
             return bridged_baseline
 
-        # 3. 연속된 문제 구간 찾기 (마진 확장 포함)
-        expanded_mask = problem_mask.copy()
-        indices = np.where(problem_mask)[0]
-        for idx in indices:
-            start = max(0, idx - 30)
-            end = min(len(expanded_mask), idx + 31)
-            expanded_mask[start:end] = True
+        # 3. 음수 구간의 베이스라인을 주변 양수 구간의 값으로 대체
+        # 각 음수 지점에 대해 가장 가까운 양수 지점들의 베이스라인 값으로 보간
+        negative_indices = np.where(negative_mask)[0]
 
-        # 연속 구간 찾기
-        regions = []
-        in_region = False
-        start = 0
-
-        for i, is_problem in enumerate(expanded_mask):
-            if is_problem and not in_region:
-                start = i
-                in_region = True
-            elif not is_problem and in_region:
-                regions.append((start, i - 1))
-                in_region = False
-
-        if in_region:
-            regions.append((start, len(expanded_mask) - 1))
-
-        # 4. 각 문제 구간에 대해 직선 브릿지 적용
-        for region_start, region_end in regions:
-            # 왼쪽 앵커: 문제 구간 시작 전의 안정적인 양수 지점
-            left_anchor = max(0, region_start - 1)
-            left_value = stable_baseline_level
-
-            # 왼쪽에서 가장 가까운 양수이고 안정적인 지점 찾기
-            for i in range(region_start - 1, max(0, region_start - 100) - 1, -1):
-                if self.intensity[i] > stable_baseline_level * 0.5:
-                    left_anchor = i
-                    left_value = min(self.intensity[i], baseline[i]) if baseline[i] > 0 else self.intensity[i]
+        for neg_idx in negative_indices:
+            # 왼쪽에서 가장 가까운 양수 지점 찾기
+            left_val = stable_level
+            for i in range(neg_idx - 1, -1, -1):
+                if self.intensity[i] > 0:
+                    left_val = max(baseline[i], stable_level * 0.5)
                     break
 
-            # 오른쪽 앵커: 문제 구간 끝 후의 안정적인 양수 지점
-            right_anchor = min(len(self.intensity) - 1, region_end + 1)
-            right_value = stable_baseline_level
-
-            for i in range(region_end + 1, min(len(self.intensity), region_end + 100)):
-                if self.intensity[i] > stable_baseline_level * 0.5:
-                    right_anchor = i
-                    right_value = min(self.intensity[i], baseline[i]) if baseline[i] > 0 else self.intensity[i]
+            # 오른쪽에서 가장 가까운 양수 지점 찾기
+            right_val = stable_level
+            for i in range(neg_idx + 1, len(self.intensity)):
+                if self.intensity[i] > 0:
+                    right_val = max(baseline[i], stable_level * 0.5)
                     break
 
-            # 앵커 값이 합리적인 범위 내로 제한 (양수 보장)
-            left_value = max(left_value, stable_baseline_level * 0.5, 1.0)
-            right_value = max(right_value, stable_baseline_level * 0.5, 1.0)
+            # 두 값의 평균 또는 최소값 사용
+            bridge_val = max((left_val + right_val) / 2, stable_level * 0.5)
+            bridged_baseline[neg_idx] = bridge_val
 
-            # 직선 보간으로 브릿지 (무조건 적용)
-            if right_anchor > left_anchor:
-                bridge_line = np.linspace(left_value, right_value, right_anchor - left_anchor + 1)
-                # 문제 구간에 무조건 브릿지 적용
-                bridged_baseline[left_anchor:right_anchor + 1] = bridge_line
+        # 4. 스무딩: 급격한 변화 방지
+        from scipy.ndimage import uniform_filter1d
+        # 음수였던 구간만 스무딩
+        smoothed = uniform_filter1d(bridged_baseline, size=5)
+        bridged_baseline[negative_mask] = smoothed[negative_mask]
 
-        # 최종 안전 장치: 베이스라인이 0 미만이면 0으로
+        # 5. 최종 보장: 베이스라인은 항상 0 이상
         bridged_baseline = np.maximum(bridged_baseline, 0)
 
         return bridged_baseline
