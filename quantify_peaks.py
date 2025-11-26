@@ -57,41 +57,123 @@ class PeakQuantifier:
             'peaks': peaks_info
         }
 
+    def _estimate_noise_level(self, corrected):
+        """
+        Robust noise level estimation using MAD (Median Absolute Deviation).
+
+        Better than percentile-based estimation for signals with many peaks.
+        """
+        # Use derivative for noise estimation (less affected by peaks)
+        derivative = np.diff(corrected)
+
+        # MAD is more robust than standard deviation for non-Gaussian noise
+        mad = np.median(np.abs(derivative - np.median(derivative)))
+
+        # Convert MAD to standard deviation equivalent
+        # For Gaussian: std ≈ 1.4826 * MAD
+        noise_std = mad * 1.4826
+
+        return noise_std
+
+    def _estimate_snr(self, corrected, noise_level):
+        """
+        Estimate Signal-to-Noise Ratio for the chromatogram.
+
+        Returns
+        -------
+        float
+            Estimated SNR (signal peak / noise level)
+        """
+        signal_max = np.max(corrected)
+        if noise_level > 0:
+            return signal_max / noise_level
+        return 100.0  # Default high SNR if noise is zero
+
+    def _get_adaptive_parameters(self, corrected):
+        """
+        Calculate adaptive peak detection parameters based on SNR.
+
+        Low SNR: More conservative (higher thresholds)
+        High SNR: More sensitive (lower thresholds)
+        """
+        noise_level = self._estimate_noise_level(corrected)
+        snr = self._estimate_snr(corrected, noise_level)
+        signal_range = np.ptp(corrected)
+
+        # Adaptive prominence based on SNR
+        if snr > 100:
+            # High SNR: Very sensitive detection
+            prominence_factor = 0.0005
+            height_factor = 0.3
+            min_width = 1
+        elif snr > 50:
+            # Medium-high SNR: Sensitive detection
+            prominence_factor = 0.001
+            height_factor = 0.5
+            min_width = 1
+        elif snr > 20:
+            # Medium SNR: Standard detection
+            prominence_factor = 0.002
+            height_factor = 1.0
+            min_width = 2
+        elif snr > 10:
+            # Low SNR: Conservative detection
+            prominence_factor = 0.005
+            height_factor = 2.0
+            min_width = 3
+        else:
+            # Very low SNR: Very conservative
+            prominence_factor = 0.01
+            height_factor = 3.0
+            min_width = 5
+
+        min_prominence = max(signal_range * prominence_factor, noise_level * height_factor)
+        min_height = noise_level * height_factor
+
+        return {
+            'noise_level': noise_level,
+            'snr': snr,
+            'min_prominence': min_prominence,
+            'min_height': min_height,
+            'min_width': min_width
+        }
+
     def _detect_peaks(self, time, corrected):
-        """피크 검출 및 면적 계산"""
+        """피크 검출 및 면적 계산 (SNR 기반 적응형 파라미터)"""
         from scipy import signal
         from scipy.integrate import trapezoid
 
-        signal_range = np.ptp(corrected)
-        noise_level = np.percentile(np.abs(corrected), 25) * 1.5
-
-        # 파라미터를 더욱 완화하여 14.7분 근처 작은 피크도 검출
-        min_prominence = max(signal_range * 0.001, noise_level * 0.5)  # 0.002 → 0.001, 1.0 → 0.5
-        min_height = noise_level * 0.5  # 1.0 → 0.5
+        # Get adaptive parameters based on SNR
+        params = self._get_adaptive_parameters(corrected)
+        noise_level = params['noise_level']
+        min_prominence = params['min_prominence']
+        min_height = params['min_height']
+        min_width = params['min_width']
 
         # 양수 피크만 검출
         peaks, props = signal.find_peaks(
             corrected,
             prominence=min_prominence,
             height=min_height,
-            width=1,  # 2 → 1 (매우 좁은 피크도 검출)
-            distance=15  # 20 → 15 (더 가까운 피크도 분리)
+            width=min_width,
+            distance=15
         )
-
-        # 베이스라인 복귀 임계값
-        baseline_threshold = noise_level * 2
 
         peaks_info = []
         for i, peak_idx in enumerate(peaks):
             peak_height = corrected[peak_idx]
 
+            # 피크 높이 기반 경계 임계값 (피크 높이의 1%)
+            # 이 방식은 작은 피크와 큰 피크 모두에서 일관된 경계 검출을 보장
+            boundary_threshold = max(peak_height * 0.01, noise_level * 0.5)
+
             # 베이스라인 복귀 지점 찾기
             left_idx = peak_idx
-            while left_idx > 0 and corrected[left_idx] > baseline_threshold:
+            while left_idx > 0 and corrected[left_idx] > boundary_threshold:
                 left_idx -= 1
 
             right_idx = peak_idx
-            while right_idx < len(corrected) - 1 and corrected[right_idx] > baseline_threshold:
+            while right_idx < len(corrected) - 1 and corrected[right_idx] > boundary_threshold:
                 right_idx += 1
 
             # 면적 계산 (초 단위로 변환)
