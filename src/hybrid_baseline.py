@@ -416,17 +416,23 @@ class HybridBaselineCorrector:
         # # 추가로 원본 신호의 70%를 초과하지 않도록 (90% -> 70%)
         # baseline = np.minimum(baseline, self.intensity * 0.7)
 
-        # 베이스라인이 과도하게 음수가 되지 않도록 제한만 유지
-        # 작은 음수는 허용하되 (-50까지), 큰 음수는 방지
+        # 베이스라인이 과도하게 음수가 되지 않도록 제한
         baseline = np.maximum(baseline, -50.0)
+
+        # 베이스라인이 원본 신호를 초과하지 않도록 제한 (브릿지 전에 적용)
+        # 단, 신호가 양수인 구간에서만 적용 (음수 구간은 브릿지로 처리)
+        positive_signal_mask = self.intensity > 0
+        baseline_constrained = baseline.copy()
+        baseline_constrained[positive_signal_mask] = np.minimum(
+            baseline[positive_signal_mask],
+            self.intensity[positive_signal_mask]
+        )
+        baseline = baseline_constrained
 
         # 음수 영역 브릿지 처리: 신호가 음수로 내려가는 구간에서
         # 베이스라인이 따라 내려가지 않도록 직선으로 연결
+        # 이 함수가 마지막에 호출되어 음수 영역을 브릿지로 덮어씀
         baseline = self.bridge_negative_regions(baseline, threshold_ratio=0.1)
-
-        # 최종 제약: 베이스라인이 원본 신호를 초과하지 않도록 (가장 마지막에 적용)
-        # 이 제약은 다른 모든 처리가 끝난 후 적용되어야 함
-        baseline = np.minimum(baseline, self.intensity)
 
         return baseline
 
