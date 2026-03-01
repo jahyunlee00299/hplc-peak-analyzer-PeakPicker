@@ -208,6 +208,12 @@ class WorkflowBuilder:
         self._reader = CSVReader()
         return self
 
+    def with_rainbow_reader(self) -> 'WorkflowBuilder':
+        """Use rainbow-api based Chemstation reader (fixes delta decompression)."""
+        from ..infrastructure import RainbowChemstationReader
+        self._reader = RainbowChemstationReader()
+        return self
+
     def with_default_baseline(
         self,
         config: BaselineCorrectorConfig = None

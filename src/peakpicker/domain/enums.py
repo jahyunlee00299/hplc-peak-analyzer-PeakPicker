@@ -58,3 +58,17 @@ class SignalQuality(Enum):
     ACCEPTABLE = auto()  # R² > 0.90
     POOR = auto()        # R² > 0.80
     FAILED = auto()      # R² <= 0.80
+
+
+class VisualizationMode(Enum):
+    """Visualization mode for quantification results."""
+    TIME_COURSE = auto()         # Line plot across all time points
+    SINGLE_TIMEPOINT = auto()    # Bar chart for one specific time point
+    COMPARISON = auto()          # Side-by-side comparison (e.g. RO vs RS)
+    ALL_CONDITIONS = auto()      # Full grouped bar chart
+
+
+class StatisticalTest(Enum):
+    """Type of statistical test to perform."""
+    ANOVA_ONEWAY = "anova_oneway"
+    TUKEY_HSD = "tukey_hsd"
