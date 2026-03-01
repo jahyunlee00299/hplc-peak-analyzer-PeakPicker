@@ -26,6 +26,16 @@ from .peak_detection_config import (
     PeakAnalysisPresets,
 )
 
+from .quantification_config import (
+    SampleNameParserConfig,
+    CalibrationConfig,
+    RTMatchingConfig,
+    StatisticalConfig,
+    VisualizationConfig,
+    QuantificationConfig,
+    QuantificationPresets,
+)
+
 __all__ = [
     # Baseline configs
     'AnchorFinderConfig',
@@ -42,4 +52,12 @@ __all__ = [
     'AreaCalculationConfig',
     'PeakAnalysisConfig',
     'PeakAnalysisPresets',
+    # Quantification configs
+    'SampleNameParserConfig',
+    'CalibrationConfig',
+    'RTMatchingConfig',
+    'StatisticalConfig',
+    'VisualizationConfig',
+    'QuantificationConfig',
+    'QuantificationPresets',
 ]

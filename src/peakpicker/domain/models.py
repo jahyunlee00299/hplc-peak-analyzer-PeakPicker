@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 import numpy as np
 
-from .enums import AnchorSource, PeakType, SignalQuality, BaselineMethod
+from .enums import AnchorSource, PeakType, SignalQuality, BaselineMethod, VisualizationMode
 
 
 @dataclass
@@ -206,3 +206,144 @@ class BatchResult:
     @property
     def total_samples(self) -> int:
         return len(self.results)
+
+
+# ===== Quantification Models =====
+
+@dataclass
+class CompoundDefinition:
+    """Target compound for RT-based peak matching with calibration parameters."""
+    name: str
+    rt_window_start: float
+    rt_window_end: float
+    calibration_intercept: float  # y0 in Area = y0 + a * C
+    calibration_slope: float      # a in Area = y0 + a * C
+    unit: str = "g/L"
+
+
+@dataclass
+class SampleConditions:
+    """Experimental conditions extracted from sample name."""
+    sample_name: str
+    cofactor_dose: str = ""
+    enzyme: str = ""
+    replicate: str = ""
+    time_h: str = ""
+    is_negative_control: bool = False
+    extra: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class QuantifiedPeak:
+    """A peak matched to a compound and quantified."""
+    peak: Peak
+    compound: CompoundDefinition
+    sample_conditions: SampleConditions
+    area: float
+    concentration_diluted: float
+    concentration_original: float
+    dilution_factor: float
+
+
+@dataclass
+class QuantificationResult:
+    """Complete quantification result for a batch of samples."""
+    quantified_peaks: List['QuantifiedPeak']
+    compounds: List[CompoundDefinition]
+    dilution_factor: float
+
+    @property
+    def compound_names(self) -> List[str]:
+        return list(dict.fromkeys(qp.compound.name for qp in self.quantified_peaks))
+
+    @property
+    def sample_names(self) -> List[str]:
+        return list(dict.fromkeys(qp.sample_conditions.sample_name for qp in self.quantified_peaks))
+
+    def get_by_compound(self, compound_name: str) -> List['QuantifiedPeak']:
+        return [qp for qp in self.quantified_peaks if qp.compound.name == compound_name]
+
+    def get_by_conditions(
+        self,
+        compound_name: str = None,
+        enzyme: str = None,
+        time_h: str = None,
+        cofactor_dose: str = None,
+    ) -> List['QuantifiedPeak']:
+        result = self.quantified_peaks
+        if compound_name:
+            result = [qp for qp in result if qp.compound.name == compound_name]
+        if enzyme:
+            result = [qp for qp in result if qp.sample_conditions.enzyme == enzyme]
+        if time_h:
+            result = [qp for qp in result if qp.sample_conditions.time_h == time_h]
+        if cofactor_dose:
+            result = [qp for qp in result if qp.sample_conditions.cofactor_dose == cofactor_dose]
+        return result
+
+    def get_nc_mean(self, compound_name: str) -> float:
+        """Return mean concentration of NC samples for a compound.
+
+        Returns 0.0 if NC sample exists but no peak was detected
+        (below detection limit).
+        """
+        nc_peaks = [qp for qp in self.quantified_peaks
+                    if qp.compound.name == compound_name
+                    and qp.sample_conditions.is_negative_control]
+        if not nc_peaks:
+            return 0.0
+        import numpy as np
+        return float(np.mean([qp.concentration_original for qp in nc_peaks]))
+
+
+@dataclass
+class TukeyHSDComparison:
+    """Single pairwise comparison from Tukey HSD test."""
+    group1_name: str
+    group2_name: str
+    mean_difference: float
+    mean_group1: float
+    mean_group2: float
+    q_statistic: float
+    p_adjusted: float
+    significance: str  # "***", "**", "*", "ns"
+
+
+@dataclass
+class StatisticalTestResult:
+    """Statistical analysis result for one compound/condition."""
+    compound_name: str
+    enzyme: str
+    time_h: str
+    group_variable: str
+    anova_f_statistic: float
+    anova_p_value: float
+    anova_significance: str
+    pairwise_comparisons: List[TukeyHSDComparison]
+    group_means: Dict[str, float]
+    group_stds: Dict[str, float]
+    group_ns: Dict[str, int]
+
+
+@dataclass
+class StatisticalAnalysisResult:
+    """Collection of all statistical test results."""
+    test_results: List[StatisticalTestResult]
+    alpha: float = 0.05
+
+    def get_result(
+        self, compound_name: str, enzyme: str, time_h: str
+    ) -> Optional[StatisticalTestResult]:
+        for r in self.test_results:
+            if (r.compound_name == compound_name and
+                    r.enzyme == enzyme and r.time_h == time_h):
+                return r
+        return None
+
+    def get_significant_pairs(
+        self, compound_name: str, enzyme: str, time_h: str
+    ) -> List[TukeyHSDComparison]:
+        result = self.get_result(compound_name, enzyme, time_h)
+        if result is None:
+            return []
+        return [c for c in result.pairwise_comparisons if c.significance != "ns"]
