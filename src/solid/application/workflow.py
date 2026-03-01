@@ -208,6 +208,30 @@ class WorkflowBuilder:
         self._reader = CSVReader()
         return self
 
+    def with_rainbow_reader(
+        self, preferred_detector: str = None
+    ) -> 'WorkflowBuilder':
+        """Use Rainbow .D folder reader."""
+        from ..infrastructure import RainbowReader
+        self._reader = RainbowReader(preferred_detector=preferred_detector)
+        return self
+
+    def with_auto_reader(
+        self, preferred_detector: str = None
+    ) -> 'WorkflowBuilder':
+        """
+        Use auto-detecting reader that picks the right reader
+        based on the input file type (.D, .ch, or .csv).
+        """
+        from ..infrastructure import RainbowReader, CSVReader, ChemstationReader
+        from ..infrastructure import AutoReader
+        self._reader = AutoReader(readers=[
+            RainbowReader(preferred_detector=preferred_detector),
+            CSVReader(),
+            ChemstationReader(),
+        ])
+        return self
+
     def with_default_baseline(
         self,
         config: BaselineCorrectorConfig = None

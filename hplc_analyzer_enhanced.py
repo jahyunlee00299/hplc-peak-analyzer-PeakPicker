@@ -30,13 +30,15 @@ class EnhancedHPLCAnalyzer:
         output_directory: Optional[str] = None,
         use_hybrid_baseline: bool = True,
         enable_deconvolution: bool = True,
-        deconvolution_asymmetry_threshold: float = 1.2
+        deconvolution_asymmetry_threshold: float = 1.2,
+        half_peak_mode: str = 'none'
     ):
         self.data_dir = Path(data_directory)
         self.output_dir = Path(output_directory) if output_directory else self.data_dir / "analysis_results"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.use_hybrid_baseline = use_hybrid_baseline
         self.enable_deconvolution = enable_deconvolution
+        self.half_peak_mode = half_peak_mode
 
         # Initialize peak deconvolution analyzer
         if self.enable_deconvolution:
@@ -275,7 +277,41 @@ class EnhancedHPLCAnalyzer:
 
             # Trapezoid integration in seconds (matches Chemstation units)
             peak_time_sec = peak_time * 60  # Convert minutes to seconds
-            area = trapezoid(peak_intensity, peak_time_sec)
+
+            # Half-peak quantification
+            apex_rel = peak_idx - left  # apex index relative to peak region
+
+            if self.half_peak_mode in ('left', 'right', 'auto') and apex_rel > 0 and apex_rel < len(peak_intensity) - 1:
+                left_area = trapezoid(peak_intensity[:apex_rel+1], peak_time_sec[:apex_rel+1])
+                right_area = trapezoid(peak_intensity[apex_rel:], peak_time_sec[apex_rel:])
+                asymmetry_ratio = left_area / right_area if right_area > 0 else float('inf')
+
+                if self.half_peak_mode == 'left':
+                    half_area = left_area
+                    area = half_area * 2
+                    used_half = 'left'
+                elif self.half_peak_mode == 'right':
+                    half_area = right_area
+                    area = half_area * 2
+                    used_half = 'right'
+                else:  # auto
+                    if left_area <= right_area:
+                        half_area = left_area
+                        used_half = 'left'
+                    else:
+                        half_area = right_area
+                        used_half = 'right'
+                    area = half_area * 2
+
+                asymmetry_warning = asymmetry_ratio > 1.5 or asymmetry_ratio < 0.67
+            else:
+                area = trapezoid(peak_intensity, peak_time_sec)
+                left_area = trapezoid(peak_intensity[:max(1, apex_rel+1)], peak_time_sec[:max(1, apex_rel+1)]) if apex_rel > 0 else area / 2
+                right_area = area - left_area
+                asymmetry_ratio = left_area / right_area if right_area > 0 else 1.0
+                asymmetry_warning = False
+                used_half = 'none'
+                half_area = area / 2
 
             # Calculate SNR
             snr = intensity[peak_idx] / noise_level if noise_level > 0 else float('inf')
@@ -289,7 +325,12 @@ class EnhancedHPLCAnalyzer:
                 'prominence': properties['prominences'][i] if 'prominences' in properties else 0,
                 'snr': snr,
                 'start_time': time[left],
-                'end_time': time[right]
+                'end_time': time[right],
+                'half_peak_mode': used_half,
+                'half_area': half_area,
+                'full_area': left_area + right_area,
+                'asymmetry_ratio': round(asymmetry_ratio, 3),
+                'asymmetry_warning': asymmetry_warning,
             })
 
         return peaks, peak_data
@@ -508,6 +549,8 @@ def main():
         default='*.CSV',
         help='File pattern to match (default: *.CSV)'
     )
+    parser.add_argument('--half-peak', choices=['none', 'left', 'right', 'auto'],
+                        default='none', help='Half-peak quantification mode')
 
     args = parser.parse_args()
 
@@ -517,7 +560,8 @@ def main():
         output_directory=args.output,
         use_hybrid_baseline=not args.no_hybrid_baseline,
         enable_deconvolution=not args.no_deconvolution,
-        deconvolution_asymmetry_threshold=args.asymmetry_threshold
+        deconvolution_asymmetry_threshold=args.asymmetry_threshold,
+        half_peak_mode=args.half_peak
     )
 
     # Run batch analysis

@@ -20,8 +20,9 @@ plt.rcParams['axes.unicode_minus'] = False
 class PeakQuantifier:
     """피크 면적 정량 분석"""
 
-    def __init__(self):
+    def __init__(self, half_peak_mode: str = 'none'):
         self.results = []
+        self.half_peak_mode = half_peak_mode
 
     def quantify_sample(self, csv_file, baseline_method='robust_fit'):
         """단일 샘플 정량"""
@@ -178,8 +179,42 @@ class PeakQuantifier:
 
             # 면적 계산 (초 단위로 변환)
             peak_region_time = time[left_idx:right_idx+1] * 60  # 분 → 초
-            peak_region_signal = corrected[left_idx:right_idx+1]
-            area = trapezoid(np.maximum(peak_region_signal, 0), peak_region_time)
+            peak_region_signal = np.maximum(corrected[left_idx:right_idx+1], 0)
+
+            # Half-peak quantification
+            apex_rel = peak_idx - left_idx  # apex index relative to peak region
+
+            if self.half_peak_mode in ('left', 'right', 'auto') and apex_rel > 0 and apex_rel < len(peak_region_signal) - 1:
+                left_area = trapezoid(peak_region_signal[:apex_rel+1], peak_region_time[:apex_rel+1])
+                right_area = trapezoid(peak_region_signal[apex_rel:], peak_region_time[apex_rel:])
+                asymmetry_ratio = left_area / right_area if right_area > 0 else float('inf')
+
+                if self.half_peak_mode == 'left':
+                    half_area = left_area
+                    area = half_area * 2
+                    used_half = 'left'
+                elif self.half_peak_mode == 'right':
+                    half_area = right_area
+                    area = half_area * 2
+                    used_half = 'right'
+                else:  # auto
+                    if left_area <= right_area:
+                        half_area = left_area
+                        used_half = 'left'
+                    else:
+                        half_area = right_area
+                        used_half = 'right'
+                    area = half_area * 2
+
+                asymmetry_warning = asymmetry_ratio > 1.5 or asymmetry_ratio < 0.67
+            else:
+                area = trapezoid(peak_region_signal, peak_region_time)
+                left_area = trapezoid(peak_region_signal[:max(1, apex_rel+1)], peak_region_time[:max(1, apex_rel+1)]) if apex_rel > 0 else area / 2
+                right_area = area - left_area
+                asymmetry_ratio = left_area / right_area if right_area > 0 else 1.0
+                asymmetry_warning = False
+                used_half = 'none'
+                half_area = area / 2
 
             peaks_info.append({
                 'index': peak_idx,
@@ -189,7 +224,12 @@ class PeakQuantifier:
                 'prominence': props['prominences'][i],
                 'width': time[right_idx] - time[left_idx],
                 'left_idx': left_idx,
-                'right_idx': right_idx
+                'right_idx': right_idx,
+                'half_peak_mode': used_half,
+                'half_area': half_area,
+                'full_area': left_area + right_area,
+                'asymmetry_ratio': round(asymmetry_ratio, 3),
+                'asymmetry_warning': asymmetry_warning,
             })
 
         # 면적 순 정렬
