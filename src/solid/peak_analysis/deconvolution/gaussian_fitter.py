@@ -6,8 +6,11 @@ Fits Gaussian peaks for deconvolution.
 Single Responsibility: Only fits curves.
 """
 
+import logging
 from typing import List, Tuple
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from ...interfaces import ICurveFitterStrategy, ICurveFitter
 from ...domain import DeconvolvedPeak, DeconvolutionResult
@@ -177,6 +180,7 @@ class GaussianFitterStrategy(ICurveFitterStrategy):
             return peaks, r2, rmse
 
         except Exception as e:
+            logger.warning("Multi-Gaussian fit failed: %s", e)
             return [], 0.0, float('inf')
 
     def _estimate_sigma(self, time: np.ndarray, signal: np.ndarray, center_idx: int) -> float:

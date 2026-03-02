@@ -11,10 +11,13 @@ from .weighted_spline import (
     AdaptiveConnectStrategy,
     LinearStrategy,
 )
+from .arpls_strategy import ArplsStrategy, AirplsStrategy
 
 __all__ = [
     'WeightedSplineStrategy',
     'RobustFitStrategy',
     'AdaptiveConnectStrategy',
     'LinearStrategy',
+    'ArplsStrategy',
+    'AirplsStrategy',
 ]
