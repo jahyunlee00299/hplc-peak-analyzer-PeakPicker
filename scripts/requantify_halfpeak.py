@@ -102,7 +102,8 @@ def find_peak_in_range(time, corrected, rt_start, rt_end, min_height=30):
     return indices[best]
 
 
-def half_peak_area(time, corrected, apex_idx, side='left', max_width_min=1.5):
+def half_peak_area(time, corrected, apex_idx, side='left', max_width_min=1.5,
+                   threshold_frac=0.02, gap_tolerance_min=0.0):
     """
     Half-peak 적분: apex에서 수직으로 자르고 한쪽만 적분 후 ×2
 
@@ -112,8 +113,12 @@ def half_peak_area(time, corrected, apex_idx, side='left', max_width_min=1.5):
         'left': apex 기준 왼쪽 절반 적분 (Xyl용 — 오른쪽은 Xul과 겹침)
         'right': apex 기준 오른쪽 절반 적분 (Xul용 — 왼쪽은 Xyl과 겹침)
     max_width_min : float
-        apex에서 최대 탐색 거리 (분). baseline 음수 등으로 경계가 과도하게
-        확장되는 것을 방지. 기본값 1.5 min.
+        apex에서 최대 탐색 거리 (분). 기본값 1.5 min.
+    threshold_frac : float
+        apex 대비 경계 threshold 비율. Xyl left는 0.005, Xul right는 0.02.
+    gap_tolerance_min : float
+        corrected가 threshold 이하로 떨어져도 이 시간(분) 이내에 다시 올라오면
+        계속 탐색. baseline 아티팩트로 생긴 제로갭 극복용. 기본값 0 (비활성).
 
     Returns
     -------
@@ -124,15 +129,30 @@ def half_peak_area(time, corrected, apex_idx, side='left', max_width_min=1.5):
     boundary : tuple (start_idx, end_idx)
     """
     apex_h = corrected[apex_idx]
-    thr = apex_h * 0.02  # 2% threshold for peak boundary
+    thr = apex_h * threshold_frac
     dt = float(np.median(np.diff(time)))
     max_pts = int(max_width_min / dt)
+    gap_pts = int(gap_tolerance_min / dt)
 
     if side == 'left':
         left = apex_idx
         limit = max(0, apex_idx - max_pts)
-        while left > limit and corrected[left] > thr:
-            left -= 1
+        if gap_pts == 0:
+            while left > limit and corrected[left] > thr:
+                left -= 1
+        else:
+            best_left = apex_idx
+            consecutive_below = 0
+            while left > limit:
+                left -= 1
+                if corrected[left] > thr:
+                    consecutive_below = 0
+                    best_left = left
+                else:
+                    consecutive_below += 1
+                    if consecutive_below > gap_pts:
+                        break
+            left = best_left
 
         t_sec = time[left:apex_idx + 1] * 60  # min → sec (Chemstation area 단위)
         sig = corrected[left:apex_idx + 1]
@@ -142,8 +162,22 @@ def half_peak_area(time, corrected, apex_idx, side='left', max_width_min=1.5):
     else:  # right
         right = apex_idx
         limit = min(len(corrected) - 1, apex_idx + max_pts)
-        while right < limit and corrected[right] > thr:
-            right += 1
+        if gap_pts == 0:
+            while right < limit and corrected[right] > thr:
+                right += 1
+        else:
+            best_right = apex_idx
+            consecutive_below = 0
+            while right < limit:
+                right += 1
+                if corrected[right] > thr:
+                    consecutive_below = 0
+                    best_right = right
+                else:
+                    consecutive_below += 1
+                    if consecutive_below > gap_pts:
+                        break
+            right = best_right
 
         t_sec = time[apex_idx:right + 1] * 60
         sig = corrected[apex_idx:right + 1]
@@ -201,7 +235,8 @@ def analyze_one_file(ch_path, dilution_factor):
     # --- Xylose: LEFT half-peak ---
     xyl_apex = find_peak_in_range(time, corrected, *XYL_RT_RANGE)
     if xyl_apex is not None:
-        xyl_area, xyl_half, xyl_bounds = half_peak_area(time, corrected, xyl_apex, side='left')
+        xyl_area, xyl_half, xyl_bounds = half_peak_area(time, corrected, xyl_apex, side='left',
+                                                         threshold_frac=0.005)
         result['Xyl_RT'] = time[xyl_apex]
         result['Xyl_area'] = xyl_area  # half × 2
         result['Xyl_half_area'] = xyl_half
@@ -246,7 +281,7 @@ def analyze_one_file(ch_path, dilution_factor):
 
     # Asymmetry ratio (Xyl/Xul peak quality 확인)
     if xyl_apex is not None:
-        xyl_left_a, _, _ = half_peak_area(time, corrected, xyl_apex, 'left')
+        xyl_left_a, _, _ = half_peak_area(time, corrected, xyl_apex, 'left', threshold_frac=0.005)
         xyl_right_a, _, _ = half_peak_area(time, corrected, xyl_apex, 'right')
         result['Xyl_asymmetry'] = (xyl_left_a / xyl_right_a) if xyl_right_a > 0 else np.nan
     else:
