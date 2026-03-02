@@ -18,6 +18,7 @@ from .anchor_finders import (
     LocalMinAnchorFinder,
     BoundaryAnchorFinder,
     CompositeAnchorFinder,
+    PeakBoundaryAnchorFinder,
 )
 
 from .strategies import (
@@ -40,6 +41,7 @@ __all__ = [
     'LocalMinAnchorFinder',
     'BoundaryAnchorFinder',
     'CompositeAnchorFinder',
+    'PeakBoundaryAnchorFinder',
     # Strategies
     'WeightedSplineStrategy',
     'RobustFitStrategy',
