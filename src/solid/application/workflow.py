@@ -241,25 +241,26 @@ class WorkflowBuilder:
         from ..baseline import (
             BaselineCorrector,
             CompositeAnchorFinder,
-            ValleyAnchorFinder,
-            LocalMinAnchorFinder,
             BoundaryAnchorFinder,
+            PeakBoundaryAnchorFinder,
             WeightedSplineStrategy,
             BaselineQualityEvaluator,
         )
-        from ..config import AnchorFinderConfig
 
         config = config or BaselineCorrectorConfig()
 
-        # Create components
+        # 음수 피크(negative peak) 위로 baseline이 지나갈 수 있도록 clip 해제
+        config.generator_config.clip_to_signal = False
+
         signal_processor = ScipySignalProcessor()
         interpolator = ScipyInterpolator()
 
         anchor_config = config.anchor_config
 
+        # PeakBoundaryAnchorFinder: scipy prominence의 left/right bases를
+        # anchor로 사용 → 피크 내부를 anchor로 잡지 않음, 음수 피크도 처리
         anchor_finder = CompositeAnchorFinder([
-            ValleyAnchorFinder(signal_processor, anchor_config),
-            LocalMinAnchorFinder(signal_processor, anchor_config),
+            PeakBoundaryAnchorFinder(signal_processor, anchor_config),
             BoundaryAnchorFinder(anchor_config),
         ], anchor_config)
 
