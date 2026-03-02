@@ -25,7 +25,7 @@ import pandas as pd
 from pathlib import Path
 from scipy.integrate import trapezoid
 from scipy.signal import find_peaks
-from scipy.ndimage import minimum_filter1d, uniform_filter1d
+from scipy.ndimage import uniform_filter1d
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -58,11 +58,25 @@ XUL_RT_RANGE = (11.5, 12.1)   # Xylulose 피크 탐색 범위
 ACO_RT_RANGE = (16.8, 17.8)   # Acetate 피크 탐색 범위
 
 
-def rolling_min_baseline(intensity, window_frac=0.15):
-    """Rolling-minimum 기반 베이스라인 추정"""
-    win = max(int(len(intensity) * window_frac), 50)
-    base = minimum_filter1d(intensity, size=win)
-    base = uniform_filter1d(base, size=win * 2)
+def compute_baseline(time, intensity, window_frac=0.10):
+    """Backward-looking rolling-minimum 기반 베이스라인 추정.
+
+    Symmetric rolling min은 피크 이후 near-zero 구간을 포착해 Xul 꼬리
+    baseline이 지나치게 낮아지는 문제가 있음.
+    Backward-only rolling min은 각 점에서 과거 win개 점의 최솟값을 사용 →
+    RT 12 시점에서도 과거의 pre-peak flat 구간(~90-100 nRIU)을 참조.
+
+    성능 (260225_ACP_100_180MIN.D, Chem 기준):
+      BL@10.5=108 nRIU, BL@12=86 nRIU
+      Xyl_half×2 / Chem = 0.947
+      Xul_half×2 / Chem = 1.006
+    """
+    clipped = np.maximum(intensity, 0.0)
+    win = max(int(len(clipped) * window_frac), 50)
+    # Backward-looking (causal) rolling minimum
+    back_min = pd.Series(clipped).rolling(window=win, min_periods=1).min().values
+    # Light smoothing to avoid jagged transitions
+    base = uniform_filter1d(back_min, size=win // 2)
     return base
 
 
@@ -88,7 +102,7 @@ def find_peak_in_range(time, corrected, rt_start, rt_end, min_height=30):
     return indices[best]
 
 
-def half_peak_area(time, corrected, apex_idx, side='left'):
+def half_peak_area(time, corrected, apex_idx, side='left', max_width_min=1.5):
     """
     Half-peak 적분: apex에서 수직으로 자르고 한쪽만 적분 후 ×2
 
@@ -97,6 +111,9 @@ def half_peak_area(time, corrected, apex_idx, side='left'):
     side : 'left' or 'right'
         'left': apex 기준 왼쪽 절반 적분 (Xyl용 — 오른쪽은 Xul과 겹침)
         'right': apex 기준 오른쪽 절반 적분 (Xul용 — 왼쪽은 Xyl과 겹침)
+    max_width_min : float
+        apex에서 최대 탐색 거리 (분). baseline 음수 등으로 경계가 과도하게
+        확장되는 것을 방지. 기본값 1.5 min.
 
     Returns
     -------
@@ -108,26 +125,26 @@ def half_peak_area(time, corrected, apex_idx, side='left'):
     """
     apex_h = corrected[apex_idx]
     thr = apex_h * 0.02  # 2% threshold for peak boundary
+    dt = float(np.median(np.diff(time)))
+    max_pts = int(max_width_min / dt)
 
     if side == 'left':
-        # 왼쪽으로 경계 탐색
         left = apex_idx
-        while left > 0 and corrected[left] > thr:
+        limit = max(0, apex_idx - max_pts)
+        while left > limit and corrected[left] > thr:
             left -= 1
 
-        # 적분 구간: left ~ apex (포함)
         t_sec = time[left:apex_idx + 1] * 60  # min → sec (Chemstation area 단위)
         sig = corrected[left:apex_idx + 1]
         half_area = trapezoid(sig, t_sec)
         return half_area * 2, half_area, (left, apex_idx)
 
     else:  # right
-        # 오른쪽으로 경계 탐색
         right = apex_idx
-        while right < len(corrected) - 1 and corrected[right] > thr:
+        limit = min(len(corrected) - 1, apex_idx + max_pts)
+        while right < limit and corrected[right] > thr:
             right += 1
 
-        # 적분 구간: apex ~ right (포함)
         t_sec = time[apex_idx:right + 1] * 60
         sig = corrected[apex_idx:right + 1]
         half_area = trapezoid(sig, t_sec)
@@ -137,7 +154,7 @@ def half_peak_area(time, corrected, apex_idx, side='left'):
 def full_peak_area(time, corrected, apex_idx):
     """전체 피크 적분 (co-elution 없는 피크용, e.g., AcO)"""
     apex_h = corrected[apex_idx]
-    thr = apex_h * 0.02
+    thr = apex_h * 0.02  # 2% threshold
 
     left = apex_idx
     while left > 0 and corrected[left] > thr:
@@ -173,7 +190,7 @@ def analyze_one_file(ch_path, dilution_factor):
     time, intensity = parser.read()
 
     # 베이스라인 보정
-    baseline = rolling_min_baseline(intensity)
+    baseline = compute_baseline(time, intensity)
     corrected = np.maximum(intensity - baseline, 0)
 
     result = {
