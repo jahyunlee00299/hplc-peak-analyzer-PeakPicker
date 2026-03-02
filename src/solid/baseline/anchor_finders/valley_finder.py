@@ -334,7 +334,9 @@ class CompositeAnchorFinder(IAnchorFinder):
         median_value = np.median(values)
         mad = np.median(np.abs(values - median_value))
 
-        if mad < 100:
+        # Signal-relative threshold (replaces hardcoded absolute 100)
+        signal_range = np.ptp(values) if len(values) > 1 else 1.0
+        if mad < signal_range * 0.01:
             # Stable baseline - use percentile
             threshold = np.percentile(values, 10)
         else:

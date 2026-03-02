@@ -26,6 +26,8 @@ from .strategies import (
     RobustFitStrategy,
     AdaptiveConnectStrategy,
     LinearStrategy,
+    ArplsStrategy,
+    AirplsStrategy,
 )
 
 from .generators import BaselineGenerator, PostProcessor
@@ -47,6 +49,8 @@ __all__ = [
     'RobustFitStrategy',
     'AdaptiveConnectStrategy',
     'LinearStrategy',
+    'ArplsStrategy',
+    'AirplsStrategy',
     # Generators
     'BaselineGenerator',
     'PostProcessor',

@@ -6,12 +6,15 @@ Detects peaks in chromatogram signals.
 Single Responsibility: Only detects peaks.
 """
 
+import logging
 from typing import List, Tuple
 import numpy as np
 
 from ...interfaces import IPeakDetector, IPeakBoundaryFinder, ISignalProcessor
 from ...domain import Peak, PeakType
 from ...config import PeakDetectionConfig
+
+logger = logging.getLogger(__name__)
 
 
 class ProminencePeakDetector(IPeakDetector):
@@ -76,9 +79,8 @@ class ProminencePeakDetector(IPeakDetector):
         # Clip negative values for detection
         corrected_positive = np.maximum(corrected, 0)
 
-        # Estimate noise level
-        noise_level = np.percentile(corrected_positive, self.config.noise_percentile)
-        noise_level = max(noise_level, 1.0)  # Prevent zero noise
+        # Estimate noise level (MAD of derivative — robust, scale-independent)
+        noise_level = self._estimate_noise(corrected_positive)
 
         # Calculate detection parameters
         signal_range = np.ptp(corrected_positive)
@@ -107,6 +109,18 @@ class ProminencePeakDetector(IPeakDetector):
                     corrected_positive, idx, baseline
                 )
 
+            # Cap boundaries at valley between adjacent peaks
+            if i > 0:
+                prev_idx = int(peaks_idx[i - 1])
+                region = corrected_positive[prev_idx:idx]
+                if len(region) > 0:
+                    start_idx = max(start_idx, prev_idx + int(np.argmin(region)))
+            if i < len(peaks_idx) - 1:
+                next_idx = int(peaks_idx[i + 1])
+                region = corrected_positive[idx:next_idx + 1]
+                if len(region) > 0:
+                    end_idx = min(end_idx, idx + int(np.argmin(region)))
+
             # Calculate peak properties
             height = float(corrected_positive[idx])
             rt = float(time[idx])
@@ -114,10 +128,11 @@ class ProminencePeakDetector(IPeakDetector):
             rt_end = float(time[end_idx])
             width = rt_end - rt_start
 
-            # Calculate area (simple trapezoidal)
+            # Calculate area — integrate in seconds (time array is in minutes)
+            # to match Chemstation convention: area unit = nRIU·s (or mAU·s)
             peak_signal = corrected_positive[start_idx:end_idx + 1]
-            peak_time = time[start_idx:end_idx + 1]
-            area = float(np.trapz(peak_signal, peak_time))
+            peak_time_s = time[start_idx:end_idx + 1] * 60.0
+            area = float(np.trapezoid(peak_signal, peak_time_s))
 
             peaks.append(Peak(
                 index=int(idx),
@@ -146,7 +161,7 @@ class ProminencePeakDetector(IPeakDetector):
         peak_idx: int,
         baseline: np.ndarray
     ) -> Tuple[int, int]:
-        """Simple boundary finding based on threshold."""
+        """Simple boundary finding based on threshold descent."""
         peak_height = signal[peak_idx]
         threshold = peak_height * self.config.boundary_threshold
 
@@ -161,6 +176,19 @@ class ProminencePeakDetector(IPeakDetector):
             right_idx += 1
 
         return left_idx, right_idx
+
+    @staticmethod
+    def _estimate_noise(signal: np.ndarray) -> float:
+        """MAD-based noise estimation (robust, scale-independent).
+
+        Uses the median absolute deviation of the first derivative —
+        insensitive to peak regions and scale of the signal.
+        """
+        if len(signal) < 2:
+            return 1.0
+        deriv = np.diff(signal)
+        mad = np.median(np.abs(deriv - np.median(deriv)))
+        return max(float(mad * 1.4826), 1.0)
 
 
 class SimplePeakBoundaryFinder(IPeakBoundaryFinder):
