@@ -1,0 +1,76 @@
+# ──────────────────────────────────────────────────────────────
+# PeakPicker QuantMethod — HPX-87H Sugar/Phosphate Analysis
+# ──────────────────────────────────────────────────────────────
+# Column  : Bio-Rad Aminex HPX-87H (300 × 7.8 mm)
+# Mobile  : 5 mM H₂SO₄
+# Flow    : 0.5 mL/min
+# Temp    : 65 °C
+# Detector: RID (nRIU)
+# ──────────────────────────────────────────────────────────────
+
+method:
+  name: HPX87H_sugars
+  column: Bio-Rad Aminex HPX-87H (300x7.8mm)
+  temperature_c: 65
+  flow_rate_ml_min: 0.5
+  mobile_phase: 5 mM H2SO4
+  detector: RID
+
+# ── Compound RT windows ───────────────────────────────────────
+# Adjust rt_min / rt_max based on your system's calibration run.
+# Compounds marked with note: "update RT" need RT confirmation.
+
+compounds:
+  - name: Unknown_6.95
+    rt_min: 6.75
+    rt_max: 7.05
+    note: "update RT — confirm compound identity"
+
+  - name: Unknown_7.25
+    rt_min: 7.05
+    rt_max: 7.50
+    note: "update RT — absent in NC; possible product"
+
+  - name: Unknown_9.4
+    rt_min: 9.10
+    rt_max: 9.80
+    note: "update RT — increases with ACP conc & time"
+
+  - name: Unknown_11.09
+    rt_min: 10.80
+    rt_max: 11.50
+    note: "update RT — major peak in NC; likely substrate"
+
+  - name: Unknown_11.67
+    rt_min: 11.50
+    rt_max: 12.00
+    note: "update RT — minor product peak"
+
+  - name: IS
+    rt_min: 17.00
+    rt_max: 17.70
+    note: "internal standard — used for normalization"
+
+# ── Standard curves ───────────────────────────────────────────
+# Format:
+#   concentrations: [c1, c2, ...] in the unit specified
+#   areas:          [a1, a2, ...] from standard runs (nRIU·s)
+#
+# Fill in from your standard injection data.
+# Leave empty ([]) until standard data is available.
+
+standard_curves:
+  Unknown_11.09:
+    concentrations: []   # TODO: fill in from standard injections (mM)
+    areas:          []
+    unit: mM
+
+  Unknown_9.4:
+    concentrations: []
+    areas:          []
+    unit: mM
+
+  IS:
+    concentrations: []
+    areas:          []
+    unit: mM
