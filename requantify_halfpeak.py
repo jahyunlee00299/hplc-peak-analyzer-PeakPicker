@@ -13,7 +13,7 @@ Xul 5P Pretest 재정량 — Half-peak 적분 + 올바른 RT
   Xyl: a=22786.19, y0=207.54 (mg/mL basis)
   Xul: a=23465.27, y0=-59.45 (mg/mL basis)
   AcO: a=8708, y0=-901.6 (mM basis)
-- Dilution factor: 15x
+- Dilution factor: auto-detected from SAMPLE.MAC in each .D folder
 """
 
 import sys
@@ -30,6 +30,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from chemstation_parser import ChemstationParser
+from sample_metadata import read_d_folder_metadata
 
 # ============================================================
 #  설정
@@ -47,8 +48,6 @@ STD = {
             'MW': 150.13},  # D-Xylulose
     'AcO': {'slope': 8708, 'intercept': -901.6, 'unit': 'mM'},  # Acetate
 }
-
-DILUTION_FACTOR = 15
 
 # RT ranges (Asana "HPX-87H Retention Time" + peak_identification.json)
 # early batch (260106~260115): Xyl 11.28-11.31, Xul 11.91-11.96
@@ -156,7 +155,7 @@ def full_peak_area(time, corrected, apex_idx):
     return area, (left, right)
 
 
-def area_to_conc(area, compound):
+def area_to_conc(area, compound, dilution_factor):
     """Area → 농도 변환 (dilution factor 적용)"""
     s = STD[compound]
     conc_raw = (area - s['intercept']) / s['slope']  # mg/mL or mM
@@ -165,10 +164,10 @@ def area_to_conc(area, compound):
         conc_mM = (conc_raw / s['MW']) * 1000
     else:
         conc_mM = conc_raw
-    return conc_mM * DILUTION_FACTOR
+    return conc_mM * dilution_factor
 
 
-def analyze_one_file(ch_path):
+def analyze_one_file(ch_path, dilution_factor):
     """하나의 .ch 파일 분석"""
     parser = ChemstationParser(str(ch_path))
     time, intensity = parser.read()
@@ -190,7 +189,7 @@ def analyze_one_file(ch_path):
         result['Xyl_area'] = xyl_area  # half × 2
         result['Xyl_half_area'] = xyl_half
         result['Xyl_height'] = corrected[xyl_apex]
-        result['Xyl_conc_mM'] = max(area_to_conc(xyl_area, 'Xyl'), 0)
+        result['Xyl_conc_mM'] = max(area_to_conc(xyl_area, 'Xyl', dilution_factor), 0)
     else:
         result['Xyl_RT'] = np.nan
         result['Xyl_area'] = 0
@@ -206,7 +205,7 @@ def analyze_one_file(ch_path):
         result['Xul_area'] = xul_area  # half × 2
         result['Xul_half_area'] = xul_half
         result['Xul_height'] = corrected[xul_apex]
-        result['Xul_conc_mM'] = max(area_to_conc(xul_area, 'Xul'), 0)
+        result['Xul_conc_mM'] = max(area_to_conc(xul_area, 'Xul', dilution_factor), 0)
     else:
         result['Xul_RT'] = np.nan
         result['Xul_area'] = 0
@@ -221,7 +220,7 @@ def analyze_one_file(ch_path):
         result['AcO_RT'] = time[aco_apex]
         result['AcO_area'] = aco_area
         result['AcO_height'] = corrected[aco_apex]
-        result['AcO_conc_mM'] = max(area_to_conc(aco_area, 'AcO'), 0)
+        result['AcO_conc_mM'] = max(area_to_conc(aco_area, 'AcO', dilution_factor), 0)
     else:
         result['AcO_RT'] = np.nan
         result['AcO_area'] = 0
@@ -283,16 +282,24 @@ if __name__ == '__main__':
         print(f"\n--- {exp_name} ({len(ch_files)} files) ---")
 
         for ch_file in ch_files:
-            sample_name = ch_file.parent.name.replace('.D', '').strip()
+            d_folder = ch_file.parent
+            sample_name = d_folder.name.replace('.D', '').strip()
             is_nc, timepoint = parse_sample_info(sample_name, exp_name)
 
+            # Auto-detect dilution factor from SAMPLE.MAC
+            meta = read_d_folder_metadata(d_folder)
+            dilution_factor = meta['dilution']
+            if not (d_folder / 'SAMPLE.MAC').exists():
+                print(f"  [WARN] SAMPLE.MAC not found in {d_folder.name}, using dilution=1.0")
+
             try:
-                result = analyze_one_file(ch_file)
+                result = analyze_one_file(ch_file, dilution_factor)
                 row = {
                     'experiment': exp_name,
                     'sample': sample_name,
                     'is_NC': is_nc,
                     'timepoint': timepoint,
+                    'dilution_factor': dilution_factor,
                     'Xyl_RT': result['Xyl_RT'],
                     'Xyl_area_halfx2': result['Xyl_area'],
                     'Xyl_half_area': result['Xyl_half_area'],
@@ -324,6 +331,7 @@ if __name__ == '__main__':
 
                 nc_tag = '(NC)' if is_nc else '    '
                 print(f"  {nc_tag} {sample_name[:45]:<45s}  "
+                      f"DF={dilution_factor:>3.0f}  "
                       f"Xyl={result['Xyl_conc_mM']:6.1f}mM  "
                       f"Xul={result['Xul_conc_mM']:6.1f}mM  "
                       f"AcO={result['AcO_conc_mM']:6.1f}mM"
