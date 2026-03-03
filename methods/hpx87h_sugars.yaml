@@ -18,38 +18,43 @@ method:
 
 # ── Compound RT windows ───────────────────────────────────────
 # Adjust rt_min / rt_max based on your system's calibration run.
-# Compounds marked with note: "update RT" need RT confirmation.
 
 compounds:
   - name: Unknown_6.95
     rt_min: 6.75
     rt_max: 7.05
-    note: "update RT — confirm compound identity"
+    note: "confirm compound identity"
 
   - name: Unknown_7.25
     rt_min: 7.05
     rt_max: 7.50
-    note: "update RT — absent in NC; possible product"
+    note: "absent in NC; possible product"
 
   - name: Unknown_9.4
     rt_min: 9.10
     rt_max: 9.80
-    note: "update RT — increases with ACP conc & time"
+    note: "increases with ACP conc & time"
 
-  - name: Unknown_11.09
+  - name: D-Xylose
     rt_min: 10.80
     rt_max: 11.50
-    note: "update RT — major peak in NC; likely substrate"
+    mw: 150.13
+    unit: mM
+    note: "substrate; left half of ~11 min peak"
 
-  - name: Unknown_11.67
+  - name: D-Xylulose
     rt_min: 11.50
     rt_max: 12.00
-    note: "update RT — minor product peak"
+    mw: 150.13
+    unit: mM
+    note: "product; right half of ~11 min peak"
 
-  - name: IS
+  - name: Acetate
     rt_min: 17.00
     rt_max: 17.70
-    note: "internal standard — used for normalization"
+    mw: 60.05
+    unit: mM
+    note: "AcO — co-product from ACP (acetyl phosphate)"
 
 # ── Standard curves ───────────────────────────────────────────
 # Format:
@@ -60,17 +65,17 @@ compounds:
 # Leave empty ([]) until standard data is available.
 
 standard_curves:
-  Unknown_11.09:
+  D-Xylose:
     concentrations: []   # TODO: fill in from standard injections (mM)
     areas:          []
     unit: mM
 
-  Unknown_9.4:
-    concentrations: []
+  D-Xylulose:
+    concentrations: []   # TODO: fill in from standard injections (mM)
     areas:          []
     unit: mM
 
-  IS:
-    concentrations: []
+  Acetate:
+    concentrations: []   # TODO: fill in from standard injections (mM)
     areas:          []
     unit: mM
