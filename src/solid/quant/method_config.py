@@ -215,11 +215,22 @@ class QuantMethod:
         for cname, sc_raw in raw.get("standard_curves", {}).items():
             sc = StandardCurve(
                 compound_name=cname,
-                concentrations=list(sc_raw["concentrations"]),
-                areas=list(sc_raw["areas"]),
+                concentrations=list(sc_raw.get("concentrations", [])),
+                areas=list(sc_raw.get("areas", [])),
                 unit=sc_raw.get("unit", "mM"),
             )
-            sc.fit()
+            # Support pre-fitted slope/intercept directly in YAML
+            if "slope" in sc_raw and "intercept" in sc_raw:
+                sc.slope = float(sc_raw["slope"])
+                sc.intercept = float(sc_raw["intercept"])
+                sc.r2 = float(sc_raw.get("r2", 1.0))
+                sc._fitted = True
+                logger.debug(
+                    "StandardCurve '%s': pre-fitted slope=%.2f intercept=%.2f",
+                    cname, sc.slope, sc.intercept,
+                )
+            else:
+                sc.fit()
             std_curves[cname] = sc
 
         return cls(info=info, compounds=compounds, standard_curves=std_curves)

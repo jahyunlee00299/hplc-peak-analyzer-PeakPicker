@@ -1,0 +1,64 @@
+# ──────────────────────────────────────────────────────────────
+# PeakPicker QuantMethod — CHIRALPAK IA-5 Sugar Analysis
+# ──────────────────────────────────────────────────────────────
+# Column  : CHIRALPAK IA-5 (details TBD)
+# Detector: RID (nRIU)
+#
+# Standard curve source:
+#   Asana task/1203532005158858 (D-Ribose production project)
+#   area (nRIU·s) = slope * [mM] + intercept
+#
+# NOTE: Two injection volumes were calibrated.
+#       Use matching volume for your samples.
+# ──────────────────────────────────────────────────────────────
+
+method:
+  name: CHIRALPAK_sugars
+  column: CHIRALPAK IA-5
+  detector: RID
+
+# ── Compound RT windows ───────────────────────────────────────
+# TODO: fill in RT windows from calibration run
+
+compounds: []
+
+# ── Standard curves ───────────────────────────────────────────
+# Two sets: standard injection volume vs. 60 uL injection
+# Choose the set that matches your sample injection volume.
+
+standard_curves:
+
+  # ── Standard injection volume ────────────────────────────────
+
+  D-Ribose:
+    slope: 24159.7095
+    intercept: 1818.1722
+    unit: mM
+
+  L-Ribose:
+    slope: 18831.9432
+    intercept: -1276.4264
+    unit: mM
+
+  Ribitol:
+    slope: 50670.7232
+    intercept: 650.4209
+    unit: mM
+
+  # ── 60 uL injection ─────────────────────────────────────────
+  # Rename keys (e.g. D-Ribose_60ul) if using alongside above.
+
+  D-Ribose_60ul:
+    slope: 77755.04
+    intercept: 11682.06
+    unit: mM
+
+  L-Ribose_60ul:
+    slope: 61872.5
+    intercept: 10978.08
+    unit: mM
+
+  Ribitol_60ul:
+    slope: 158008.2
+    intercept: -1108.08
+    unit: mM
