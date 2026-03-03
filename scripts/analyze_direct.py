@@ -25,9 +25,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.solid.application.workflow import WorkflowBuilder
-from src.solid.application.batch_processor import BatchProcessor
-from src.solid.infrastructure.file_readers.d_folder_scanner import DFolderScanner
+from src.peakpicker.application.workflow import WorkflowBuilder
+from src.peakpicker.application.batch_processor import BatchProcessor
+from src.peakpicker.infrastructure.file_readers.d_folder_scanner import DFolderScanner
 
 
 def setup_logging(verbose: bool = False):

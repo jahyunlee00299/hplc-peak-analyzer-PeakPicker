@@ -8,8 +8,8 @@ Usage
 -----
 ::
 
-    from solid.quant import QuantMethod, Quantifier
-    from solid.application.workflow import WorkflowBuilder
+    from peakpicker.quant import QuantMethod, Quantifier
+    from peakpicker.application.workflow import WorkflowBuilder
     from pathlib import Path
 
     method = QuantMethod.from_yaml("methods/hpx87h_sugars.yaml")
