@@ -6,6 +6,12 @@
 # Flow    : 0.5 mL/min
 # Temp    : 65 °C
 # Detector: RID (nRIU)
+#
+# Standard curve source:
+#   Asana task/1203532005158858 (D-Ribose production project)
+#   area (nRIU·s) = slope * [mM] + intercept
+#
+# NOTE: Column replaced 230221. Use 230221+ values for current runs.
 # ──────────────────────────────────────────────────────────────
 
 method:
@@ -17,7 +23,6 @@ method:
   detector: RID
 
 # ── Compound RT windows ───────────────────────────────────────
-# Adjust rt_min / rt_max based on your system's calibration run.
 
 compounds:
   - name: Unknown_6.95
@@ -40,14 +45,14 @@ compounds:
     rt_max: 11.50
     mw: 150.13
     unit: mM
-    note: "substrate; left half of ~11 min peak"
+    note: "substrate; LEFT HALF of ~11 min peak (valley at ~11.5 min)"
 
   - name: D-Xylulose
     rt_min: 11.50
     rt_max: 12.00
     mw: 150.13
     unit: mM
-    note: "product; right half of ~11 min peak"
+    note: "product; RIGHT HALF of ~11 min peak (valley at ~11.5 min)"
 
   - name: Acetate
     rt_min: 17.00
@@ -56,26 +61,65 @@ compounds:
     unit: mM
     note: "AcO — co-product from ACP (acetyl phosphate)"
 
-# ── Standard curves ───────────────────────────────────────────
-# Format:
-#   concentrations: [c1, c2, ...] in the unit specified
-#   areas:          [a1, a2, ...] from standard runs (nRIU·s)
-#
-# Fill in from your standard injection data.
-# Leave empty ([]) until standard data is available.
+# ── Standard curves (HPX-87H, 230221~) ───────────────────────
+# Two formats:
+#   pre-fitted : slope + intercept  (source: Asana std curve task)
+#   raw data   : concentrations + areas lists → auto linear fit
 
 standard_curves:
+
+  # ── Active for this experiment ──────────────────────────────
+
   D-Xylose:
-    concentrations: []   # TODO: fill in from standard injections (mM)
-    areas:          []
+    slope: 22786.19        # 230221~, HPX-87H, LEFT HALF of peak
+    intercept: 207.5383
     unit: mM
 
   D-Xylulose:
-    concentrations: []   # TODO: fill in from standard injections (mM)
-    areas:          []
+    slope: 23465.27        # 230221~, HPX-87H, RIGHT HALF of peak
+    intercept: -59.4471
     unit: mM
 
   Acetate:
-    concentrations: []   # TODO: fill in from standard injections (mM)
+    concentrations: []     # TODO: fill in from standard injections (mM)
     areas:          []
     unit: mM
+
+  # ── Other compounds (HPX-87H, 230221~) ──────────────────────
+
+  D-Ribulose+D-Ribose:    # full peak (combined), 230221~
+    slope: 48125.94
+    intercept: 51.0892
+    unit: mM
+
+  D-Ribose:               # 241029 re-run, individual peak
+    slope: 28057.28
+    intercept: 2063.462
+    unit: mM
+
+  Ribitol:                # 241029 re-run
+    slope: 25229.32
+    intercept: -695.439
+    unit: mM
+
+  ADP:
+    slope: 27528.1012
+    intercept: 925.5068
+    unit: mM
+
+  Formate:
+    slope: 5440.7244
+    intercept: 10.4596
+    unit: mM
+
+  D-Fructose:             # 2408, measured by 지원
+    slope: 63953.3143
+    intercept: 574.9139
+    unit: mM
+
+# ── Pre-230221 values (old column — keep for reference only) ──
+# standard_curves_pre230221:
+#   D-Xylose:    slope: 24150.5266  intercept: 2358.6695
+#   D-Xylulose:  slope: 25955.21    intercept: 969.2556
+#   Rib+Rul:     slope: 51968.57    intercept: -958.896
+#   Ribitol:     slope: 25582.9251  intercept: 384.3653
