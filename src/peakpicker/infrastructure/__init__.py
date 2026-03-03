@@ -14,13 +14,23 @@ from .signal_processing import (
     create_scipy_processors,
 )
 
-from .file_readers import ChemstationReader, CSVReader, RainbowReader, AutoReader, DFolderScanner
+from .file_readers import ChemstationReader, CSVReader, RainbowReader, RainbowChemstationReader, AutoReader, DFolderScanner
 
 from .exporters import (
     ExcelExporter,
     CSVExporter,
     BatchExcelExporter,
     ChromatogramPlotExporter,
+)
+
+from .quantification import (
+    RegexSampleNameParser,
+    RTWindowPeakMatcher,
+    LinearCalibrationCalculator,
+    BatchQuantifier,
+    ScipyStatisticalAnalyzer,
+    QuantificationPlotExporter,
+    QuantificationExcelExporter,
 )
 
 __all__ = [
@@ -34,6 +44,7 @@ __all__ = [
     'ChemstationReader',
     'CSVReader',
     'RainbowReader',
+    'RainbowChemstationReader',
     'AutoReader',
     'DFolderScanner',
     # Exporters
@@ -41,4 +52,12 @@ __all__ = [
     'CSVExporter',
     'BatchExcelExporter',
     'ChromatogramPlotExporter',
+    # Quantification
+    'RegexSampleNameParser',
+    'RTWindowPeakMatcher',
+    'LinearCalibrationCalculator',
+    'BatchQuantifier',
+    'ScipyStatisticalAnalyzer',
+    'QuantificationPlotExporter',
+    'QuantificationExcelExporter',
 ]

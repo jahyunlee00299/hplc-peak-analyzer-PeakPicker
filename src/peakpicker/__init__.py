@@ -1,8 +1,8 @@
 """
-SOLID HPLC Peak Analyzer
-========================
+HPLC Peak Analyzer
+===================
 
-A SOLID principles-compliant refactoring of the HPLC Peak Analyzer.
+A clean-architecture HPLC Peak Analyzer following SOLID principles.
 
 This package follows:
 - Single Responsibility Principle (SRP): Each class has one job
@@ -23,14 +23,14 @@ Package Structure
 
 Quick Start
 -----------
->>> from src.solid.application import create_default_workflow
+>>> from src.peakpicker.application import create_default_workflow
 >>> workflow = create_default_workflow(output_dir="./results")
 >>> result = workflow.analyze_file("sample.ch")
 >>> print(f"Found {len(result.peaks)} peaks")
 
 Using the Builder
 -----------------
->>> from src.solid.application import WorkflowBuilder
+>>> from src.peakpicker.application import WorkflowBuilder
 >>> workflow = (WorkflowBuilder()
 ...     .with_chemstation_reader()
 ...     .with_default_baseline()
@@ -40,7 +40,7 @@ Using the Builder
 
 Custom Configuration
 --------------------
->>> from src.solid.config import BaselineCorrectorConfig, BaselinePresets
+>>> from src.peakpicker.config import BaselineCorrectorConfig, BaselinePresets
 >>> config = BaselinePresets.noisy()  # For noisy signals
 >>> workflow = (WorkflowBuilder()
 ...     .with_default_baseline(config)
@@ -59,6 +59,8 @@ from .domain import (
     DeconvolutionMethod,
     ExportFormat,
     SignalQuality,
+    VisualizationMode,
+    StatisticalTest,
     # Models
     AnchorPoint,
     Peak,
@@ -68,6 +70,13 @@ from .domain import (
     ChromatogramData,
     AnalysisResult,
     BatchResult,
+    CompoundDefinition,
+    SampleConditions,
+    QuantifiedPeak,
+    QuantificationResult,
+    TukeyHSDComparison,
+    StatisticalTestResult,
+    StatisticalAnalysisResult,
 )
 
 # Configuration exports
@@ -81,6 +90,8 @@ from .config import (
     DeconvolutionConfig,
     PeakAnalysisConfig,
     PeakAnalysisPresets,
+    QuantificationConfig,
+    QuantificationPresets,
 )
 
 # Application exports
@@ -88,6 +99,9 @@ from .application import (
     AnalysisWorkflow,
     WorkflowBuilder,
     create_default_workflow,
+    QuantificationWorkflow,
+    QuantificationWorkflowBuilder,
+    create_quantification_workflow,
 )
 
 # Quantification exports
@@ -111,6 +125,8 @@ __all__ = [
     'DeconvolutionMethod',
     'ExportFormat',
     'SignalQuality',
+    'VisualizationMode',
+    'StatisticalTest',
     # Models
     'AnchorPoint',
     'Peak',
@@ -120,6 +136,13 @@ __all__ = [
     'ChromatogramData',
     'AnalysisResult',
     'BatchResult',
+    'CompoundDefinition',
+    'SampleConditions',
+    'QuantifiedPeak',
+    'QuantificationResult',
+    'TukeyHSDComparison',
+    'StatisticalTestResult',
+    'StatisticalAnalysisResult',
     # Config
     'AnchorFinderConfig',
     'BaselineGeneratorConfig',
@@ -130,10 +153,15 @@ __all__ = [
     'DeconvolutionConfig',
     'PeakAnalysisConfig',
     'PeakAnalysisPresets',
+    'QuantificationConfig',
+    'QuantificationPresets',
     # Application
     'AnalysisWorkflow',
     'WorkflowBuilder',
     'create_default_workflow',
+    'QuantificationWorkflow',
+    'QuantificationWorkflowBuilder',
+    'create_quantification_workflow',
     # Quant
     'CompoundDef',
     'MethodInfo',

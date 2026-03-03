@@ -216,6 +216,12 @@ class WorkflowBuilder:
         self._reader = RainbowReader(preferred_detector=preferred_detector)
         return self
 
+    def with_rainbow_chemstation_reader(self) -> 'WorkflowBuilder':
+        """Use rainbow-api based Chemstation .ch reader (fixes delta decompression)."""
+        from ..infrastructure import RainbowChemstationReader
+        self._reader = RainbowChemstationReader()
+        return self
+
     def with_auto_reader(
         self, preferred_detector: str = None
     ) -> 'WorkflowBuilder':
