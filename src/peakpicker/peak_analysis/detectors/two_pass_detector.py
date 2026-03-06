@@ -105,17 +105,26 @@ class TwoPassPeakDetector(IPeakDetector):
             start_idx, end_idx = self._get_boundaries(
                 corrected, idx, combined, i
             )
-            rt = float(time[idx])
+            apex = int(idx)
+            rt = float(time[apex])
             rt_start = float(time[start_idx])
             rt_end = float(time[end_idx])
-            height = float(corrected[idx])
+            height = float(corrected[apex])
             # Integrate in seconds (time is in minutes) to match Chemstation units
             area = float(np.trapezoid(
                 corrected[start_idx:end_idx + 1],
                 time[start_idx:end_idx + 1] * 60.0,
             ))
+            left_area = float(np.trapezoid(
+                corrected[start_idx:apex + 1],
+                time[start_idx:apex + 1] * 60.0,
+            ))
+            right_area = float(np.trapezoid(
+                corrected[apex:end_idx + 1],
+                time[apex:end_idx + 1] * 60.0,
+            ))
             peaks.append(Peak(
-                index=int(idx),
+                index=apex,
                 rt=rt,
                 index_start=int(start_idx),
                 index_end=int(end_idx),
@@ -125,6 +134,8 @@ class TwoPassPeakDetector(IPeakDetector):
                 area=area,
                 width=rt_end - rt_start,
                 peak_type=PeakType.MAIN,
+                left_area=left_area,
+                right_area=right_area,
             ))
 
         total_area = sum(p.area for p in peaks)

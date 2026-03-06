@@ -18,8 +18,9 @@ from chemstation_parser import ChemstationParser
 
 # ── Publication style ──
 plt.rcParams.update({
-    'font.family': 'sans-serif',
-    'font.sans-serif': ['Arial', 'Helvetica', 'DejaVu Sans'],
+    'font.family': 'Malgun Gothic',
+    'axes.unicode_minus': False,
+    'font.sans-serif': ['Malgun Gothic', 'Arial', 'Helvetica', 'DejaVu Sans'],
     'font.size': 8,
     'axes.labelsize': 9,
     'axes.titlesize': 10,

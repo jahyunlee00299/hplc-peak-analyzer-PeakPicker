@@ -3,7 +3,8 @@ Half-peak quantification validation using real CSV chromatogram data.
 Bypasses .ch parser and loads Chemstation-exported CSVs directly.
 """
 import sys
-sys.path.insert(0, 'C:/Users/Jahyun/PycharmProjects/PeakPicker/src')
+import os as _os
+sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..', 'src'))
 
 import numpy as np
 import pandas as pd
@@ -110,7 +111,7 @@ def calculate_half_peak_areas(time, corrected, peak_idx, left_bound, right_bound
 
 
 # ===== Main processing =====
-csv_dir = 'C:/Users/Jahyun/PycharmProjects/PeakPicker/exported_signals/'
+csv_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..', 'exported_signals') + _os.sep
 # Pick a representative file with clear peaks
 csv_file = csv_dir + '251014_RIBA_PH_MAIN_GN10_1_6H.csv'
 

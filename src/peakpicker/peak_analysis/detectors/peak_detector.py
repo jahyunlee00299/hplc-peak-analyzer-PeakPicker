@@ -130,12 +130,21 @@ class ProminencePeakDetector(IPeakDetector):
 
             # Calculate area — integrate in seconds (time array is in minutes)
             # to match Chemstation convention: area unit = nRIU·s (or mAU·s)
+            apex = int(idx)
             peak_signal = corrected_positive[start_idx:end_idx + 1]
             peak_time_s = time[start_idx:end_idx + 1] * 60.0
             area = float(np.trapezoid(peak_signal, peak_time_s))
+            left_area = float(np.trapezoid(
+                corrected_positive[start_idx:apex + 1],
+                time[start_idx:apex + 1] * 60.0,
+            ))
+            right_area = float(np.trapezoid(
+                corrected_positive[apex:end_idx + 1],
+                time[apex:end_idx + 1] * 60.0,
+            ))
 
             peaks.append(Peak(
-                index=int(idx),
+                index=apex,
                 rt=rt,
                 index_start=int(start_idx),
                 index_end=int(end_idx),
@@ -144,7 +153,9 @@ class ProminencePeakDetector(IPeakDetector):
                 height=height,
                 area=area,
                 width=width,
-                peak_type=PeakType.MAIN
+                peak_type=PeakType.MAIN,
+                left_area=left_area,
+                right_area=right_area,
             ))
 
         # Calculate area percentages

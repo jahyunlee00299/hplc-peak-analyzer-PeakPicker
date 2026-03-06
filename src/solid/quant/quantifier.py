@@ -138,9 +138,17 @@ class Quantifier:
                 sr.unassigned_peaks += 1
                 continue
 
+            # Select area based on compound's area_mode
+            if cdef.area_mode == "left_half":
+                used_area = pk.left_area
+            elif cdef.area_mode == "right_half":
+                used_area = pk.right_area
+            else:
+                used_area = pk.area
+
             # If multiple peaks match same compound window, keep the largest
             existing = sr.get(cdef.name)
-            if existing is not None and existing.area >= pk.area:
+            if existing is not None and existing.area >= used_area:
                 continue
             if existing is not None:
                 sr.compounds.remove(existing)
@@ -148,12 +156,12 @@ class Quantifier:
             sc = self.method.get_standard_curve(cdef.name)
             if sc is not None and not sc.is_fitted():
                 sc.fit()
-            conc = sc.predict(pk.area) if sc is not None else None
+            conc = sc.predict(used_area) if sc is not None else None
 
             sr.compounds.append(CompoundResult(
                 compound=cdef.name,
                 rt=pk.rt,
-                area=pk.area,
+                area=used_area,
                 area_percent=pk.area_percent,
                 concentration=conc,
                 unit=cdef.unit,
