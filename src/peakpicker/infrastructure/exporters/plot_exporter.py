@@ -13,6 +13,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from ...interfaces import IPlotExporter
+from ...utils import setup_korean_font
+
+setup_korean_font()
 from ...domain import Peak
 
 

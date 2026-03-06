@@ -80,6 +80,7 @@ class CompoundDef:
     mw: Optional[float] = None          # g/mol
     unit: str = "mM"
     note: str = ""
+    area_mode: str = "full"             # "full" | "left_half" | "right_half"
 
     def contains(self, rt: float) -> bool:
         return self.rt_min <= rt <= self.rt_max
@@ -208,6 +209,7 @@ class QuantMethod:
                 mw=c.get("mw"),
                 unit=c.get("unit", "mM"),
                 note=c.get("note", ""),
+                area_mode=c.get("area_mode", "full"),
             ))
 
         # Standard curves

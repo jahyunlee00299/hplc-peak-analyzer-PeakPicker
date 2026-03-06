@@ -5,9 +5,17 @@ r"""
 - 260225: ACP 100/150/200/300 mM,               시간: 90min/180min
 - 공통 비교: ACP 100/150/300 mM, 시간 90min(=1.5h) & 180min(=3h)
 
-캘리브레이션:
+캘리브레이션 (Chemstation 기준, 230221):
   Xyl: slope=22786.19, intercept=207.54 (mg/mL basis, MW=150.13)
   Xul: slope=23465.27, intercept=-59.45 (mg/mL basis, MW=150.13)
+
+파서 스케일 주의사항:
+  - 반응 샘플(90/180 min): 우리 면적 ≈ Chemstation (0.95×, ~5% 오차) → STD slope 그대로 사용 가능
+  - NC 샘플: 우리 면적이 Chemstation의 2.196× → AcP broad background로 인한 baseline 처리 차이
+    AcP 100mM NC에는 AcP가 그대로 있어 RT 10-12 min에 broad hump 존재
+    Chemstation은 이를 Xyl의 elevated baseline으로 처리 (height 13364 nRIU 기준 17679 baseline)
+    우리 rolling_min은 raw 최솟값(~12 nRIU)을 baseline으로 사용 → NC 절대값 신뢰 불가
+  - PARSER_SCALE 보정 불필요: 반응 샘플에서는 거의 일치하므로 원래 slope 사용
 """
 
 import sys, os
@@ -37,10 +45,17 @@ OUT_DIR   = Path(__file__).parent / 'result' / '260212_vs_260225'
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── 캘리브레이션 ──────────────────────────────────────────────────────────────
+# STD calibration: 230221 기준, Chemstation 면적(nRIU·s)으로 만들어진 slope
+# 반응 샘플(90/180 min)에서 우리 파서 면적 ≈ Chemstation 면적 (비율 ~0.95)
+# → PARSER_SCALE 보정 없이 원래 slope 사용 (약 5% 오차 허용)
+# NC는 AcP broad background 때문에 절대값 신뢰 불가 (별도 주석 처리)
 STD = {
-    'Xyl': {'slope': 22786.1903, 'intercept': 207.5383, 'unit': 'mg/mL', 'MW': 150.13},
-    'Xul': {'slope': 23465.2695, 'intercept': -59.4471, 'unit': 'mg/mL', 'MW': 150.13},
-    'AcO': {'slope': 8708,       'intercept': -901.6,   'unit': 'mM'},
+    'Xyl': {'slope': 22786.1903, 'intercept': 207.5383,
+            'unit': 'mg/mL', 'MW': 150.13},
+    'Xul': {'slope': 23465.2695, 'intercept': -59.4471,
+            'unit': 'mg/mL', 'MW': 150.13},
+    'AcO': {'slope': 8708,       'intercept': -901.6,
+            'unit': 'mM'},
 }
 XYL_RT_RANGE = (10.9, 11.5)
 XUL_RT_RANGE = (11.5, 12.1)
@@ -48,7 +63,8 @@ ACO_RT_RANGE = (16.8, 17.8)
 INITIAL_XYL  = 250.0   # mM
 
 plt.rcParams.update({
-    'font.family': 'DejaVu Sans',
+    'font.family': 'Malgun Gothic',
+    'axes.unicode_minus': False,
     'figure.dpi': 150,
     'axes.spines.top': False,
     'axes.spines.right': False,
@@ -77,27 +93,51 @@ def find_peak_in_range(time, corrected, rt_start, rt_end, min_height=30):
     return indices[peaks[np.argmax(props['peak_heights'])]]
 
 
-def half_peak_area(time, corrected, apex_idx, side='left', max_width_min=1.5):
-    apex_h  = corrected[apex_idx]
-    thr     = apex_h * 0.02
-    dt      = float(np.median(np.diff(time)))
+def half_peak_area(time, raw_intensity, apex_idx, side='left', max_width_min=2.0):
+    """Valley baseline 방식 half-peak 적분.
+
+    apex에서 좌/우로 탐색하며 신호가 다시 증가하는 지점(valley)을 찾고,
+    그 valley signal을 수평 baseline으로 사용.
+
+    NC: Xyl 왼쪽 AcP broad peak 끝 valley를 잡아 Chemstation과 유사.
+    반응 샘플: broad peak 없으므로 valley ≈ 실제 baseline → 전체 면적 포함.
+    """
+    dt = float(np.median(np.diff(time)))
     max_pts = int(max_width_min / dt)
+
     if side == 'left':
-        left  = apex_idx
         limit = max(0, apex_idx - max_pts)
-        while left > limit and corrected[left] > thr:
-            left -= 1
-        t_sec    = time[left:apex_idx + 1] * 60
-        half_a   = trapezoid(corrected[left:apex_idx + 1], t_sec)
-        return half_a, half_a, (left, apex_idx)   # ×2 없음: 반쪽 면적만 사용
+        # apex에서 왼쪽으로 탐색: 신호 3% 이상 증가 감지 → 그 다음 점이 valley
+        valley_idx = limit
+        running_min = raw_intensity[apex_idx]
+        for i in range(apex_idx - 1, limit - 1, -1):
+            curr = raw_intensity[i]
+            if curr > running_min * 1.03:
+                valley_idx = i + 1
+                break
+            if curr < running_min:
+                running_min = curr
+        baseline_val = raw_intensity[valley_idx]
+        sig = np.maximum(raw_intensity[valley_idx:apex_idx + 1] - baseline_val, 0)
+        t_sec = time[valley_idx:apex_idx + 1] * 60
+        area = trapezoid(sig, t_sec)
+        return area, area, (valley_idx, apex_idx)
     else:
-        right = apex_idx
-        limit = min(len(corrected) - 1, apex_idx + max_pts)
-        while right < limit and corrected[right] > thr:
-            right += 1
-        t_sec  = time[apex_idx:right + 1] * 60
-        half_a = trapezoid(corrected[apex_idx:right + 1], t_sec)
-        return half_a, half_a, (apex_idx, right)   # ×2 없음: 반쪽 면적만 사용
+        limit = min(len(raw_intensity) - 1, apex_idx + max_pts)
+        valley_idx = limit
+        running_min = raw_intensity[apex_idx]
+        for i in range(apex_idx + 1, limit + 1):
+            curr = raw_intensity[i]
+            if curr > running_min * 1.03:
+                valley_idx = i - 1
+                break
+            if curr < running_min:
+                running_min = curr
+        baseline_val = raw_intensity[valley_idx]
+        sig = np.maximum(raw_intensity[apex_idx:valley_idx + 1] - baseline_val, 0)
+        t_sec = time[apex_idx:valley_idx + 1] * 60
+        area = trapezoid(sig, t_sec)
+        return area, area, (apex_idx, valley_idx)
 
 
 def area_to_conc(area, compound, dilution_factor):
@@ -128,12 +168,12 @@ def analyze_d_folder(d_folder_path):
     baseline  = rolling_min_baseline(intensity)
     corrected = np.maximum(intensity - baseline, 0)
 
-    result = {'dilution': df_val, 'time': time, 'corrected': corrected}
+    result = {'dilution': df_val, 'time': time, 'corrected': corrected, 'raw': intensity}
 
-    # Xyl (LEFT half)
+    # Xyl (LEFT half) — apex는 corrected로 찾고, 면적은 raw valley baseline으로 계산
     xyl_idx = find_peak_in_range(time, corrected, *XYL_RT_RANGE)
     if xyl_idx is not None:
-        xyl_area, _, _ = half_peak_area(time, corrected, xyl_idx, 'left')
+        xyl_area, _, _ = half_peak_area(time, intensity, xyl_idx, 'left')
         result.update({
             'Xyl_RT': time[xyl_idx], 'Xyl_area': xyl_area,
             'Xyl_height': corrected[xyl_idx],
@@ -142,10 +182,10 @@ def analyze_d_folder(d_folder_path):
     else:
         result.update({'Xyl_RT': np.nan, 'Xyl_area': 0, 'Xyl_height': 0, 'Xyl_mM': 0})
 
-    # Xul (RIGHT half)
+    # Xul (RIGHT half) — 동일하게 raw valley baseline
     xul_idx = find_peak_in_range(time, corrected, *XUL_RT_RANGE)
     if xul_idx is not None:
-        xul_area, _, _ = half_peak_area(time, corrected, xul_idx, 'right')
+        xul_area, _, _ = half_peak_area(time, intensity, xul_idx, 'right')
         result.update({
             'Xul_RT': time[xul_idx], 'Xul_area': xul_area,
             'Xul_height': corrected[xul_idx],
@@ -154,10 +194,9 @@ def analyze_d_folder(d_folder_path):
     else:
         result.update({'Xul_RT': np.nan, 'Xul_area': 0, 'Xul_height': 0, 'Xul_mM': 0})
 
-    # AcO (full peak)
+    # AcO (full peak) — rolling_min corrected 유지 (AcO 구간에 broad background 없음)
     aco_idx = find_peak_in_range(time, corrected, *ACO_RT_RANGE, min_height=10)
     if aco_idx is not None:
-        # full peak area
         apex_h = corrected[aco_idx]; thr = apex_h * 0.02
         l = aco_idx
         while l > 0 and corrected[l] > thr: l -= 1
@@ -320,7 +359,7 @@ def make_comparison_plot(df212, df225):
             if len(sub225) > 0:
                 ax.plot(sub225['time_min'], sub225[col], 's--',
                         color='#d62728', linewidth=2, markersize=7,
-                        label='260225 (no ATP)', zorder=3)
+                        label='260225 (ATP 0.5 mM, fresh enz)', zorder=3)
 
             ax.set_xlabel('Time (min)', fontsize=10)
             ax.set_ylabel(ylabel, fontsize=10)
@@ -374,7 +413,7 @@ def make_bar_comparison(df212, df225):
             bars1 = ax.bar(x - width/2, vals_212, width,
                            label='260212 (ATP 0.5 mM)', color='#1f77b4', alpha=0.85)
             bars2 = ax.bar(x + width/2, vals_225, width,
-                           label='260225 (no ATP)', color='#d62728', alpha=0.85)
+                           label='260225 (ATP 0.5 mM, fresh enz)', color='#d62728', alpha=0.85)
 
             # 값 표시
             for bar in bars1:
@@ -406,7 +445,7 @@ def make_bar_comparison(df212, df225):
 
 def make_summary_table(df212, df225):
     """요약 테이블 출력 및 CSV 저장"""
-    for df, label in [(df212, '260212_ATP0.5mM'), (df225, '260225_noATP')]:
+    for df, label in [(df212, '260212_ATP0.5mM'), (df225, '260225_freshEnz')]:
         df['Xul5P_mM'] = 0.0
         rxn = ~df['is_nc']
         total = df.loc[rxn, 'Xyl_mM'] + df.loc[rxn, 'Xul_mM']

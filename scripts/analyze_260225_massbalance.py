@@ -54,7 +54,8 @@ RT_XUL5P = (6.50, 7.80)   # D-Xul5P 후보 피크
 COLORS = {100: '#56B4E9', 150: '#009E73', 200: '#E69F00', 300: '#D55E00'}
 
 plt.rcParams.update({
-    'font.family': 'sans-serif',
+    'font.family': 'Malgun Gothic',
+    'axes.unicode_minus': False,
     'font.size': 8, 'axes.labelsize': 9, 'axes.titlesize': 10,
     'xtick.labelsize': 7, 'ytick.labelsize': 7, 'legend.fontsize': 7,
     'figure.dpi': 300, 'savefig.dpi': 300,
