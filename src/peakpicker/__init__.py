@@ -104,6 +104,17 @@ from .application import (
     create_quantification_workflow,
 )
 
+# Quantification exports
+from .quant import (
+    CompoundDef,
+    MethodInfo,
+    QuantMethod,
+    StandardCurve,
+    CompoundResult,
+    Quantifier,
+    SampleResult,
+)
+
 __all__ = [
     # Version
     '__version__',
@@ -151,4 +162,12 @@ __all__ = [
     'QuantificationWorkflow',
     'QuantificationWorkflowBuilder',
     'create_quantification_workflow',
+    # Quant
+    'CompoundDef',
+    'MethodInfo',
+    'QuantMethod',
+    'StandardCurve',
+    'CompoundResult',
+    'Quantifier',
+    'SampleResult',
 ]

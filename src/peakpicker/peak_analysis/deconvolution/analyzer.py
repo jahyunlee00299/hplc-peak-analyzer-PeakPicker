@@ -116,9 +116,10 @@ class ShoulderDeconvolutionAnalyzer(IDeconvolutionAnalyzer):
         peak_index: int
     ) -> Tuple[bool, str]:
         """Detect shoulder peaks using second derivative."""
-        # Get peak region
-        left_idx = max(0, peak_index - 50)
-        right_idx = min(len(signal), peak_index + 50)
+        # Adaptive window: 25% of signal length, capped at 50 and floored at 10
+        half_window = max(10, min(50, len(signal) // 4))
+        left_idx = max(0, peak_index - half_window)
+        right_idx = min(len(signal), peak_index + half_window)
 
         if right_idx - left_idx < 10:
             return False, ""
@@ -167,8 +168,10 @@ class ShoulderDeconvolutionAnalyzer(IDeconvolutionAnalyzer):
         peak_index: int
     ) -> int:
         """Count inflection points using second derivative zero crossings."""
-        left_idx = max(0, peak_index - 30)
-        right_idx = min(len(signal), peak_index + 30)
+        # Adaptive window: 20% of signal length, capped at 30 and floored at 10
+        half_window = max(10, min(30, len(signal) // 5))
+        left_idx = max(0, peak_index - half_window)
+        right_idx = min(len(signal), peak_index + half_window)
         signal_region = signal[left_idx:right_idx]
 
         if len(signal_region) < self.config.smooth_window:
