@@ -13,6 +13,8 @@ from .enums import (
     DeconvolutionMethod,
     ExportFormat,
     SignalQuality,
+    VisualizationMode,
+    StatisticalTest,
 )
 
 from .models import (
@@ -24,6 +26,13 @@ from .models import (
     ChromatogramData,
     AnalysisResult,
     BatchResult,
+    CompoundDefinition,
+    SampleConditions,
+    QuantifiedPeak,
+    QuantificationResult,
+    TukeyHSDComparison,
+    StatisticalTestResult,
+    StatisticalAnalysisResult,
 )
 
 __all__ = [
@@ -34,6 +43,8 @@ __all__ = [
     'DeconvolutionMethod',
     'ExportFormat',
     'SignalQuality',
+    'VisualizationMode',
+    'StatisticalTest',
     # Models
     'AnchorPoint',
     'Peak',
@@ -43,4 +54,11 @@ __all__ = [
     'ChromatogramData',
     'AnalysisResult',
     'BatchResult',
+    'CompoundDefinition',
+    'SampleConditions',
+    'QuantifiedPeak',
+    'QuantificationResult',
+    'TukeyHSDComparison',
+    'StatisticalTestResult',
+    'StatisticalAnalysisResult',
 ]

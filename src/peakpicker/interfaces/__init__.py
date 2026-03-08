@@ -51,6 +51,17 @@ from .io import (
     ICSVExporter,
 )
 
+# Quantification Interfaces
+from .quantification import (
+    ISampleNameParser,
+    IPeakMatcher,
+    ICalibrationCalculator,
+    IQuantifier,
+    IStatisticalAnalyzer,
+    IQuantificationPlotExporter,
+    IQuantificationExporter,
+)
+
 __all__ = [
     # Signal Processing
     'ISignalProcessor',
@@ -82,4 +93,12 @@ __all__ = [
     'IBatchExporter',
     'IExcelExporter',
     'ICSVExporter',
+    # Quantification
+    'ISampleNameParser',
+    'IPeakMatcher',
+    'ICalibrationCalculator',
+    'IQuantifier',
+    'IStatisticalAnalyzer',
+    'IQuantificationPlotExporter',
+    'IQuantificationExporter',
 ]
