@@ -208,10 +208,34 @@ class WorkflowBuilder:
         self._reader = CSVReader()
         return self
 
-    def with_rainbow_reader(self) -> 'WorkflowBuilder':
-        """Use rainbow-api based Chemstation reader (fixes delta decompression)."""
+    def with_rainbow_reader(
+        self, preferred_detector: str = None
+    ) -> 'WorkflowBuilder':
+        """Use Rainbow .D folder reader."""
+        from ..infrastructure import RainbowReader
+        self._reader = RainbowReader(preferred_detector=preferred_detector)
+        return self
+
+    def with_rainbow_chemstation_reader(self) -> 'WorkflowBuilder':
+        """Use rainbow-api based Chemstation .ch reader (fixes delta decompression)."""
         from ..infrastructure import RainbowChemstationReader
         self._reader = RainbowChemstationReader()
+        return self
+
+    def with_auto_reader(
+        self, preferred_detector: str = None
+    ) -> 'WorkflowBuilder':
+        """
+        Use auto-detecting reader that picks the right reader
+        based on the input file type (.D, .ch, or .csv).
+        """
+        from ..infrastructure import RainbowReader, CSVReader, ChemstationReader
+        from ..infrastructure import AutoReader
+        self._reader = AutoReader(readers=[
+            RainbowReader(preferred_detector=preferred_detector),
+            CSVReader(),
+            ChemstationReader(),
+        ])
         return self
 
     def with_default_baseline(
@@ -223,25 +247,26 @@ class WorkflowBuilder:
         from ..baseline import (
             BaselineCorrector,
             CompositeAnchorFinder,
-            ValleyAnchorFinder,
-            LocalMinAnchorFinder,
             BoundaryAnchorFinder,
+            PeakBoundaryAnchorFinder,
             WeightedSplineStrategy,
             BaselineQualityEvaluator,
         )
-        from ..config import AnchorFinderConfig
 
         config = config or BaselineCorrectorConfig()
 
-        # Create components
+        # 음수 피크(negative peak) 위로 baseline이 지나갈 수 있도록 clip 해제
+        config.generator_config.clip_to_signal = False
+
         signal_processor = ScipySignalProcessor()
         interpolator = ScipyInterpolator()
 
         anchor_config = config.anchor_config
 
+        # PeakBoundaryAnchorFinder: scipy prominence의 left/right bases를
+        # anchor로 사용 → 피크 내부를 anchor로 잡지 않음, 음수 피크도 처리
         anchor_finder = CompositeAnchorFinder([
-            ValleyAnchorFinder(signal_processor, anchor_config),
-            LocalMinAnchorFinder(signal_processor, anchor_config),
+            PeakBoundaryAnchorFinder(signal_processor, anchor_config),
             BoundaryAnchorFinder(anchor_config),
         ], anchor_config)
 
@@ -257,11 +282,46 @@ class WorkflowBuilder:
 
         return self
 
+    def with_arpls_baseline(
+        self,
+        lam: float = 1e5,
+        p: float = 0.01,
+        config: 'BaselineCorrectorConfig' = None,
+    ) -> 'WorkflowBuilder':
+        """
+        Configure ARPLS baseline correction.
+
+        Preferred for samples with broad fluorescence/UV backgrounds
+        or significant baseline drift. Works without anchor points.
+
+        Parameters
+        ----------
+        lam : float
+            Smoothness penalty (1e3–1e8). Larger = smoother.
+        p : float
+            Asymmetry weight for background (0.001–0.1).
+        """
+        from ..baseline import ArplsStrategy, BaselineCorrector, BoundaryAnchorFinder
+        from ..infrastructure import ScipySignalProcessor, ScipyInterpolator
+
+        config = config or BaselineCorrectorConfig()
+        config.generator_config.clip_to_signal = False
+
+        strategy = ArplsStrategy(lam=lam, p=p)
+        anchor_finder = BoundaryAnchorFinder(config.anchor_config)
+
+        self._baseline_corrector = BaselineCorrector(
+            anchor_finder=anchor_finder,
+            strategy=strategy,
+            config=config,
+        )
+        return self
+
     def with_default_peak_detector(
         self,
         config: PeakAnalysisConfig = None
     ) -> 'WorkflowBuilder':
-        """Configure default peak detection."""
+        """Configure default (single-pass) peak detection."""
         from ..infrastructure import ScipySignalProcessor
         from ..peak_analysis import ProminencePeakDetector, SimplePeakBoundaryFinder
 
@@ -276,6 +336,51 @@ class WorkflowBuilder:
             config=config.detection
         )
 
+        return self
+
+    def with_two_pass_peak_detector(
+        self,
+        config: PeakAnalysisConfig = None,
+        major_prominence_factor: float = 0.005,
+        major_distance: int = 20,
+        minor_noise_multiplier: float = 2.0,
+        minor_distance: int = 5,
+        dedup_distance: int = 10,
+    ) -> 'WorkflowBuilder':
+        """
+        Configure two-pass adaptive peak detection.
+
+        Better than single-pass for samples with both large dominant peaks
+        and small satellite / impurity peaks.
+
+        Parameters
+        ----------
+        major_prominence_factor : float
+            Prominence threshold for major peaks (fraction of signal range).
+        major_distance : int
+            Minimum point distance between major peaks.
+        minor_noise_multiplier : float
+            Prominence for minor peaks as multiple of noise level.
+        minor_distance : int
+            Minimum point distance between minor peaks.
+        dedup_distance : int
+            Minor peaks within this distance of a major peak are dropped.
+        """
+        from ..infrastructure import ScipySignalProcessor
+        from ..peak_analysis import TwoPassPeakDetector
+
+        config = config or PeakAnalysisConfig()
+        signal_processor = ScipySignalProcessor()
+
+        self._peak_detector = TwoPassPeakDetector(
+            signal_processor=signal_processor,
+            config=config.detection,
+            major_prominence_factor=major_prominence_factor,
+            major_distance=major_distance,
+            minor_noise_multiplier=minor_noise_multiplier,
+            minor_distance=minor_distance,
+            dedup_distance=dedup_distance,
+        )
         return self
 
     def with_excel_exporter(self, output_dir: Path = None) -> 'WorkflowBuilder':

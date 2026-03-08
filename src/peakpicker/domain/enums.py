@@ -23,6 +23,8 @@ class BaselineMethod(Enum):
     ADAPTIVE_CONNECT = "adaptive_connect"
     ROBUST_FIT = "robust_fit"
     LINEAR = "linear"
+    ARPLS = "arpls"       # Asymmetrically Reweighted Penalized Least Squares
+    AIRPLS = "airpls"     # Adaptive Iteratively Reweighted PLS
 
 
 class PeakType(Enum):

@@ -54,8 +54,10 @@ class Peak:
 
     # Measurements
     height: float           # Peak height (baseline corrected)
-    area: float             # Integrated area
+    area: float             # Integrated area (full peak)
     width: float            # Peak width (FWHM or base width)
+    left_area: float = 0.0  # Area from start to apex (left half)
+    right_area: float = 0.0 # Area from apex to end (right half)
 
     # Classification
     peak_type: PeakType = PeakType.MAIN

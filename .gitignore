@@ -31,3 +31,7 @@ riba_plots_demo/
 .vscode/
 .idea/
 .claude/
+
+# Test outputs
+test_results/
+test_sessions/

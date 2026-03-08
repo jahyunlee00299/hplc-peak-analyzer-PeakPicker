@@ -18,6 +18,7 @@ from .anchor_finders import (
     LocalMinAnchorFinder,
     BoundaryAnchorFinder,
     CompositeAnchorFinder,
+    PeakBoundaryAnchorFinder,
 )
 
 from .strategies import (
@@ -25,6 +26,8 @@ from .strategies import (
     RobustFitStrategy,
     AdaptiveConnectStrategy,
     LinearStrategy,
+    ArplsStrategy,
+    AirplsStrategy,
 )
 
 from .generators import BaselineGenerator, PostProcessor
@@ -40,11 +43,14 @@ __all__ = [
     'LocalMinAnchorFinder',
     'BoundaryAnchorFinder',
     'CompositeAnchorFinder',
+    'PeakBoundaryAnchorFinder',
     # Strategies
     'WeightedSplineStrategy',
     'RobustFitStrategy',
     'AdaptiveConnectStrategy',
     'LinearStrategy',
+    'ArplsStrategy',
+    'AirplsStrategy',
     # Generators
     'BaselineGenerator',
     'PostProcessor',

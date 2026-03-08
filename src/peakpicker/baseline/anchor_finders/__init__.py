@@ -11,10 +11,12 @@ from .valley_finder import (
     BoundaryAnchorFinder,
     CompositeAnchorFinder,
 )
+from .peak_boundary_finder import PeakBoundaryAnchorFinder
 
 __all__ = [
     'ValleyAnchorFinder',
     'LocalMinAnchorFinder',
     'BoundaryAnchorFinder',
     'CompositeAnchorFinder',
+    'PeakBoundaryAnchorFinder',
 ]

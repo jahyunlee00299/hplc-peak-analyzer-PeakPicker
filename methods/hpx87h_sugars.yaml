@@ -1,0 +1,152 @@
+# ──────────────────────────────────────────────────────────────
+# PeakPicker QuantMethod — HPX-87H Sugar/Phosphate Analysis
+# ──────────────────────────────────────────────────────────────
+# Column  : Bio-Rad Aminex HPX-87H (300 × 7.8 mm)
+# Mobile  : 5 mM H₂SO₄
+# Flow    : 0.5 mL/min
+# Temp    : 65 °C
+# Detector: RID (nRIU)
+#
+# Standard curve source:
+#   Asana task/1203532005158858 (D-Ribose production project)
+#   area (nRIU·s) = slope * [mM] + intercept
+#
+# NOTE: Column replaced 230221. Use 230221+ values for current runs.
+# ──────────────────────────────────────────────────────────────
+
+method:
+  name: HPX87H_sugars
+  column: Bio-Rad Aminex HPX-87H (300x7.8mm)
+  temperature_c: 65
+  flow_rate_ml_min: 0.5
+  mobile_phase: 5 mM H2SO4
+  detector: RID
+
+# ── Compound RT windows ───────────────────────────────────────
+
+compounds:
+  - name: Unknown_6.95
+    rt_min: 6.75
+    rt_max: 7.05
+    # 260225_ACP analysis: RT 6.94-6.96 min (all 12 samples, n=9 peaks detected)
+    # Present in NC; slight increase in reaction samples.
+    # Candidate: ACP (acetyl phosphate, MW 140) or inorganic phosphate.
+    # TODO: confirm with ACP/Pi standard injection.
+    note: "present in NC; slight increase in rxn; candidate ACP or Pi (RT 6.94-6.96)"
+
+  - name: Unknown_7.25
+    rt_min: 7.05
+    rt_max: 7.50
+    # 260225_ACP analysis: RT 7.27-7.29 min (n=3 peaks detected in rxn samples only)
+    # Nearly absent in NC. Large increase in reaction samples.
+    # INVERSELY correlated with ACP conc (100mM > 300mM at 90MIN) --
+    #   suggests early-reaction intermediate or ACP hydrolysis product.
+    # 90MIN area delta vs NC: +356469 (100mM), +200089 (150mM), +178495 (200mM), +66726 (300mM)
+    # Candidate: acetate from ACP hydrolysis (but acetate RT is ~17.3 min on HPX-87H)
+    #            OR Xylulose-5-phosphate (Xul-5P, MW 230) -- primary target product.
+    #            OR 2-Deoxy-D-ribose-5-phosphate (d-dRib-5P) -- observed at ~7.2 min in deoxynucleoside work.
+    # TODO: confirm with Xul-5P or d-dRib-5P standard injection.
+    note: "absent in NC; strong increase in rxn (ACP-conc-inverse); RT 7.27-7.29; candidate Xul-5P or d-dRib-5P"
+
+  - name: Unknown_9.4
+    rt_min: 9.10
+    rt_max: 9.80
+    # 260225_ACP analysis: RT 9.35-9.63 min (n=12 all samples detected)
+    # Present in NC and decreases in reaction samples (especially low ACP conc).
+    # RT shifts right with higher ACP conc (9.39 at 100mM -> 9.63 at 300mM NC),
+    #   suggesting matrix effect or overlapping peaks at high ionic strength.
+    # 90MIN area delta vs NC: -257621 (100mM), -175235 (150mM), -86616 (200mM), +56742 (300mM)
+    # Candidate: D-Xylose-related or buffer component; NOT a reaction product.
+    # TODO: confirm identity with individual sugar standards.
+    note: "present in NC; decreases in rxn (low ACP); RT 9.35-9.63; RT shifts with ACP conc; not product"
+
+  - name: D-Xylose
+    rt_min: 10.80
+    rt_max: 11.50
+    mw: 150.13
+    unit: mM
+    area_mode: left_half
+    note: "substrate; LEFT HALF of ~11 min peak (valley at ~11.5 min)"
+
+  - name: D-Xylulose
+    rt_min: 11.50
+    rt_max: 12.00
+    mw: 150.13
+    unit: mM
+    area_mode: right_half
+    note: "product; RIGHT HALF of ~11 min peak (valley at ~11.5 min)"
+
+  - name: Acetate
+    rt_min: 17.00
+    rt_max: 17.70
+    mw: 60.05
+    unit: mM
+    note: "AcO — co-product from ACP (acetyl phosphate)"
+
+# ── Standard curves (HPX-87H, 230221~) ───────────────────────
+# Two formats:
+#   pre-fitted : slope + intercept  (source: Asana std curve task)
+#   raw data   : concentrations + areas lists → auto linear fit
+
+standard_curves:
+
+  # ── Active for this experiment ──────────────────────────────
+
+  D-Xylose:
+    slope: 22786.19        # 230221~, HPX-87H, LEFT HALF of peak
+    intercept: 207.5383
+    unit: mM
+
+  D-Xylulose:
+    slope: 23465.27        # 230221~, HPX-87H, RIGHT HALF of peak
+    intercept: -59.4471
+    unit: mM
+
+  Acetate:
+    slope: 8708            # 1 replicate only — re-measure recommended
+    intercept: -901.6
+    unit: mM
+
+  D-dRib-5P:              # 2-Deoxy-D-ribose-5-phosphate; RT ~7.2 min (sugar-P region)
+    slope: 52961.5277
+    intercept: 3008.3667
+    unit: mM
+
+  # ── Other compounds (HPX-87H, 230221~) ──────────────────────
+
+  D-Ribulose+D-Ribose:    # full peak (combined), 230221~
+    slope: 48125.94
+    intercept: 51.0892
+    unit: mM
+
+  D-Ribose:               # 241029 re-run, individual peak
+    slope: 28057.28
+    intercept: 2063.462
+    unit: mM
+
+  Ribitol:                # 241029 re-run
+    slope: 25229.32
+    intercept: -695.439
+    unit: mM
+
+  ADP:
+    slope: 27528.1012
+    intercept: 925.5068
+    unit: mM
+
+  Formate:
+    slope: 5440.7244
+    intercept: 10.4596
+    unit: mM
+
+  D-Fructose:             # 2408, measured by 지원
+    slope: 63953.3143
+    intercept: 574.9139
+    unit: mM
+
+# ── Pre-230221 values (old column — keep for reference only) ──
+# standard_curves_pre230221:
+#   D-Xylose:    slope: 24150.5266  intercept: 2358.6695
+#   D-Xylulose:  slope: 25955.21    intercept: 969.2556
+#   Rib+Rul:     slope: 51968.57    intercept: -958.896
+#   Ribitol:     slope: 25582.9251  intercept: 384.3653
