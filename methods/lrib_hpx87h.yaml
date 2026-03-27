@@ -1,0 +1,69 @@
+method_id: lrib_hpx87h_v1
+column: HPX-87H
+mobile_phase: 5mM H2SO4
+flow_rate_mLmin: 0.5
+temperature_C: 65
+detector: RID
+signal_file: RID1A.ch
+
+compounds:
+  # RT 추정 근거: HPX-87H (Bio-Rad Aminex) 5mM H2SO4 0.5 mL/min 65°C 조건
+  # 이당류(Agarobiose, MW~328) → 단당류보다 먼저 용출 (~8.5 min)
+  # L-Ribose(C5): 펜토스, D-Xylose(~11.1 min) 보다 약간 빠름 → ~9.5 min 추정
+  # L-Arabinose(C5 에피머): L-Ribose와 분리 필요, ~10.5 min 추정
+  # D-Galactose(C6 헥소스): 헥소스류, 용출 가장 늦음 → ~11.5 min 추정
+  # 참조: Bio-Rad HPX-87H 문헌 용출 순서 (올리고당 < 펜토스 < 헥소스 < 유기산)
+
+  Agarobiose:
+    rt_expected: 8.5
+    rt_window: [8.0, 9.0]
+    calibration:
+      slope: null
+      intercept: 0.0
+      r2: null
+    color: "#2ecc71"
+
+  L-Ribose:
+    rt_expected: 9.5
+    rt_window: [9.0, 10.2]
+    calibration:
+      slope: null
+      intercept: 0.0
+      r2: null
+    color: "#3498db"
+
+  L-Arabinose:
+    rt_expected: 10.5
+    rt_window: [10.0, 11.2]
+    calibration:
+      slope: null
+      intercept: 0.0
+      r2: null
+    color: "#e74c3c"
+
+  D-Galactose:
+    rt_expected: 11.5
+    rt_window: [11.0, 12.0]
+    calibration:
+      slope: null
+      intercept: 0.0
+      r2: null
+    color: "#9b59b6"
+
+baseline:
+  method: valley_dropline
+  smoothing: savgol
+  smoothing_window: 11
+  smoothing_poly: 3
+
+peak_detection:
+  min_prominence_factor: 3.0
+  min_height_fraction: 0.01
+  distance_pts: 10
+  trim_rt_start: 7.0    # RT ~6 min 음성 스파이크(-206,331 nRIU) 구간 무시
+  trim_rt_end: 25.0
+
+qc:
+  ne_control_keyword: "_NC_"
+  max_product_area_ne: 5000
+  min_r2_calibration: 0.99

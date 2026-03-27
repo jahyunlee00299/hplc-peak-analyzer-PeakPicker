@@ -1,0 +1,96 @@
+method_id: nucleoside_c18_uv254_v1
+column: C18
+mobile_phase: "gradient (추정: 0.1% TFA / ACN, 0→30% ACN over 15 min)"
+flow_rate_mLmin: 1.0
+temperature_C: 25
+detector: VWD
+wavelength_nm: 254
+signal_file: vwd1A.ch
+
+compounds:
+  # RT 추정 근거: C18 역상 컬럼, UV 254 nm, 통상적 뉴클레오시드/타이드 분석 조건
+  # 뉴클레오타이드(인산기 多) → 더 극성, 먼저 용출 (AMP < ADP < ATP)
+  # 뉴클레오시드(인산기 無) → 소수성, 후기 용출
+  # D-dRib5P: 인산화 당, 극성 높음 → 2-3 min (가장 먼저)
+  # AMP: 모노포스페이트 → ~3.5 min
+  # Decitabine: 5-aza-2'-deoxycytidine, 수용성 → ~4.0 min (AMP와 근접)
+  # ADP: 디포스페이트 → ~5.0 min
+  # ATP: 트리포스페이트 → ~6.5 min (역상에서는 의외로 늦게 용출되기도 함)
+  # Cladribine: 2-chlorodeoxyadenosine, 소수성 높음 → ~9.0 min
+
+  # 검량선 출처: Asana Standards 태스크 (task_id: 1207838875892429, 2024-07-18)
+  # 방법: 20 mM ammonium acetate buffer / 95% DW + 5% ACN, pH 4.0
+  # 단위 변환: conc(mM) = slope * area(mAU·s) + intercept  (slope=1/a, intercept=-y0/a)
+
+  D-dRib5P:
+    rt_expected: 2.5
+    rt_window: [2.0, 3.0]
+    calibration:
+      slope: 2.343018e-03   # a=426.8, y0=53.41 (derivatization method, C18)
+      intercept: -0.125141
+      r2: null
+      source: "Asana task 1207838875892429 (derivatization method)"
+    color: "#1abc9c"
+
+  AMP:
+    rt_expected: 3.5
+    rt_window: [3.0, 4.0]
+    calibration:
+      slope: null           # 표준곡선 미작성 (Asana에 없음)
+      intercept: 0.0
+      r2: null
+    color: "#3498db"
+
+  Decitabine:
+    rt_expected: 4.0
+    rt_window: [3.5, 4.5]
+    calibration:
+      slope: 1.370802e-03   # a=729.5, y0=-17.2 (20 mM ammonium acetate method)
+      intercept: 0.023578
+      r2: null
+      source: "Asana task 1207838875892429"
+    color: "#e67e22"
+
+  ADP:
+    rt_expected: 5.0
+    rt_window: [4.5, 5.5]
+    calibration:
+      slope: null           # 표준곡선 미작성
+      intercept: 0.0
+      r2: null
+    color: "#2ecc71"
+
+  ATP:
+    rt_expected: 6.5
+    rt_window: [6.0, 7.2]
+    calibration:
+      slope: null           # 표준곡선 미작성
+      intercept: 0.0
+      r2: null
+    color: "#e74c3c"
+
+  Cladribine:
+    rt_expected: 9.0
+    rt_window: [8.5, 9.5]
+    calibration:
+      slope: 2.883506e-04   # a=3468, y0=-23.65 (95% DW / 5% ACN / 10 mM NH4OAc pH 4.0)
+      intercept: 0.006819
+      r2: null
+      source: "Asana task 1207838875892429"
+    color: "#9b59b6"
+
+baseline:
+  method: valley_dropline
+  smoothing: savgol
+  smoothing_window: 11
+  smoothing_poly: 3
+
+peak_detection:
+  min_prominence_factor: 5.0    # UV 검출: 베이스라인 노이즈 대비 높은 임계값
+  min_height_fraction: 0.005
+  distance_pts: 15
+
+qc:
+  ne_control_keyword: "_BLANK_"
+  max_product_area_ne: 1000
+  min_r2_calibration: 0.99
