@@ -1,0 +1,83 @@
+method_id: deoxynucleoside_hpx87h_v1
+column: HPX-87H
+mobile_phase: 5mM H2SO4
+flow_rate_mLmin: 0.5
+temperature_C: 65
+detector: RID
+signal_file: RID1A.ch
+
+compounds:
+  # RT 추정 근거: HPX-87H (Bio-Rad Aminex) 5mM H2SO4 0.5 mL/min 65°C 조건
+  # 인산화 당/유기산류는 초기 용출, 단당류/유기산은 후기 용출
+  # 5-FU, D-dRib5P: 분자량 소형 + 음이온성 → 7-8 min 구간 (Xul-5P와 유사 영역)
+  # Glycolaldehyde: C2 aldehyde, 소수성 낮음 → 13-14 min 추정
+  # Formate: 단쇄 유기산 → ~14.8 min (HPX-87H acetate=17.3 min 기준 보간)
+  # Acetate: 기존 xyl5p_hpx87h 실측값 그대로 사용
+
+  # 검량선 출처: Asana Standards 태스크 (task_id: 1206295769083211, 2024-01-10)
+  # 단위 변환: conc(mM) = slope * area(nRIU·s) + intercept  (slope=1/a, intercept=-y0/a)
+
+  5-Fluorouracil:
+    rt_expected: 7.5
+    rt_window: [7.2, 8.0]
+    calibration:
+      slope: 4.032421e-05   # a=24799, y0=3334 (Asana 2024-01-10)
+      intercept: -0.134441
+      r2: null
+      source: "Asana task 1206295769083211"
+    color: "#e74c3c"
+
+  D-dRib5P:
+    rt_expected: 7.3
+    rt_window: [7.0, 7.6]
+    calibration:
+      slope: 1.888163e-05   # a=52961.53, y0=3008.37 (Asana 2024-01-10)
+      intercept: -0.056803
+      r2: null
+      source: "Asana task 1206295769083211"
+    color: "#9b59b6"
+
+  Glycolaldehyde:
+    rt_expected: 13.5
+    rt_window: [13.0, 14.2]
+    calibration:
+      slope: null           # 표준곡선 미작성
+      intercept: 0.0
+      r2: null
+    color: "#3498db"
+
+  Formate:
+    rt_expected: 14.8
+    rt_window: [14.4, 15.3]
+    calibration:
+      slope: 1.837991e-04   # a=5440.72, y0=10.46 (Asana 2024-01-10)
+      intercept: -0.001922
+      r2: null
+      source: "Asana task 1206295769083211"
+    color: "#1abc9c"
+
+  Acetate:
+    rt_expected: 17.35
+    rt_window: [17.00, 17.80]
+    calibration:
+      slope: 1.148369e-04   # a=8708, y0=-901.6 (Asana 2024-01-10, n=1)
+      intercept: 0.103537
+      r2: null
+      source: "Asana task 1206295769083211 (n=1, verify)"
+    color: "#e67e22"
+
+baseline:
+  method: valley_dropline
+  smoothing: savgol
+  smoothing_window: 11
+  smoothing_poly: 3
+
+peak_detection:
+  min_prominence_factor: 3.0
+  min_height_fraction: 0.01
+  distance_pts: 10
+
+qc:
+  ne_control_keyword: "_NC_"
+  max_product_area_ne: 5000
+  min_r2_calibration: 0.99

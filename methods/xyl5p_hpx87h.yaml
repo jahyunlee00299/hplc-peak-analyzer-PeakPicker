@@ -1,0 +1,74 @@
+method_id: xyl5p_hpx87h_v2
+column: HPX-87H
+mobile_phase: 5mM H2SO4
+flow_rate_mLmin: 0.5
+temperature_C: 65
+detector: RID
+signal_file: RID1A.ch
+
+# 검량선 출처: Asana Standards 태스크 (task_id: 1206295769083211, 2024-01-10)
+# 단위 변환식: conc(mM) = slope * area(nRIU·s) + intercept
+#   (Asana: Area = y0 + a*C  =>  slope=1/a, intercept=-y0/a)
+
+compounds:
+  Xul-5P:
+    rt_expected: 7.28
+    rt_window: [7.00, 7.55]
+    calibration:
+      slope: 4.2508e-04     # D-dRib-5P 기준 추정값 — Xul-5P 실측 표준곡선 필요
+      intercept: 0.0
+      r2: 0.998
+      source: "estimated from D-dRib5P; needs direct calibration"
+    color: "#9b59b6"
+  Pi:
+    rt_expected: 9.35
+    rt_window: [9.00, 9.80]
+    calibration:
+      slope: 3.382035e-05   # a=29568, y0=277 (Asana 2024-01-10)
+      intercept: -0.009368
+      r2: null
+      source: "Asana task 1206295769083211"
+    color: "#2ecc71"
+  D-Xylose:
+    rt_expected: 11.10
+    rt_window: [10.80, 11.50]
+    calibration:
+      slope: 4.388623e-05   # a=22786.19, y0=207.54 (Asana 2024-01-10)
+      intercept: -0.009108
+      r2: null
+      source: "Asana task 1206295769083211"
+    color: "#f1c40f"
+  D-Xylulose:
+    rt_expected: 11.75
+    rt_window: [11.50, 12.10]
+    calibration:
+      slope: 4.261617e-05   # a=23465.27, y0=-59.45 (Asana 2024-01-10)
+      intercept: 0.002533
+      r2: null
+      source: "Asana task 1206295769083211"
+    color: "#e67e22"
+  Acetate:
+    rt_expected: 17.35
+    rt_window: [17.00, 17.80]
+    calibration:
+      slope: 1.148369e-04   # a=8708, y0=-901.6 (Asana 2024-01-10, 1반복 — 재측정 권장)
+      intercept: 0.103537
+      r2: null
+      source: "Asana task 1206295769083211 (n=1, verify)"
+    color: "#e74c3c"
+
+baseline:
+  method: valley_dropline
+  smoothing: savgol
+  smoothing_window: 11
+  smoothing_poly: 3
+
+peak_detection:
+  min_prominence_factor: 3.0
+  min_height_fraction: 0.01
+  distance_pts: 10
+
+qc:
+  ne_control_keyword: "_NE_"
+  max_product_area_ne: 5000
+  min_r2_calibration: 0.99
