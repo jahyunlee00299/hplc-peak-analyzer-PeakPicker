@@ -39,7 +39,10 @@
       "Bash(timeout 180 bash -c:*)",
       "Bash(timeout 120 python:*)",
       "Bash(shuf)",
-      "Bash(timeout 600 python run_complete_workflow.py:*)"
+      "Bash(timeout 600 python run_complete_workflow.py:*)",
+      "Bash(start \"\" \"C:/Users/Jahyun/PycharmProjects/PeakPicker/result/160701 YES 2017-02-25 19-56-36/similar_chromatograms_comparison.png\")",
+      "Bash(start \"\" \"C:/Users/Jahyun/PycharmProjects/PeakPicker/result/160701 YES 2017-02-25 19-56-36/similar_chromatograms_overlay.png\")",
+      "Bash(start \"\" \"C:/Users/Jahyun/PycharmProjects/PeakPicker/result/160701 YES 2017-02-25 19-56-36/peak_statistics.png\")"
     ],
     "deny": [],
     "ask": []
