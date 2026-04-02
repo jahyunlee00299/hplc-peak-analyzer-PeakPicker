@@ -57,8 +57,8 @@ def example_1_basic_usage():
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig('../result/example_1_basic.png', dpi=150)
-    print("\n저장: result/example_1_basic.png")
+    plt.savefig('../results/example_1_basic.png', dpi=150)
+    print("\n저장: results/example_1_basic.png")
     plt.close()
 
 
@@ -144,8 +144,8 @@ def example_2_manual_control():
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig('../result/example_2_manual.png', dpi=150)
-    print("\n저장: result/example_2_manual.png")
+    plt.savefig('../results/example_2_manual.png', dpi=150)
+    print("\n저장: results/example_2_manual.png")
     plt.close()
 
 
@@ -225,8 +225,8 @@ def example_3_optimization():
     ax3.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig('../result/example_3_optimization.png', dpi=150)
-    print("\n저장: result/example_3_optimization.png")
+    plt.savefig('../results/example_3_optimization.png', dpi=150)
+    print("\n저장: results/example_3_optimization.png")
     plt.close()
 
 
@@ -295,8 +295,8 @@ def example_4_rt_relaxation():
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig('../result/example_4_rt_relaxation.png', dpi=150)
-    print("\n저장: result/example_4_rt_relaxation.png")
+    plt.savefig('../results/example_4_rt_relaxation.png', dpi=150)
+    print("\n저장: results/example_4_rt_relaxation.png")
     plt.close()
 
 

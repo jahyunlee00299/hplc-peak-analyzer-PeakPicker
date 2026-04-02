@@ -4,6 +4,7 @@ Bypasses .ch parser and loads Chemstation-exported CSVs directly.
 """
 import sys
 import os as _os
+from pathlib import Path
 sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..', 'src'))
 
 import numpy as np
@@ -299,9 +300,9 @@ ax4.grid(True, alpha=0.2, axis='y')
 fig.suptitle('Half-Peak Quantification Validation\n(Real HPLC data: 251014_RIBA_PH_MAIN_GN10_1_6H)',
              fontsize=13, fontweight='bold', y=1.01)
 
-plt.savefig('C:/Users/Jahyun/PycharmProjects/PeakPicker/half_peak_validation.png',
+plt.savefig(Path(__file__).parent.parent / 'results' / 'half_peak_validation.png',
             dpi=200, bbox_inches='tight', facecolor='white')
-print(f"\nPlot saved: C:/Users/Jahyun/PycharmProjects/PeakPicker/half_peak_validation.png")
+print(f"\nPlot saved: results/half_peak_validation.png")
 
 # ===== Additional statistics =====
 print(f"\n{'='*70}")
