@@ -10,7 +10,7 @@ ENV/
 
 # Data and Results
 exported_signals/
-result/
+results/
 analysis_results/
 *.csv
 *.xlsx

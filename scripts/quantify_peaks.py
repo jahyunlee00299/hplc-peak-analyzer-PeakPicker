@@ -929,7 +929,7 @@ def main():
     if len(sys.argv) > 1:
         folder_path = sys.argv[1]
     else:
-        folder_path = r"C:\Users\Jahyun\PycharmProjects\PeakPicker\result\DEF_LC 2025-05-19 17-57-25"
+        folder_path = str(Path(__file__).parent.parent / "results" / "DEF_LC 2025-05-19 17-57-25")
 
     print("\n" + "="*80)
     print("피크 면적 정량 분석")
