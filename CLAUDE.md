@@ -9,3 +9,9 @@ Verify global config is installed (first use on a new machine):
 bash "$(find ~/OneDrive*고려대* -name install.sh -path '*/claude-config/*' | head -1)"
 ```
 After bootstrap, hooks auto-sync on every session start.
+
+## Git Workflow
+- **Never push directly to main** — work branches → integration branch → main
+- Merge path: `{project}/feature/{subtopic}-{YYMMDD}` → `{project}/{topic}` → `main`
+- Integration branches: `{project}/{topic}` (no date)
+- Work branches: `{project}/feature/{subtopic}-{YYMMDD}` or `{project}/fix/{subtopic}-{YYMMDD}`
