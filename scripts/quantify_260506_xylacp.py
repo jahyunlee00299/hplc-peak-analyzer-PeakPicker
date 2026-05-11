@@ -66,21 +66,25 @@ SAMPLE_MAP = [
 # ── Peak integration ──────────────────────────────────────────────────────────
 
 def integrate_window(t, y, rt_min, rt_max, half=None):
-    """Trapezoid integration within [rt_min, rt_max]; optionally left/right half."""
+    """Trapezoid integration within [rt_min, rt_max]; optionally left/right half.
+
+    t is in minutes; calibration curves use nRIU·s, so area is converted (*60).
+    Returns (area_nRIU_s, rt_of_apex_min).
+    """
     mask = (t >= rt_min) & (t <= rt_max)
     t_w, y_w = t[mask], y[mask]
     if len(t_w) < 2:
         return 0.0, None
     if half == "left":
-        # find apex in window, integrate left side
         apex = np.argmax(y_w)
         t_w, y_w = t_w[:apex+1], y_w[:apex+1]
     elif half == "right":
         apex = np.argmax(y_w)
         t_w, y_w = t_w[apex:], y_w[apex:]
-    area = float(np.trapezoid(y_w, t_w))
+    area_min = float(np.trapezoid(y_w, t_w))
+    area_sec = area_min * 60.0          # nRIU·min → nRIU·s (calibration unit)
     rt_peak = float(t_w[np.argmax(y_w)]) if len(t_w) else None
-    return area, rt_peak
+    return area_sec, rt_peak
 
 
 def area_to_conc(area, slope, intercept):
