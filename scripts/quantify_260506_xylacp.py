@@ -28,62 +28,78 @@ DILUTION = 10.0
 
 # Calibration: conc(mM) = (area - intercept) / slope
 COMPOUNDS = {
-    "D-Xylose":   {"rt": (10.80, 11.50), "slope": 22786.19, "intercept":   207.54, "half": "left"},
-    "D-Xylulose": {"rt": (11.50, 12.10), "slope": 23465.27, "intercept":   -59.45, "half": "right"},
+    "D-Xylose":   {"rt": (10.80, 11.50), "slope": 22786.19, "intercept":   207.54, "half": None},
+    "D-Xylulose": {"rt": (11.50, 12.10), "slope": 23465.27, "intercept":   -59.45, "half": None},
     "Xul-5P":     {"rt": (7.00,  7.55),  "slope": 52961.53, "intercept":  3008.37, "half": None},
     "Acetate":    {"rt": (17.00, 17.80), "slope":  8708.00,  "intercept":  -901.60, "half": None},
 }
 
 # Folder → correct sample name mapping (run order, excl. blank)
+# Folder names match sequence table 1:1 (no offset).
+# NE samples (no enzyme) were mislabeled during pipetting:
+#   200_3=NE_50, 200_4=NE_100, 200_5=NE_150, 200_NC=NE_200
+# _NC_ folders (50/100/150) are actually rxn samples (mislabeled).
+# Correct identity confirmed by Xul-5P/Xyl pattern (2026-05-11).
 SAMPLE_MAP = [
-    ("NV--0101.D",                "blank"),
-    ("260506_XYLACP_50_1_4H.D",   "XylAcP_50_1"),
-    ("260506_XYLACP_50_2_4H.D",   "XylAcP_50_2"),
-    ("260506_XYLACP_50_3_4H.D",   "XylAcP_50_3"),
-    ("260506_XYLACP_50_4_4H.D",   "XylAcP_50_4"),
-    ("260506_XYLACP_50_5_4H.D",   "XylAcP_50_5"),
-    ("260506_XYLACP_50_NC_4H.D",  "XylAcP_100_1"),
-    ("260506_XYLACP_100_1_4H.D",  "XylAcP_100_2"),
-    ("260506_XYLACP_100_2_4H.D",  "XylAcP_100_3"),
-    ("260506_XYLACP_100_3_4H.D",  "XylAcP_100_4"),
-    ("260506_XYLACP_100_4_4H.D",  "XylAcP_100_5"),
-    ("260506_XYLACP_100_5_4H.D",  "XylAcP_150_1"),
-    ("260506_XYLACP_100_NC_4H.D", "XylAcP_150_2"),
-    ("260506_XYLACP_150_1_4H.D",  "XylAcP_150_3"),
-    ("260506_XYLACP_150_2_4H.D",  "XylAcP_150_4"),
-    ("260506_XYLACP_150_3_4H.D",  "XylAcP_150_5"),
-    ("260506_XYLACP_150_4_4H.D",  "XylAcP_200_1"),
-    ("260506_XYLACP_150_5_4H.D",  "XylAcP_200_2"),
-    ("260506_XYLACP_150_NC_4H.D", "XylAcP_200_3"),
-    ("260506_XYLACP_200_1_4H.D",  "XylAcP_200_4"),
-    ("260506_XYLACP_200_2_4H.D",  "XylAcP_200_5"),
-    ("260506_XYLACP_200_3_4H.D",  "NC_50"),
-    ("260506_XYLACP_200_4_4H.D",  "NC_100"),
-    ("260506_XYLACP_200_5_4H.D",  "NC_150"),
-    ("260506_XYLACP_200_NC_4H.D", "NC_200"),
+    ("NV--0101.D",                    "blank"),
+    ("260506_XYLACP_50_1_4H.D",       "Xyl50_r1.0"),
+    ("260506_XYLACP_50_2_4H.D",       "Xyl50_r1.2"),
+    ("260506_XYLACP_50_3_4H.D",       "Xyl50_r1.5"),
+    ("260506_XYLACP_50_4_4H.D",       "Xyl50_r2.0"),
+    ("260506_XYLACP_50_5_4H.D",       "Xyl50_r2.5"),
+    ("260506_XYLACP_50_NC_4H.D",      "Xyl100_r1.0"),  # mislabeled
+    ("260506_XYLACP_100_1_4H.D",      "Xyl100_r1.2"),  # mislabeled
+    ("260506_XYLACP_100_2_4H.D",      "Xyl100_r1.5"),  # mislabeled
+    ("260506_XYLACP_100_3_4H.D",      "Xyl100_r2.0"),  # mislabeled
+    ("260506_XYLACP_100_4_4H.D",      "Xyl100_r2.5"),  # mislabeled
+    ("260506_XYLACP_100_5_4H.D",      "Xyl150_r1.0"),  # mislabeled
+    ("260506_XYLACP_100_NC_4H.D",     "Xyl150_r1.2"),  # mislabeled
+    ("260506_XYLACP_150_1_4H.D",      "Xyl150_r1.5"),  # mislabeled
+    ("260506_XYLACP_150_2_4H.D",      "Xyl150_r2.0"),  # mislabeled
+    ("260506_XYLACP_150_3_4H.D",      "Xyl150_r2.5"),  # mislabeled
+    ("260506_XYLACP_150_4_4H.D",      "Xyl200_r1.0"),  # mislabeled
+    ("260506_XYLACP_150_5_4H.D",      "Xyl200_r1.2"),  # mislabeled
+    ("260506_XYLACP_150_NC_4H.D",     "Xyl200_r1.5"),  # mislabeled
+    ("260506_XYLACP_200_1_4H.D",      "Xyl200_r2.0"),  # mislabeled
+    ("260506_XYLACP_200_2_4H.D",      "Xyl200_r2.5"),  # mislabeled
+    ("260506_XYLACP_200_3_4H.D",      "NE_50"),        # mislabeled
+    ("260506_XYLACP_200_4_4H.D",      "NE_100"),       # mislabeled
+    ("260506_XYLACP_200_5_4H.D",      "NE_150"),       # mislabeled
+    ("260506_XYLACP_200_NC_4H.D",     "NE_200"),       # mislabeled
 ]
 
 # ── Peak integration ──────────────────────────────────────────────────────────
 
-def integrate_window(t, y, rt_min, rt_max, half=None):
-    """Trapezoid integration within [rt_min, rt_max]; optionally left/right half.
+def find_valley_rt(t, y, rt_min, rt_max):
+    """Find the RT of the valley (minimum) between two peaks in [rt_min, rt_max]."""
+    mask = (t >= rt_min) & (t <= rt_max)
+    t_w, y_w = t[mask], y[mask]
+    if len(t_w) < 2:
+        return (rt_min + rt_max) / 2
+    return float(t_w[np.argmin(y_w)])
 
-    t is in minutes; calibration curves use nRIU·s, so area is converted (*60).
+
+def integrate_window(t, y, rt_min, rt_max, half=None, split_rt=None):
+    """Trapezoid integration within [rt_min, rt_max].
+
+    half='left'  → integrate from rt_min to split_rt (Xyl side)
+    half='right' → integrate from split_rt to rt_max (Xlu side)
+    half=None    → integrate full window
+
+    t is in minutes; area converted to nRIU·s (*60) to match calibration units.
     Returns (area_nRIU_s, rt_of_apex_min).
     """
+    if half == "left" and split_rt is not None:
+        rt_max = split_rt
+    elif half == "right" and split_rt is not None:
+        rt_min = split_rt
+
     mask = (t >= rt_min) & (t <= rt_max)
     t_w, y_w = t[mask], y[mask]
     if len(t_w) < 2:
         return 0.0, None
-    if half == "left":
-        apex = np.argmax(y_w)
-        t_w, y_w = t_w[:apex+1], y_w[:apex+1]
-    elif half == "right":
-        apex = np.argmax(y_w)
-        t_w, y_w = t_w[apex:], y_w[apex:]
-    area_min = float(np.trapezoid(y_w, t_w))
-    area_sec = area_min * 60.0          # nRIU·min → nRIU·s (calibration unit)
-    rt_peak = float(t_w[np.argmax(y_w)]) if len(t_w) else None
+    area_sec = float(np.trapezoid(y_w, t_w)) * 60.0
+    rt_peak = float(t_w[np.argmax(y_w)])
     return area_sec, rt_peak
 
 
@@ -107,14 +123,44 @@ for folder, sample in SAMPLE_MAP:
         continue
     t, y = ChemstationParser(str(ch)).read()
 
-    row = {"sample": sample}
+    is_ne = sample.startswith("NE_")
+
+    # Xyl/Xlu split: valley between the two apexes (rxn only)
+    if not is_ne:
+        split_rt = find_valley_rt(t, y, 11.10, 11.80)
+    else:
+        split_rt = None
+
+    row = {"sample": sample, "split_rt": round(split_rt, 3) if split_rt else None}
     for cname, cfg in COMPOUNDS.items():
-        area, rt_det = integrate_window(t, y, cfg["rt"][0], cfg["rt"][1], cfg.get("half"))
+        if is_ne and cname == "D-Xylulose":
+            # NE has no Xlu peak — skip
+            row[f"{cname}_area"] = 0.0
+            row[f"{cname}_rt"]   = None
+            row[f"{cname}_mM"]   = 0.0
+            continue
+
+        if cname == "D-Xylose":
+            if is_ne:
+                # NE: left half of single Xyl peak (apex → left), matching calibration basis
+                xyl_apex_rt = find_valley_rt(t, y, 10.80, 11.80)  # apex = argmax in window
+                mask_xyl = (t >= 10.80) & (t <= 11.80)
+                xyl_apex_rt = float(t[mask_xyl][np.argmax(y[mask_xyl])])
+                area, rt_det = integrate_window(t, y, 10.80, 12.10, half="left", split_rt=xyl_apex_rt)
+            else:
+                # rxn: left of valley between Xyl/Xlu apexes
+                area, rt_det = integrate_window(t, y, 10.80, 12.10, half="left", split_rt=split_rt)
+        elif cname == "D-Xylulose":
+            # rxn: right of valley
+            area, rt_det = integrate_window(t, y, 10.80, 12.10, half="right", split_rt=split_rt)
+        else:
+            area, rt_det = integrate_window(t, y, cfg["rt"][0], cfg["rt"][1])
+
         conc_diluted = area_to_conc(area, cfg["slope"], cfg["intercept"])
         conc_orig    = conc_diluted * DILUTION if conc_diluted is not None else None
-        row[f"{cname}_area"]    = round(area, 1)
-        row[f"{cname}_rt"]      = round(rt_det, 3) if rt_det else None
-        row[f"{cname}_mM"]      = round(conc_orig, 2) if conc_orig is not None else None
+        row[f"{cname}_area"] = round(area, 1)
+        row[f"{cname}_rt"]   = round(rt_det, 3) if rt_det else None
+        row[f"{cname}_mM"]   = round(conc_orig, 2) if conc_orig is not None else None
     rows.append(row)
 
 df = pd.DataFrame(rows)
@@ -123,18 +169,18 @@ df = pd.DataFrame(rows)
 # NC_50 → baseline for 50mM AcP samples, etc.
 nc_map = {}
 for acp in [50, 100, 150, 200]:
-    nc_row = df[df["sample"] == f"NC_{acp}"]
+    nc_row = df[df["sample"] == f"NE_{acp}"]
     if not nc_row.empty:
         nc_map[acp] = nc_row.iloc[0]
 
-def get_acp(sample_name):
+def get_xyl(sample_name):
     import re
-    m = re.search(r"XylAcP_(\d+)_", sample_name)
+    m = re.search(r"Xyl(\d+)_r", sample_name)
     return int(m.group(1)) if m else None
 
 net_rows = []
 for _, row in df.iterrows():
-    acp = get_acp(row["sample"])
+    acp = get_xyl(row["sample"])
     if acp is None or acp not in nc_map:
         continue
     nc = nc_map[acp]
