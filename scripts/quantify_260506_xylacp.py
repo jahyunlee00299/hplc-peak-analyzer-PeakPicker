@@ -92,18 +92,18 @@ def _baseline_min(t, y, rt_center, window=0.15):
 def integrate_bl(t, y, rt_start, rt_end, bl_left_rt, bl_right_rt):
     """Baseline-corrected trapezoid integration from rt_start to rt_end.
 
-    Baseline is a straight line connecting the minimum of the signal near
-    bl_left_rt and bl_right_rt (generous foot points of the peak).
+    Baseline: straight line connecting y values at bl_left_rt and bl_right_rt
+    (exact RT points, matching LC software convention).
     Returns (area_nRIU_s, apex_rt).
     """
-    bl_t0, bl_y0 = _baseline_min(t, y, bl_left_rt)
-    bl_t1, bl_y1 = _baseline_min(t, y, bl_right_rt)
+    bl_y0 = float(y[np.argmin(np.abs(t - bl_left_rt))])
+    bl_y1 = float(y[np.argmin(np.abs(t - bl_right_rt))])
 
     mask = (t >= rt_start) & (t <= rt_end)
     t_w, y_w = t[mask], y[mask]
     if len(t_w) < 2:
         return 0.0, None
-    baseline = np.interp(t_w, [bl_t0, bl_t1], [bl_y0, bl_y1])
+    baseline = np.interp(t_w, [bl_left_rt, bl_right_rt], [bl_y0, bl_y1])
     y_corr = y_w - baseline
     area_sec = float(np.trapezoid(y_corr, t_w)) * 60.0
     rt_peak = float(t_w[np.argmax(y_corr)])
@@ -132,17 +132,16 @@ for folder, sample in SAMPLE_MAP:
 
     is_ne = sample.startswith("NE_")
 
-    # Xyl/Xlu split: valley between the two apexes (rxn only)
-    if not is_ne:
-        split_rt = find_valley_rt(t, y, 11.10, 11.80)
-    else:
-        split_rt = None
+    # Baseline foot points matching LC software (confirmed vs Xyl100_r1.0)
+    BL_LEFT  = 10.70
+    BL_RIGHT = 12.75
 
-    # Baseline foot points: generous pre/post-peak minima
-    BL_LEFT  = 10.65
-    BL_RIGHT = 12.15
+    # Xyl split = Xyl apex (LC: vertical drop at apex)
+    mask_xyl_w = (t >= 10.80) & (t <= 11.30)
+    xyl_apex_rt = float(t[mask_xyl_w][np.argmax(y[mask_xyl_w])])
+    XUL_START = 11.70   # Xul start fixed (LC confirmed)
 
-    row = {"sample": sample, "split_rt": round(split_rt, 3) if split_rt else None}
+    row = {"sample": sample, "xyl_apex_rt": round(xyl_apex_rt, 3)}
     for cname, cfg in COMPOUNDS.items():
         if is_ne and cname == "D-Xylulose":
             row[f"{cname}_area"] = 0.0
@@ -151,15 +150,16 @@ for folder, sample in SAMPLE_MAP:
             continue
 
         if cname == "D-Xylose":
-            if is_ne:
-                # NE: apex of single Xyl peak → integrate left half with BL correction
-                m_w = (t >= 10.50) & (t <= 12.20)
-                apex_rt = float(t[m_w][np.argmax(y[m_w])])
-                area, rt_det = integrate_bl(t, y, BL_LEFT, apex_rt, BL_LEFT, BL_RIGHT)
-            else:
-                area, rt_det = integrate_bl(t, y, BL_LEFT, split_rt, BL_LEFT, BL_RIGHT)
+            # Xyl: BL_LEFT ~ xyl_apex (both rxn and NE)
+            area, rt_det = integrate_bl(t, y, BL_LEFT, xyl_apex_rt, BL_LEFT, BL_RIGHT)
         elif cname == "D-Xylulose":
-            area, rt_det = integrate_bl(t, y, split_rt, BL_RIGHT, BL_LEFT, BL_RIGHT)
+            if is_ne:
+                row[f"{cname}_area"] = 0.0
+                row[f"{cname}_rt"]   = None
+                row[f"{cname}_mM"]   = 0.0
+                continue
+            # Xul: XUL_START ~ BL_RIGHT
+            area, rt_det = integrate_bl(t, y, XUL_START, BL_RIGHT, BL_LEFT, BL_RIGHT)
         else:
             mask = (t >= cfg["rt"][0]) & (t <= cfg["rt"][1])
             t_w, y_w = t[mask], y[mask]
