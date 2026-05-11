@@ -41,3 +41,4 @@ class SampleMeta:
     condition: str = "unknown"
     is_ne: bool = False
     is_fed: bool = False
+    correct_sample_name: Optional[str] = None  # resolved name after folder-shift correction

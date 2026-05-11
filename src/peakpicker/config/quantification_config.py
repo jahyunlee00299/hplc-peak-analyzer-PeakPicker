@@ -129,3 +129,48 @@ class QuantificationPresets:
         config.visualization.mode = VisualizationMode.TIME_COURSE
         config.visualization.figsize = (16, 6)
         return config
+
+    @staticmethod
+    def xylacp_production(dilution_factor: float = 10.0) -> QuantificationConfig:
+        """XylAcP → Xylulose-5P production experiment preset (260506).
+
+        Compounds: D-Xylose (left half, 10.80–11.50), D-Xylulose (right half, 11.50–12.10),
+                   Xul-5P (7.00–7.55), Acetate (17.00–17.80).
+        Dilution:  10× (default).
+        NC subtract: caller should subtract NC_<acp_mM> conc from rxn samples
+                     to get net sugar-phosphate production.
+        Parser:    use XylAcPSampleParser (auto-selected by get_parser).
+        """
+        config = QuantificationConfig()
+        config.calibration.dilution_factor = dilution_factor
+        config.calibration.compounds = [
+            CompoundDefinition(
+                name="D-Xylose",
+                rt_window_start=10.80, rt_window_end=11.50,
+                calibration_intercept=207.5383, calibration_slope=22786.19,
+            ),
+            CompoundDefinition(
+                name="D-Xylulose",
+                rt_window_start=11.50, rt_window_end=12.10,
+                calibration_intercept=-59.4471, calibration_slope=23465.27,
+            ),
+            CompoundDefinition(
+                name="Xul-5P",
+                rt_window_start=7.00, rt_window_end=7.55,
+                calibration_intercept=3008.3667, calibration_slope=52961.5277,
+            ),
+            CompoundDefinition(
+                name="Acetate",
+                rt_window_start=17.00, rt_window_end=17.80,
+                calibration_intercept=-901.6, calibration_slope=8708.0,
+            ),
+        ]
+        config.sample_parser.negative_control_marker = "_NC_"
+        config.sample_parser.nc_time_label = "4H"
+        config.statistical.group_variable = "acp_mM"
+        config.statistical.dose_order = ["50", "100", "150", "200"]
+        config.statistical.enzyme_conditions = ["XylAcP"]
+        config.statistical.time_points = ["4H"]
+        config.visualization.mode = VisualizationMode.SINGLE_TIMEPOINT
+        config.visualization.target_timepoint = "4H"
+        return config

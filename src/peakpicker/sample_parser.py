@@ -90,6 +90,87 @@ class XulSampleParser:
         return samples
 
 
+class XylAcPSampleParser:
+    """
+    Parser for XylAcP (Xylulose-5P production) experiment naming convention.
+
+    Folder naming: 260506_XYLACP_{acp_mM}_{rep}_{time}H.D
+    NC folders (Negative Control): suffix _NC_
+
+    Issue: Chemstation sequence table had NC vials appended at the end of the
+    run rather than after each ACP group. As a result, the folder names are
+    shifted by one position relative to the actual sample identity.
+    The correct_sample_name field on SampleMeta stores the resolved name.
+
+    Shift rule (confirmed 2026-05-11):
+      - Folders 1–6   (50_1..5, 50_NC)  → actual samples 50_1..5, 100_1
+      - Folders 7–12  (100_1..5, 100_NC) → actual samples 100_2..5, 150_1..2
+      - etc.  (i.e. every _NC_ folder becomes the first rep of the next group)
+      - Last 4 _NC_ folders → NC_50 / NC_100 / NC_150 / NC_200
+
+    post_classify() applies the shift correction to the full sample list.
+    """
+
+    # Ordered list of (folder_stem_upper_prefix, correct_sample_name)
+    # Built dynamically from the sorted run order; see post_classify().
+
+    def parse(self, folder: Path) -> SampleMeta:
+        name = folder.stem.upper()
+        meta = SampleMeta(sample_id=folder.stem, folder=folder)
+
+        m = re.search(r"XYLACP_(\d+)_", name)
+        if m:
+            meta.acp_mM = float(m.group(1))
+
+        m = re.search(r"_(\d+(?:_\d+)?)H(?:\.D)?$", name)
+        if m:
+            meta.time_h = float(m.group(1).replace("_", "."))
+
+        if "_NC_" in name:
+            meta.is_ne = True          # reuse is_ne flag for NC
+            meta.condition = "NC_raw"  # will be corrected in post_classify
+        else:
+            meta.condition = "xylacp"
+
+        return meta
+
+    def post_classify(self, samples: List[SampleMeta]) -> List[SampleMeta]:
+        """Apply the folder-name → correct-sample-name shift correction.
+
+        The sequence table ran samples in order:
+          50×5, NC(→100_1), 100×4, NC(→150_1), 150×4, NC(→200_1), 200×5, NC_50..NC_200
+        correct_sample_name is stored in SampleMeta.correct_sample_name.
+        """
+        # Correct names in run order (index 0 = first non-blank sample)
+        correct_names = [
+            "XylAcP_50_1",  "XylAcP_50_2",  "XylAcP_50_3",  "XylAcP_50_4",  "XylAcP_50_5",
+            "XylAcP_100_1", "XylAcP_100_2", "XylAcP_100_3", "XylAcP_100_4", "XylAcP_100_5",
+            "XylAcP_150_1", "XylAcP_150_2", "XylAcP_150_3", "XylAcP_150_4", "XylAcP_150_5",
+            "XylAcP_200_1", "XylAcP_200_2", "XylAcP_200_3", "XylAcP_200_4", "XylAcP_200_5",
+            "NC_50", "NC_100", "NC_150", "NC_200",
+        ]
+
+        # Filter out blank/needle-wash (NV--) entries, keep run order
+        run_samples = [s for s in samples if not s.sample_id.upper().startswith("NV")]
+
+        for i, s in enumerate(run_samples):
+            if i < len(correct_names):
+                s.correct_sample_name = correct_names[i]
+                # derive acp_mM from correct name
+                m = re.search(r"XylAcP_(\d+)_", s.correct_sample_name)
+                if m:
+                    s.acp_mM = float(m.group(1))
+                    s.condition = "xylacp"
+                elif s.correct_sample_name.startswith("NC_"):
+                    s.is_ne = True
+                    s.condition = "NC"
+                    m2 = re.search(r"NC_(\d+)", s.correct_sample_name)
+                    if m2:
+                        s.acp_mM = float(m2.group(1))
+
+        return samples
+
+
 class GenericSampleParser:
     """
     Fallback parser: extracts date_description from folder name only.
@@ -117,6 +198,11 @@ def get_parser(data_dir: str) -> SampleParser:
         for sub in data_path.iterdir():
             if sub.is_dir() and not sub.name.endswith(".D"):
                 d_folders.extend(sub.glob("*.D"))
+
+    # XylAcP production experiment: folder names contain "XYLACP"
+    for folder in d_folders[:20]:
+        if "XYLACP" in folder.stem.upper():
+            return XylAcPSampleParser()
 
     xul_keywords = {"XUL5P", "XYL5P", "XYL", "ACP", "ATP", "XYLA", "XYLB"}
     for folder in d_folders[:20]:  # sample first 20
