@@ -71,7 +71,7 @@ SAMPLE_MAP = [
 # ── Peak integration ──────────────────────────────────────────────────────────
 
 def find_valley_rt(t, y, rt_min, rt_max):
-    """Find the RT of the valley (minimum) between two peaks in [rt_min, rt_max]."""
+    """Valley (minimum) RT between two peaks."""
     mask = (t >= rt_min) & (t <= rt_max)
     t_w, y_w = t[mask], y[mask]
     if len(t_w) < 2:
@@ -79,27 +79,34 @@ def find_valley_rt(t, y, rt_min, rt_max):
     return float(t_w[np.argmin(y_w)])
 
 
-def integrate_window(t, y, rt_min, rt_max, half=None, split_rt=None):
-    """Trapezoid integration within [rt_min, rt_max].
+def _baseline_min(t, y, rt_center, window=0.15):
+    """Return (rt, y) of the minimum within rt_center ± window."""
+    mask = (t >= rt_center - window) & (t <= rt_center + window)
+    if mask.sum() == 0:
+        idx = np.argmin(np.abs(t - rt_center))
+        return float(t[idx]), float(y[idx])
+    idx = np.argmin(y[mask])
+    return float(t[mask][idx]), float(y[mask][idx])
 
-    half='left'  → integrate from rt_min to split_rt (Xyl side)
-    half='right' → integrate from split_rt to rt_max (Xlu side)
-    half=None    → integrate full window
 
-    t is in minutes; area converted to nRIU·s (*60) to match calibration units.
-    Returns (area_nRIU_s, rt_of_apex_min).
+def integrate_bl(t, y, rt_start, rt_end, bl_left_rt, bl_right_rt):
+    """Baseline-corrected trapezoid integration from rt_start to rt_end.
+
+    Baseline is a straight line connecting the minimum of the signal near
+    bl_left_rt and bl_right_rt (generous foot points of the peak).
+    Returns (area_nRIU_s, apex_rt).
     """
-    if half == "left" and split_rt is not None:
-        rt_max = split_rt
-    elif half == "right" and split_rt is not None:
-        rt_min = split_rt
+    bl_t0, bl_y0 = _baseline_min(t, y, bl_left_rt)
+    bl_t1, bl_y1 = _baseline_min(t, y, bl_right_rt)
 
-    mask = (t >= rt_min) & (t <= rt_max)
+    mask = (t >= rt_start) & (t <= rt_end)
     t_w, y_w = t[mask], y[mask]
     if len(t_w) < 2:
         return 0.0, None
-    area_sec = float(np.trapezoid(y_w, t_w)) * 60.0
-    rt_peak = float(t_w[np.argmax(y_w)])
+    baseline = np.interp(t_w, [bl_t0, bl_t1], [bl_y0, bl_y1])
+    y_corr = y_w - baseline
+    area_sec = float(np.trapezoid(y_corr, t_w)) * 60.0
+    rt_peak = float(t_w[np.argmax(y_corr)])
     return area_sec, rt_peak
 
 
@@ -131,10 +138,13 @@ for folder, sample in SAMPLE_MAP:
     else:
         split_rt = None
 
+    # Baseline foot points: generous pre/post-peak minima
+    BL_LEFT  = 10.65
+    BL_RIGHT = 12.15
+
     row = {"sample": sample, "split_rt": round(split_rt, 3) if split_rt else None}
     for cname, cfg in COMPOUNDS.items():
         if is_ne and cname == "D-Xylulose":
-            # NE has no Xlu peak — skip
             row[f"{cname}_area"] = 0.0
             row[f"{cname}_rt"]   = None
             row[f"{cname}_mM"]   = 0.0
@@ -142,19 +152,19 @@ for folder, sample in SAMPLE_MAP:
 
         if cname == "D-Xylose":
             if is_ne:
-                # NE: left half of single Xyl peak (apex → left), matching calibration basis
-                xyl_apex_rt = find_valley_rt(t, y, 10.80, 11.80)  # apex = argmax in window
-                mask_xyl = (t >= 10.80) & (t <= 11.80)
-                xyl_apex_rt = float(t[mask_xyl][np.argmax(y[mask_xyl])])
-                area, rt_det = integrate_window(t, y, 10.80, 12.10, half="left", split_rt=xyl_apex_rt)
+                # NE: apex of single Xyl peak → integrate left half with BL correction
+                m_w = (t >= 10.50) & (t <= 12.20)
+                apex_rt = float(t[m_w][np.argmax(y[m_w])])
+                area, rt_det = integrate_bl(t, y, BL_LEFT, apex_rt, BL_LEFT, BL_RIGHT)
             else:
-                # rxn: left of valley between Xyl/Xlu apexes
-                area, rt_det = integrate_window(t, y, 10.80, 12.10, half="left", split_rt=split_rt)
+                area, rt_det = integrate_bl(t, y, BL_LEFT, split_rt, BL_LEFT, BL_RIGHT)
         elif cname == "D-Xylulose":
-            # rxn: right of valley
-            area, rt_det = integrate_window(t, y, 10.80, 12.10, half="right", split_rt=split_rt)
+            area, rt_det = integrate_bl(t, y, split_rt, BL_RIGHT, BL_LEFT, BL_RIGHT)
         else:
-            area, rt_det = integrate_window(t, y, cfg["rt"][0], cfg["rt"][1])
+            mask = (t >= cfg["rt"][0]) & (t <= cfg["rt"][1])
+            t_w, y_w = t[mask], y[mask]
+            area   = float(np.trapezoid(y_w, t_w)) * 60.0 if len(t_w) >= 2 else 0.0
+            rt_det = float(t_w[np.argmax(y_w)]) if len(t_w) else None
 
         conc_diluted = area_to_conc(area, cfg["slope"], cfg["intercept"])
         conc_orig    = conc_diluted * DILUTION if conc_diluted is not None else None
