@@ -1,10 +1,17 @@
 """Full pipeline test: read → quantify → stats → export"""
 import sys
+import argparse
 sys.path.insert(0, '.')
 from pathlib import Path
 
 # Step 1: Batch peak analysis with rainbow reader
 from src.peakpicker.application import WorkflowBuilder
+from src.peakpicker.config.paths import resolve_data_dir, add_data_dir_argument
+
+DEFAULT_EXPERIMENT = "260216_cofactor_m2_main_new"
+_parser = argparse.ArgumentParser(description=__doc__)
+add_data_dir_argument(_parser, help_suffix=f"Default experiment: {DEFAULT_EXPERIMENT}")
+_args = _parser.parse_args()
 
 workflow = (WorkflowBuilder()
     .with_rainbow_reader()
@@ -12,7 +19,7 @@ workflow = (WorkflowBuilder()
     .with_default_peak_detector()
     .build())
 
-data_dir = Path(r'C:\Chem32\1\DATA\260216_cofactor_m2_main_new')
+data_dir = resolve_data_dir(_args.data_dir, experiment=DEFAULT_EXPERIMENT)
 ch_files = sorted([d / 'RID1A.ch' for d in data_dir.iterdir()
                    if d.is_dir() and d.suffix.upper() == '.D' and (d / 'RID1A.ch').exists()])
 
