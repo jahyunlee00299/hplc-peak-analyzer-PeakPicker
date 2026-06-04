@@ -23,13 +23,27 @@ Batch LC Quantification for Cofactor M2 Main Experiment
 """
 
 import sys
+import io
 import re
+import argparse
+
+# UTF-8 stdout/stderr guard (Korean Windows cp949 console safety)
+if hasattr(sys.stdout, "buffer"):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from scipy import signal
 from scipy.integrate import trapezoid
 from rainbow.agilent.chemstation import parse_ch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from peakpicker.config.paths import resolve_data_dir, add_data_dir_argument
+
+#: Default experiment analyzed by this script.
+DEFAULT_EXPERIMENT = "260216_cofactor_m2_main_new"
 
 
 def read_rid_data(ch_path):
@@ -198,7 +212,11 @@ def parse_sample_name(folder_name):
 
 
 def main():
-    data_dir = Path(r"C:\Chem32\1\DATA\260216_cofactor_m2_main_new")
+    parser = argparse.ArgumentParser(description=__doc__)
+    add_data_dir_argument(parser, help_suffix=f"Default experiment: {DEFAULT_EXPERIMENT}")
+    args = parser.parse_args()
+
+    data_dir = resolve_data_dir(args.data_dir, experiment=DEFAULT_EXPERIMENT)
     output_dir = data_dir / "quantification_results"
     output_dir.mkdir(parents=True, exist_ok=True)
 
