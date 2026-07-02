@@ -318,17 +318,17 @@ for peak in peaks:
 
 ## Pull Request 링크
 
-1. [Feature 1: 데이터 로드 및 시각화](https://github.com/jahyunlee00299/hplc-peak-analyzer-PeakPicker/pull/new/claude/peakpicker-chromatography-app-011CUq1SxwLTPQmGxyufu61S)
+1. [Feature 1: 데이터 로드 및 시각화](https://github.com/<owner>/hplc-peak-analyzer-PeakPicker/pull/new/claude/peakpicker-chromatography-app-011CUq1SxwLTPQmGxyufu61S)
 
-2. [Feature 1.5: 세션 관리](https://github.com/jahyunlee00299/hplc-peak-analyzer-PeakPicker/pull/new/claude/session-management-011CUq1SxwLTPQmGxyufu61S)
+2. [Feature 1.5: 세션 관리](https://github.com/<owner>/hplc-peak-analyzer-PeakPicker/pull/new/claude/session-management-011CUq1SxwLTPQmGxyufu61S)
 
-3. [Feature 2: Peak Detection](https://github.com/jahyunlee00299/hplc-peak-analyzer-PeakPicker/pull/new/claude/peak-detection-integration-011CUq1SxwLTPQmGxyufu61S)
+3. [Feature 2: Peak Detection](https://github.com/<owner>/hplc-peak-analyzer-PeakPicker/pull/new/claude/peak-detection-integration-011CUq1SxwLTPQmGxyufu61S)
 
-4. [Feature 3: Baseline/Peak Handling](https://github.com/jahyunlee00299/hplc-peak-analyzer-PeakPicker/pull/new/claude/baseline-peak-handling-011CUq1SxwLTPQmGxyufu61S)
+4. [Feature 3: Baseline/Peak Handling](https://github.com/<owner>/hplc-peak-analyzer-PeakPicker/pull/new/claude/baseline-peak-handling-011CUq1SxwLTPQmGxyufu61S)
 
-5. [Feature 4: Excel Export](https://github.com/jahyunlee00299/hplc-peak-analyzer-PeakPicker/pull/new/claude/excel-export-011CUq1SxwLTPQmGxyufu61S)
+5. [Feature 4: Excel Export](https://github.com/<owner>/hplc-peak-analyzer-PeakPicker/pull/new/claude/excel-export-011CUq1SxwLTPQmGxyufu61S)
 
-6. [Feature 5: Quantitative Analysis](https://github.com/jahyunlee00299/hplc-peak-analyzer-PeakPicker/pull/new/claude/quantitative-analysis-011CUq1SxwLTPQmGxyufu61S)
+6. [Feature 5: Quantitative Analysis](https://github.com/<owner>/hplc-peak-analyzer-PeakPicker/pull/new/claude/quantitative-analysis-011CUq1SxwLTPQmGxyufu61S)
 
 ---
 

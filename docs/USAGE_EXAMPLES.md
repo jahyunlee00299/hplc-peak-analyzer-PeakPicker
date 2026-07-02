@@ -82,10 +82,10 @@ python auto_export_keyboard_final.py
 
 15개 파일을 처리하시겠습니까? (y/n): y
 
-출력 디렉토리 기본값: C:\Users\Jahyun\PycharmProjects\PeakPicker\exported_signals
+출력 디렉토리 기본값: ~\PycharmProjects\PeakPicker\exported_signals
 다른 경로를 사용하시겠습니까? (Enter=기본값 사용):
 
-출력 디렉토리: C:\Users\Jahyun\PycharmProjects\PeakPicker\exported_signals
+출력 디렉토리: ~\PycharmProjects\PeakPicker\exported_signals
 ```
 
 #### 스크립트가 수행하는 작업:
@@ -139,7 +139,7 @@ python auto_export_keyboard_final.py
 
   성공: 15/15 파일
   소요 시간: 3.2분
-  출력 디렉토리: C:\Users\Jahyun\PycharmProjects\PeakPicker\exported_signals
+  출력 디렉토리: ~\PycharmProjects\PeakPicker\exported_signals
 ```
 
 ---

@@ -11,7 +11,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-PEAKPICKER_SRC = r"C:\Users\Jahyun\PeakPicker\src"
+PEAKPICKER_SRC = os.path.expanduser(r"~\PeakPicker\src")
 sys.path.insert(0, PEAKPICKER_SRC)
 from chemstation_parser import ChemstationParser
 
@@ -46,7 +46,7 @@ ZOOM_COLS = [
     ("Acetate (16.5-18.5)", 16.5, 18.5, ["Acetate"]),
 ]
 
-OUTPUT = r"C:\Users\Jahyun\PeakPicker\analyses\peak_cases_overview.png"
+OUTPUT = os.path.expanduser(r"~\PeakPicker\analyses\peak_cases_overview.png")
 
 # -- Load data ----------------------------------------------------------------
 print("Loading chromatograms...")

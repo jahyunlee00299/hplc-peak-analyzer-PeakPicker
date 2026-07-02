@@ -3,7 +3,7 @@
 # 사용법 (CEO에서 호출):
 #
 #   from pathlib import Path
-#   prompt = Path(r"C:/Users/Jahyun/PeakPicker/scripts/hplc_quant_agent_prompt.md").read_text(encoding="utf-8")
+#   prompt = Path(r"~/PeakPicker/scripts/hplc_quant_agent_prompt.md").expanduser().read_text(encoding="utf-8")
 #   prompt = prompt.replace("{{DATA_DIR}}", r"C:/Chem32/1/DATA/.../MyExperiment")
 #   prompt = prompt.replace("{{COMPOUNDS}}", "ADP,D-Xylose")          # 쉼표 구분
 #   prompt = prompt.replace("{{GROUPS}}", "NEW:NEW_D1,NEW_D2,NEW_D3,NEW_D4;OLD:OLD_D1,OLD_D2,OLD_D3,OLD_D4")  # 선택사항
@@ -24,9 +24,9 @@
 
 ## 출력 경로
 
-- 결과 CSV: `C:/Users/Jahyun/lab-analyses/{{TASK_NAME}}_quant.csv`
-- 크로마토그램 overlay PNG: `C:/Users/Jahyun/lab-analyses/{{TASK_NAME}}_overlay.png`
-- 정량 바 차트 PNG: `C:/Users/Jahyun/lab-analyses/{{TASK_NAME}}_bar.png`
+- 결과 CSV: `~/lab-analyses/{{TASK_NAME}}_quant.csv`
+- 크로마토그램 overlay PNG: `~/lab-analyses/{{TASK_NAME}}_overlay.png`
+- 정량 바 차트 PNG: `~/lab-analyses/{{TASK_NAME}}_bar.png`
 
 ## 수행 작업
 
@@ -34,9 +34,10 @@
 
 ```python
 import yaml
+import os
 from pathlib import Path
 
-method_path = r"C:/Users/Jahyun/PeakPicker/methods/hpx87h_sugars.yaml"
+method_path = os.path.expanduser(r"~/PeakPicker/methods/hpx87h_sugars.yaml")
 with open(method_path, encoding="utf-8") as f:
     method = yaml.safe_load(f)
 
@@ -136,9 +137,10 @@ for sname in samples:
 
 ```python
 import pandas as pd
+import os
 
 df = pd.DataFrame(results)
-out_csv = r"C:/Users/Jahyun/lab-analyses/{{TASK_NAME}}_quant.csv"
+out_csv = os.path.expanduser(r"~/lab-analyses/{{TASK_NAME}}_quant.csv")
 df.to_csv(out_csv, index=False, encoding="utf-8-sig")
 print(df.to_string(index=False))
 ```
@@ -296,7 +298,7 @@ for comp in target_compounds:
         ax.spines['right'].set_visible(False)
 
     plt.tight_layout()
-    out_overlay = rf"C:/Users/Jahyun/lab-analyses/{{{{TASK_NAME}}}}_overlay_{comp.replace(' ','_').replace('-','')}.png"
+    out_overlay = os.path.expanduser(rf"~/lab-analyses/{{{{TASK_NAME}}}}_overlay_{comp.replace(' ','_').replace('-','')}.png")
     plt.savefig(out_overlay, dpi=150, bbox_inches='tight')
     plt.close()
     print(f"Overlay 저장: {out_overlay}")
@@ -334,7 +336,7 @@ for comp in target_compounds:
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         plt.tight_layout()
-        out = rf"C:/Users/Jahyun/lab-analyses/{{{{TASK_NAME}}}}_timecourse_{comp_safe}.png"
+        out = os.path.expanduser(rf"~/lab-analyses/{{{{TASK_NAME}}}}_timecourse_{comp_safe}.png")
         plt.savefig(out, dpi=150, bbox_inches='tight')
         plt.close()
         print(f"Timecourse 저장: {out}")
@@ -355,7 +357,7 @@ for comp in target_compounds:
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         plt.tight_layout()
-        out = rf"C:/Users/Jahyun/lab-analyses/{{{{TASK_NAME}}}}_massbalance.png"
+        out = os.path.expanduser(rf"~/lab-analyses/{{{{TASK_NAME}}}}_massbalance.png")
         plt.savefig(out, dpi=150, bbox_inches='tight')
         plt.close()
         print(f"Mass balance 저장: {out}")
@@ -395,7 +397,7 @@ for comp in target_compounds:
             ax.spines['right'].set_visible(False)
         fig.suptitle(f'{comp} — {{{{TASK_NAME}}}}', fontsize=11, fontweight='bold')
         plt.tight_layout()
-        out = rf"C:/Users/Jahyun/lab-analyses/{{{{TASK_NAME}}}}_bar_{comp_safe}.png"
+        out = os.path.expanduser(rf"~/lab-analyses/{{{{TASK_NAME}}}}_bar_{comp_safe}.png")
         plt.savefig(out, dpi=150, bbox_inches='tight')
         plt.close()
         print(f"Bar chart 저장: {out}")
@@ -407,9 +409,9 @@ for comp in target_compounds:
 
 ```
 결과 파일:
-  - CSV: C:/Users/Jahyun/lab-analyses/{{TASK_NAME}}_quant.csv
-  - Overlay: C:/Users/Jahyun/lab-analyses/{{TASK_NAME}}_overlay_*.png
-  - 정량 그래프: C:/Users/Jahyun/lab-analyses/{{TASK_NAME}}_{timecourse|bar|massbalance}_*.png
+  - CSV: ~/lab-analyses/{{TASK_NAME}}_quant.csv
+  - Overlay: ~/lab-analyses/{{TASK_NAME}}_overlay_*.png
+  - 정량 그래프: ~/lab-analyses/{{TASK_NAME}}_{timecourse|bar|massbalance}_*.png
 
 실험 유형: {timecourse | condition_compare | mass_balance}
 요약: {화합물} 정량 완료 ({n}개 샘플).

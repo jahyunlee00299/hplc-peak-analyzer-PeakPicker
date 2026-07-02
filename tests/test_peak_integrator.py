@@ -5,8 +5,9 @@ Test sample: NE 100mM Xyl (no enzyme control)
   - D-Xylose RT=11.105, Chemstation area=312105.1
 """
 
+import os
 import sys
-sys.path.insert(0, r"C:\Users\Jahyun\PeakPicker")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.chemstation_parser import read_chemstation_file
 from src.peak_integrator import find_peak_boundaries, integrate_peak, integrate_peak_detailed
