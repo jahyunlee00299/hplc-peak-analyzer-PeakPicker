@@ -15,11 +15,13 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from scipy.signal import find_peaks
 
 PEAKPICKER_SRC = os.path.expanduser(r"~\PeakPicker\src")
 sys.path.insert(0, PEAKPICKER_SRC)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # for _detect
 from chemstation_parser import ChemstationParser
+# Consolidated detector entry point (see analyses/_detect.py).
+from _detect import detect_peaks_legacy_single_pass
 
 # -- Path setup ---------------------------------------------------------------
 DATA_DIR = r"C:\Chem32\1\DATA\2. D-Xyl cascade HPLC\Xul 5P production\Pretest\260324_Xul5P_Test"
@@ -121,8 +123,10 @@ def get_area(time, intensity, rt_lo, rt_hi):
 
 
 def detect_peaks(time, intensity, prominence=300, distance_pts=40):
-    peaks, _ = find_peaks(intensity, prominence=prominence, distance=distance_pts)
-    return [(float(time[p]), float(intensity[p])) for p in peaks]
+    # Consolidated: routes through the shared analyses/_detect.py wrapper.
+    # Behaviour is byte-identical to the former inline find_peaks call.
+    return detect_peaks_legacy_single_pass(
+        time, intensity, prominence=prominence, distance_pts=distance_pts)
 
 
 def _add_rt_windows(ax, y_top=None):

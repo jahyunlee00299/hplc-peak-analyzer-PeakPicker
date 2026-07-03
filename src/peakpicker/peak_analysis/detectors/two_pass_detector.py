@@ -11,7 +11,7 @@ small satellite / impurity peaks without false positives.
 """
 
 import logging
-from typing import List, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 
@@ -44,6 +44,10 @@ class TwoPassPeakDetector(IPeakDetector):
         minor_noise_multiplier: float = 2.0,
         minor_distance: int = 5,
         dedup_distance: int = 10,
+        noise_estimator: Optional[Callable[[np.ndarray], float]] = None,
+        max_width_samples: Optional[int] = None,
+        major_min_width: Optional[int] = None,
+        minor_min_width: Optional[int] = None,
     ):
         self.signal_processor = signal_processor
         self.boundary_finder = boundary_finder
@@ -53,6 +57,14 @@ class TwoPassPeakDetector(IPeakDetector):
         self.minor_noise_multiplier = minor_noise_multiplier
         self.minor_distance = minor_distance
         self.dedup_distance = dedup_distance
+        # Optional injection points added for consolidation of the divergent
+        # script-level detectors WITHOUT changing default numerical behavior.
+        # When left as None, every default reproduces the original algorithm
+        # exactly (MAD-of-derivative noise, no max-width cap, config.min_width).
+        self._noise_estimator = noise_estimator
+        self._max_width_samples = max_width_samples
+        self._major_min_width = major_min_width
+        self._minor_min_width = minor_min_width
 
     def detect(
         self,
@@ -68,8 +80,18 @@ class TwoPassPeakDetector(IPeakDetector):
 
         corrected = np.maximum(corrected, 0)
 
-        noise_level = self._estimate_noise(corrected)
+        if self._noise_estimator is not None:
+            noise_level = float(self._noise_estimator(corrected))
+        else:
+            noise_level = self._estimate_noise(corrected)
         signal_range = np.ptp(corrected)
+
+        major_width = (self._major_min_width
+                       if self._major_min_width is not None
+                       else self.config.min_width)
+        minor_width = (self._minor_min_width
+                       if self._minor_min_width is not None
+                       else max(2, self.config.min_width - 1))
 
         # Pass 1 — major peaks
         major_indices = self._find_peaks(
@@ -78,7 +100,7 @@ class TwoPassPeakDetector(IPeakDetector):
                            noise_level * 3),
             height=noise_level * 3,
             distance=self.major_distance,
-            width=self.config.min_width,
+            width=major_width,
         )
 
         # Pass 2 — minor peaks
@@ -87,7 +109,7 @@ class TwoPassPeakDetector(IPeakDetector):
             prominence=noise_level * self.minor_noise_multiplier,
             height=noise_level * self.minor_noise_multiplier,
             distance=self.minor_distance,
-            width=max(2, self.config.min_width - 1),
+            width=minor_width,
         )
 
         # Merge — drop minor if too close to a major
@@ -212,5 +234,14 @@ class TwoPassPeakDetector(IPeakDetector):
             region = signal[peak_idx:next_idx]
             if len(region) > 0:
                 right = min(right, peak_idx + int(np.argmin(region)))
+
+        # Optional maximum-width cap (opt-in; disabled by default so canonical
+        # behavior is unchanged). Mirrors the script-level detectors that
+        # shrink symmetrically around the apex when a peak grows too wide.
+        if self._max_width_samples is not None and \
+                right - left > self._max_width_samples:
+            half = self._max_width_samples // 2
+            left = max(0, peak_idx - half)
+            right = min(len(signal) - 1, peak_idx + half)
 
         return left, right

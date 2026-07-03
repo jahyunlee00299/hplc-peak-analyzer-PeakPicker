@@ -97,6 +97,11 @@ def has_real_peak(time, intensity, search_min, search_max, wider_min, wider_max)
 def quantify_peak(time, intensity, target_info):
     """
     Valley drop-line 방식으로 단일 피크 면적 계산.
+
+    TODO(detector-consolidation 260704): TARGETED single-compound quantifier
+    (peak_quantifier.PeakQuantifier family), NOT the two-pass detector. Route
+    through PeakQuantifier — not TwoPassPeakDetector. See MIGRATION_NOTES.md.
+
     1. 실제 피크(local max) 존재 확인
     2. 왼쪽/오른쪽 valley 찾기
     3. Valley 사이 직선 = 베이스라인

@@ -83,7 +83,15 @@ def get_area_in_window(time, intensity, rt_lo, rt_hi):
 
 
 def detect_peaks(time, intensity, prominence=500, distance_pts=50):
-    """크로마토그램에서 피크 검출 후 (RT, height) 리스트 반환"""
+    """크로마토그램에서 피크 검출 후 (RT, height) 리스트 반환
+
+    TODO(detector-consolidation 260704): migrate to the shared wrapper
+    ``from _detect import detect_peaks_legacy_single_pass`` exactly as done in
+    peakpicker_260317_Xul5P_AcP_Pre.py / peakpicker_260324_Xul5P_Test.py. This
+    is a single-pass RT-summary detector (magic numbers 500/50); the shim is
+    byte-identical. Left as-is for now to keep the migration reviewable in
+    small batches. See MIGRATION_NOTES.md.
+    """
     peaks, props = find_peaks(intensity, prominence=prominence, distance=distance_pts)
     result = [(float(time[p]), float(intensity[p])) for p in peaks]
     return result

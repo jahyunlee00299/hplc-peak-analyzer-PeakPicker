@@ -23,14 +23,18 @@ import multiprocessing
 
 import numpy as np
 import pandas as pd
-from scipy import signal
-from scipy.integrate import trapezoid
 
-# Add src directory to path
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
+# Add repo src directory to path (flat legacy modules + peakpicker package).
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 from chemstation_parser import ChemstationParser
 from hybrid_baseline import HybridBaselineCorrector
+
+# Canonical two-pass detector (single source of truth). This replaces the
+# former private ``_detect_peaks`` copy; ``detect_peaks_two_pass`` routes
+# through peakpicker.peak_analysis.TwoPassPeakDetector and is numerically
+# identical to the old copy (percentile noise + 2-min width cap preserved).
+from _two_pass_detect import detect_peaks_two_pass, estimate_noise_percentile
 
 
 # ---------------------------------------------------------------------------
@@ -104,11 +108,12 @@ def analyze_single_d_folder(d_folder_path: str, channel: str = "auto") -> dict:
         corrected = intensity - baseline
         corrected = np.maximum(corrected, 0)
 
-        # 3. 노이즈 추정
-        noise_level = _estimate_noise(corrected)
+        # 3. 노이즈 추정 (canonical wrapper — percentile estimator preserved)
+        noise_level = estimate_noise_percentile(corrected)
 
-        # 4. 피크 검출 (2-pass adaptive)
-        peaks_detected, peak_data = _detect_peaks(time_arr, corrected, noise_level)
+        # 4. 피크 검출 (canonical TwoPassPeakDetector via shared wrapper)
+        peaks_detected, peak_data = detect_peaks_two_pass(
+            time_arr, corrected, noise_level=noise_level)
 
         result['status'] = 'ok'
         result['num_peaks'] = len(peak_data)
@@ -122,118 +127,11 @@ def analyze_single_d_folder(d_folder_path: str, channel: str = "auto") -> dict:
     return result
 
 
-def _estimate_noise(intensity: np.ndarray) -> float:
-    """노이즈 레벨 추정"""
-    noise_region = np.percentile(intensity, 25)
-    threshold = max(noise_region * 1.5, np.percentile(intensity, 30))
-    quiet_mask = intensity < threshold
-
-    if np.any(quiet_mask) and np.sum(quiet_mask) > 10:
-        noise_std = np.std(intensity[quiet_mask])
-    else:
-        low_pct = np.percentile(intensity, 10)
-        if low_pct > 0:
-            noise_std = np.std(intensity[intensity < low_pct])
-        else:
-            noise_std = np.std(intensity[intensity < np.percentile(intensity, 20)])
-        if noise_std == 0 or np.isnan(noise_std):
-            noise_std = np.std(intensity) * 0.01
-
-    result = max(noise_std, np.percentile(intensity, 5) * 0.01, 1.0)
-    if np.isnan(result) or result <= 0:
-        result = max(np.std(intensity) * 0.01, 1.0)
-    return result
-
-
-def _detect_peaks(time_arr: np.ndarray, intensity: np.ndarray, noise_level: float) -> tuple:
-    """2-pass adaptive 피크 검출"""
-    signal_range = np.ptp(intensity)
-
-    # Pass 1: major peaks
-    major_prom = max(signal_range * 0.005, noise_level * 3)
-    major_peaks, major_props = signal.find_peaks(
-        intensity, prominence=major_prom, height=noise_level * 3,
-        width=3, distance=20
-    )
-
-    # Pass 2: minor peaks
-    minor_prom = noise_level * 2
-    minor_peaks, minor_props = signal.find_peaks(
-        intensity, prominence=minor_prom, height=noise_level * 2,
-        width=2, distance=5
-    )
-
-    # Merge
-    all_peaks = list(major_peaks)
-    all_proms = list(major_props['prominences'])
-    min_dist = 10
-
-    for i, mp in enumerate(minor_peaks):
-        if all(abs(mp - ep) >= min_dist for ep in major_peaks):
-            all_peaks.append(mp)
-            all_proms.append(minor_props['prominences'][i])
-
-    sort_idx = np.argsort(all_peaks)
-    peaks = np.array(all_peaks)[sort_idx]
-    proms = np.array(all_proms)[sort_idx]
-
-    # Peak data 계산
-    dt = np.mean(np.diff(time_arr))
-    max_width_samples = int(2.0 / dt) if dt > 0 else 2000
-
-    peak_data = []
-    for i, pidx in enumerate(peaks):
-        peak_height = intensity[pidx]
-        threshold = peak_height * 0.01
-
-        # Left boundary
-        left = pidx
-        while left > 0 and intensity[left] > threshold:
-            left -= 1
-
-        # Right boundary
-        right = pidx
-        while right < len(intensity) - 1 and intensity[right] > threshold:
-            right += 1
-
-        # Valley constraints
-        if i < len(peaks) - 1:
-            valley_region = intensity[pidx:peaks[i + 1]]
-            if len(valley_region) > 0:
-                right = min(right, pidx + np.argmin(valley_region))
-        if i > 0:
-            valley_region = intensity[peaks[i - 1]:pidx]
-            if len(valley_region) > 0:
-                left = max(left, peaks[i - 1] + np.argmin(valley_region))
-
-        # Width constraint
-        if right - left > max_width_samples:
-            half = max_width_samples // 2
-            left = max(0, pidx - half)
-            right = min(len(intensity) - 1, pidx + half)
-
-        left = max(0, left)
-        right = min(len(intensity) - 1, right)
-
-        # Area (seconds)
-        peak_time = time_arr[left:right + 1]
-        peak_int = intensity[left:right + 1]
-        area = trapezoid(peak_int, peak_time * 60) if len(peak_time) > 1 else 0
-
-        snr = peak_height / noise_level if noise_level > 0 else float('inf')
-
-        peak_data.append({
-            'peak_number': i + 1,
-            'retention_time': round(float(time_arr[pidx]), 3),
-            'height': round(float(peak_height), 2),
-            'area': round(float(area), 2),
-            'width_min': round(float(time_arr[right] - time_arr[left]), 3),
-            'start_time': round(float(time_arr[left]), 3),
-            'end_time': round(float(time_arr[right]), 3),
-            'snr': round(float(snr), 1),
-        })
-
-    return peaks, peak_data
+# NOTE: the former private ``_estimate_noise`` / ``_detect_peaks`` copies were
+# removed during detector consolidation (260704). Peak detection now routes
+# through the canonical peakpicker.peak_analysis.TwoPassPeakDetector via
+# scripts/_two_pass_detect.py (numerically identical — verified on synthetic
+# chromatograms). See MIGRATION_NOTES.md.
 
 
 # ---------------------------------------------------------------------------

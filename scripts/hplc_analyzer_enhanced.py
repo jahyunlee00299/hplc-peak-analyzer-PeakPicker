@@ -11,14 +11,18 @@ import json
 from datetime import datetime
 import pandas as pd
 import numpy as np
-from scipy import signal
 from scipy.integrate import trapezoid
 
-# Add src directory to path
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
+# Add repo src directory to path (flat legacy modules + peakpicker package).
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 from hybrid_baseline import HybridBaselineCorrector
 from peak_deconvolution import PeakDeconvolution, DeconvolutionResult
+
+# Canonical detector (single source of truth). ``detect_two_pass_indices``
+# returns the same peak apex indices the former private two-pass copy did;
+# the half-peak / area post-processing below is preserved unchanged.
+from _two_pass_detect import detect_peaks_two_pass, estimate_noise_percentile
 
 
 class EnhancedHPLCAnalyzer:
@@ -145,75 +149,15 @@ class EnhancedHPLCAnalyzer:
         Returns:
             Tuple of (peak_indices, peak_data_list)
         """
-        # Estimate noise level
-        noise_level = self._estimate_noise(intensity)
-        signal_range = np.ptp(intensity)
+        # Estimate noise level (percentile estimator, now shared)
+        noise_level = estimate_noise_percentile(intensity)
 
-        # PASS 1: Detect major peaks (high threshold based on signal range)
-        major_prominence = max(signal_range * 0.005, noise_level * 3)
-        major_min_height = noise_level * 3
-        major_peaks, major_props = signal.find_peaks(
-            intensity,
-            prominence=major_prominence,
-            height=major_min_height,
-            width=3,
-            distance=20
-        )
-
-        # PASS 2: Detect minor peaks (low threshold based on noise level)
-        # Use a much lower prominence threshold to catch small peaks
-        # Significantly reduced to 2x noise level for very sensitive small peak detection
-        minor_prominence = noise_level * 2  # ~2x noise level for small peaks
-        minor_min_height = noise_level * 2  # Lower height threshold for small peaks
-        minor_peaks, minor_props = signal.find_peaks(
-            intensity,
-            prominence=minor_prominence,
-            height=minor_min_height,
-            width=2,  # Relaxed from 3 to allow narrower peaks
-            distance=5  # Reduced from 10 to catch closer small peaks
-        )
-
-        # Merge peaks and remove duplicates
-        # Keep major peaks, add minor peaks that aren't too close to major peaks
-        all_peaks = list(major_peaks)
-        all_props_prominences = list(major_props['prominences'])
-        all_props_widths = list(major_props.get('widths', [0] * len(major_peaks)))
-        all_props_left_bases = list(major_props.get('left_bases', []))
-        all_props_right_bases = list(major_props.get('right_bases', []))
-
-        min_distance = 10  # Minimum distance to consider peaks as separate
-
-        for i, minor_peak in enumerate(minor_peaks):
-            # Check if this minor peak is too close to any major peak
-            is_duplicate = False
-            for major_peak in major_peaks:
-                if abs(minor_peak - major_peak) < min_distance:
-                    is_duplicate = True
-                    break
-
-            if not is_duplicate:
-                all_peaks.append(minor_peak)
-                all_props_prominences.append(minor_props['prominences'][i])
-                all_props_widths.append(minor_props.get('widths', [0] * len(minor_peaks))[i])
-                if 'left_bases' in minor_props:
-                    all_props_left_bases.append(minor_props['left_bases'][i])
-                if 'right_bases' in minor_props:
-                    all_props_right_bases.append(minor_props['right_bases'][i])
-
-        # Sort peaks by retention time
-        sort_indices = np.argsort(all_peaks)
-        peaks = np.array(all_peaks)[sort_indices]
-        prominences = np.array(all_props_prominences)[sort_indices]
-        widths = np.array(all_props_widths)[sort_indices] if all_props_widths else np.zeros(len(peaks))
-
-        # Reconstruct properties dict
-        properties = {
-            'prominences': prominences,
-            'widths': widths
-        }
-        if all_props_left_bases and all_props_right_bases:
-            properties['left_bases'] = np.array(all_props_left_bases)[sort_indices]
-            properties['right_bases'] = np.array(all_props_right_bases)[sort_indices]
+        # Two-pass detection is delegated to the shared canonical helper.
+        # This replaces the former inline duplicate; the returned peaks and
+        # `properties` (prominences / widths / bases) are identical, and all
+        # boundary / half-peak / area post-processing below is unchanged.
+        peaks, properties = detect_two_pass_indices_props(
+            intensity, noise_level=noise_level)
 
         # Calculate peak properties
         peak_data = []
@@ -335,45 +279,10 @@ class EnhancedHPLCAnalyzer:
 
         return peaks, peak_data
 
-    def _estimate_noise(self, intensity: np.ndarray) -> float:
-        """
-        Estimate noise level from baseline regions
-
-        For samples with very large peaks, we need to estimate noise from
-        quiet regions, not from the overall signal range.
-        """
-        # Use lower percentile to find quiet regions
-        # Use a small positive threshold to avoid empty mask when all values are >= 0
-        noise_region = np.percentile(intensity, 25)
-        threshold = max(noise_region * 1.5, np.percentile(intensity, 30))
-        quiet_mask = intensity < threshold
-
-        if np.any(quiet_mask) and np.sum(quiet_mask) > 10:
-            noise_std = np.std(intensity[quiet_mask])
-        else:
-            # Fallback: use very low percentile
-            low_percentile = np.percentile(intensity, 10)
-            if low_percentile > 0:
-                noise_std = np.std(intensity[intensity < low_percentile])
-            else:
-                # If 10th percentile is 0, use 20th percentile
-                noise_std = np.std(intensity[intensity < np.percentile(intensity, 20)])
-
-            if noise_std == 0 or np.isnan(noise_std):
-                noise_std = np.std(intensity) * 0.01
-
-        # Don't use signal range for noise estimation when there are large peaks
-        # Just use a minimum floor based on the quiet region
-        min_noise = max(np.percentile(intensity, 5) * 0.01, 1.0)
-
-        # Ensure we return a valid number
-        result = max(noise_std, min_noise, 1.0)  # At least 1.0 to avoid division by zero
-
-        # Final safety check for nan
-        if np.isnan(result) or result <= 0:
-            result = max(np.std(intensity) * 0.01, 1.0)
-
-        return result
+    # NOTE: the former private ``_estimate_noise`` was removed during detector
+    # consolidation (260704). Noise estimation now uses the shared
+    # ``estimate_noise_percentile`` from scripts/_two_pass_detect.py (identical
+    # percentile algorithm). See MIGRATION_NOTES.md.
 
     def _apply_deconvolution(
         self,

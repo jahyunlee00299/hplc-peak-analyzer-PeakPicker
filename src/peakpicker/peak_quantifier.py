@@ -3,6 +3,26 @@ peak_quantifier.py — Peak area quantification using valley drop-line baseline.
 
 SRP: Only responsible for detecting peaks and computing areas.
 DIP: Depends on BaselineCorrector (abstraction), not on a specific strategy.
+
+DETECTOR-CONSOLIDATION NOTE (260704)
+------------------------------------
+This class is NOT one of the "divergent copies" of the general-purpose
+two-pass detector, and is deliberately NOT routed through
+``peakpicker.peak_analysis.TwoPassPeakDetector``. It is a fundamentally
+different, TARGETED single-compound quantifier:
+
+  * detection is scoped to a per-compound RT window (``compound.rt_window``)
+    and picks the single tallest peak within it;
+  * its ``min_prominence`` uses ``min_prominence_factor`` as a NOISE MULTIPLIER
+    (default 3.0), whereas the two-pass detector's ``major_prominence_factor``
+    (0.005) is a fraction of the signal range — these are not interchangeable;
+  * area uses a valley drop-line baseline local to the compound, not the
+    two-pass detector's global boundary/area logic.
+
+Redirecting this to TwoPassPeakDetector would change every quantified area
+(manuscript numbers), so it is left as its own code path by design. The
+canonical two-pass detector remains the single source of truth for
+GENERAL multi-peak detection (workflow.py, batch scripts, analyses).
 """
 from typing import Optional, Tuple
 

@@ -66,7 +66,15 @@ def estimate_noise(intensity):
 
 
 def detect_peaks(time, intensity):
-    """적응형 피크 검출 및 면적 계산"""
+    """적응형 피크 검출 및 면적 계산
+
+    TODO(detector-consolidation 260704): route through the canonical
+    ``peakpicker.peak_analysis.TwoPassPeakDetector`` (see scripts/_two_pass_detect.py
+    for the pattern). CAUTION — this copy DIVERGES from the canonical detector:
+    it uses ``noise_level * 5`` (not *3) for the major-pass height/prominence
+    floor and its own ``estimate_noise``. A drop-in swap WOULD change numbers;
+    migrate only with a reference-output regression check. See MIGRATION_NOTES.md.
+    """
     noise_level = estimate_noise(intensity)
     signal_range = np.ptp(intensity)
 

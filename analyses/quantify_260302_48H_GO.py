@@ -43,6 +43,12 @@ def find_valley(time, intensity, rt_min, rt_max):
 
 
 def quantify_peak(time, intensity, cfg):
+    # TODO(detector-consolidation 260704): this is a TARGETED single-compound
+    # quantifier (search window + valley drop-line), NOT the two-pass detector.
+    # It belongs to the peak_quantifier.PeakQuantifier family, so route it
+    # through that class (per-compound RT window + valley baseline), NOT through
+    # TwoPassPeakDetector. Swapping in the two-pass detector WOULD change the
+    # reported areas. See MIGRATION_NOTES.md.
     s_min, s_max = cfg['search']
     lv_min, lv_max = cfg['left_valley']
     rv_min, rv_max = cfg['right_valley']
