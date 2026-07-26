@@ -1,17 +1,10 @@
 # PeakPicker
 
-## Machine Paths
-Always use `Path.home()` for user-specific paths — never hardcode usernames.
+Shared conventions — machine paths, config sync, branch/merge, commit trailer — live in the
+global `~/.claude/CLAUDE.md` under **Per-Repo Conventions**. They are deliberately not
+repeated here; duplicating them is what let a dead bootstrap line rot in four repos at once.
 
-## Config Sync
-Global config syncs from the claude-config master at session start; hooks come with it.
-
-Manual re-sync:
-```bash
-bash ~/.claude/scripts/sync_config.sh
-```
-
-> Do **not** run `find` over OneDrive to locate the config — recursive traversal forces
-> every cloud-only file to download. The old bootstrap line here pointed at an
-> `install.sh` that does not exist, so it scanned OneDrive and then executed nothing.
-> First use on a new machine: run `shared/apply.sh` from the claude-config master.
+## This repo only
+- `.claude/params_spec.yaml` — read by the global params-strict hook on edit/commit.
+  Add or change a learnable parameter there first, or the write is rejected.
+- `.claude/worktrees/` — refactor work is carried out in a separate worktree.
