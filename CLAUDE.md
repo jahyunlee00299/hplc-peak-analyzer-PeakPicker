@@ -4,8 +4,14 @@
 Always use `Path.home()` for user-specific paths — never hardcode usernames.
 
 ## Config Sync
-Verify global config is installed (first use on a new machine):
+Global config syncs from the claude-config master at session start; hooks come with it.
+
+Manual re-sync:
 ```bash
-bash "$(find ~/OneDrive*/ -name install.sh -path '*/claude-config/*' | head -1)"
+bash ~/.claude/scripts/sync_config.sh
 ```
-After bootstrap, hooks auto-sync on every session start.
+
+> Do **not** run `find` over OneDrive to locate the config — recursive traversal forces
+> every cloud-only file to download. The old bootstrap line here pointed at an
+> `install.sh` that does not exist, so it scanned OneDrive and then executed nothing.
+> First use on a new machine: run `shared/apply.sh` from the claude-config master.
