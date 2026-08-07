@@ -4,6 +4,7 @@ D1=2mM, D2=1mM, D3=0.5mM, D4=0.25mM, D5=0.125mM (2-fold dilution)
 Tukey HSD 유의성 검정 포함
 """
 import sys
+import argparse
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -13,10 +14,18 @@ from pathlib import Path
 from scipy import stats
 from itertools import combinations
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from peakpicker.config.paths import resolve_data_dir, add_data_dir_argument
+
 plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False
 
-out_dir = Path(r'C:\Chem32\1\DATA\260216_cofactor_m2_main_new\quantification_results')
+DEFAULT_EXPERIMENT = "260216_cofactor_m2_main_new"
+_parser = argparse.ArgumentParser(description=__doc__)
+add_data_dir_argument(_parser, help_suffix=f"Default experiment: {DEFAULT_EXPERIMENT}")
+_args = _parser.parse_args()
+
+out_dir = resolve_data_dir(_args.data_dir, experiment=DEFAULT_EXPERIMENT) / "quantification_results"
 df = pd.read_csv(out_dir / 'all_peaks_detailed.csv')
 
 # Calibration & dilution

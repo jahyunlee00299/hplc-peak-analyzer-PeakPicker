@@ -3,6 +3,7 @@ Module 2 Cofactor (NAD) - Tagatose / Formate 정량 결과 정리
 3반복 평균 ± 표준편차, GO 조건만
 """
 import sys
+import argparse
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -10,10 +11,18 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from peakpicker.config.paths import resolve_data_dir, add_data_dir_argument
+
 plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False
 
-out_dir = Path(r'C:\Chem32\1\DATA\260216_cofactor_m2_main_new\quantification_results')
+DEFAULT_EXPERIMENT = "260216_cofactor_m2_main_new"
+_parser = argparse.ArgumentParser(description=__doc__)
+add_data_dir_argument(_parser, help_suffix=f"Default experiment: {DEFAULT_EXPERIMENT}")
+_args = _parser.parse_args()
+
+out_dir = resolve_data_dir(_args.data_dir, experiment=DEFAULT_EXPERIMENT) / "quantification_results"
 df = pd.read_csv(out_dir / 'all_peaks_detailed.csv')
 
 # Calibration
