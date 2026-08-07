@@ -15,7 +15,7 @@ from scipy.signal import find_peaks
 
 # chemstation_parser.py 가 있는 경로 추가
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PEAKPICKER_SRC = r"C:\Users\Jahyun\PeakPicker\src"
+PEAKPICKER_SRC = os.path.expanduser(r"~\PeakPicker\src")
 sys.path.insert(0, PEAKPICKER_SRC)
 
 from chemstation_parser import ChemstationParser

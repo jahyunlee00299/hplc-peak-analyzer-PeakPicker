@@ -21,7 +21,7 @@ def test_export_one():
 
     # 테스트 파일
     test_file = r"C:\Chem32\1\DATA\2. D-Xyl cascade HPLC\Ribavirin\Riba pH Main\251014_RIBA_PH_MAIN_GN9_3_6H.D"
-    output_file = r"C:\Users\Jahyun\PycharmProjects\PeakPicker\test_keyboard_result.csv"
+    output_file = os.path.expanduser(r"~\PycharmProjects\PeakPicker\test_keyboard_result.csv")
 
     print(f"\n테스트 파일: {test_file}")
     print(f"출력 파일: {output_file}")

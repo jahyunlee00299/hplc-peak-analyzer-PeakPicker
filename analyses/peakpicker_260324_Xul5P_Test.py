@@ -17,7 +17,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 
-PEAKPICKER_SRC = r"C:\Users\Jahyun\PeakPicker\src"
+PEAKPICKER_SRC = os.path.expanduser(r"~\PeakPicker\src")
 sys.path.insert(0, PEAKPICKER_SRC)
 from chemstation_parser import ChemstationParser
 
