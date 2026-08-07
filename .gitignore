@@ -35,3 +35,9 @@ riba_plots_demo/
 # Test outputs
 test_results/
 test_sessions/
+
+# Scratch/diagnostic one-offs (archive to ~/archive, never commit) — C-05
+_tmp_*.py
+scripts/_diag_*.py
+scripts/_analyze_*.py
+analyses/*.txt
