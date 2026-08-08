@@ -8,7 +8,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import signal
 from scipy.interpolate import interp1d, UnivariateSpline
-from scipy.integrate import trapezoid
 from typing import List, Tuple, Dict
 from dataclasses import dataclass
 import warnings
@@ -255,7 +254,7 @@ class HybridBaselineCorrector:
                 try:
                     spl = UnivariateSpline(indices, values, w=weights, s=s, k=3)
                     baseline = spl(np.arange(len(self.intensity)))
-                except:
+                except Exception:
                     # Fallback to linear
                     f = interp1d(indices, values, kind='linear', fill_value='extrapolate')
                     baseline = f(np.arange(len(self.intensity)))
@@ -897,7 +896,7 @@ def test_hybrid_baseline():
             axes[idx, 1].plot(time, baseline, '--', color=color, alpha=0.7, label=method)
 
         axes[idx, 1].plot(time, intensity, 'k-', alpha=0.3, label='Original')
-        axes[idx, 1].set_title(f'Baseline Methods Comparison')
+        axes[idx, 1].set_title('Baseline Methods Comparison')
         axes[idx, 1].set_xlabel('Time (min)')
         axes[idx, 1].set_ylabel('Intensity')
         axes[idx, 1].legend(fontsize=8)

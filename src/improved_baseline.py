@@ -381,7 +381,7 @@ class ImprovedBaselineCorrector:
 
             spl = UnivariateSpline(indices, values, w=weights, s=s, k=3)
             baseline = spl(np.arange(len(self.intensity)))
-        except:
+        except Exception:
             baseline = self._linear_baseline(indices, values)
 
         return baseline
@@ -423,7 +423,7 @@ class ImprovedBaselineCorrector:
                 k=min(3, len(robust_indices) - 1)
             )
             baseline = spl(np.arange(len(self.intensity)))
-        except:
+        except Exception:
             baseline = self._linear_baseline(robust_indices, robust_values)
 
         return baseline
@@ -592,7 +592,7 @@ class ImprovedBaselineCorrector:
                 preservation = 1.0
 
             peak_score = preservation * 50
-        except:
+        except Exception:
             peak_score = 25
 
         # 4. 베이스라인 높이 (0-25점) - 너무 높으면 감점
