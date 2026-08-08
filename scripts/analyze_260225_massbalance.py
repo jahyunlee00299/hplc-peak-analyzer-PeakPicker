@@ -218,7 +218,7 @@ def print_nc_subtracted(df):
                for _, row in df[df['is_nc']].iterrows()}
     rxn    = df[~df['is_nc']].sort_values(['acp', 'time_min'])
 
-    print(f"\n  NC-subtracted RT~7.24 (Rxn - NC):")
+    print("\n  NC-subtracted RT~7.24 (Rxn - NC):")
     for _, row in rxn.iterrows():
         nc_val = nc_h5p.get(row['acp'], 0)
         net    = row['Xul5P_h'] - nc_val

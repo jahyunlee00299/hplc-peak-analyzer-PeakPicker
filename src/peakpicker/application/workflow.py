@@ -7,14 +7,11 @@ Composes all components following Dependency Inversion.
 """
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from ..domain import (
-    ChromatogramData,
     AnalysisResult,
     BatchResult,
-    Peak,
-    BaselineResult,
 )
 
 from ..interfaces import (
@@ -302,7 +299,6 @@ class WorkflowBuilder:
             Asymmetry weight for background (0.001–0.1).
         """
         from ..baseline import ArplsStrategy, BaselineCorrector, BoundaryAnchorFinder
-        from ..infrastructure import ScipySignalProcessor, ScipyInterpolator
 
         config = config or BaselineCorrectorConfig()
         config.generator_config.clip_to_signal = False

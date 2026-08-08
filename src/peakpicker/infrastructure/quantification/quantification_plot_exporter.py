@@ -11,7 +11,7 @@ Implements IQuantificationPlotExporter interface.
 
 import logging
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Optional
 
 import matplotlib
 matplotlib.use('Agg')
@@ -23,9 +23,7 @@ plt.rcParams['axes.unicode_minus'] = False
 from ...interfaces.quantification import IQuantificationPlotExporter
 from ...domain.models import (
     QuantificationResult,
-    QuantifiedPeak,
     StatisticalAnalysisResult,
-    StatisticalTestResult,
     TukeyHSDComparison,
 )
 from ...config.quantification_config import VisualizationConfig, StatisticalConfig

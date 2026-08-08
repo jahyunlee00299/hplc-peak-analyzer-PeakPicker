@@ -10,7 +10,7 @@ Two concrete IDataReader implementations using the rainbow-api library:
 
 import logging
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
 import numpy as np
 

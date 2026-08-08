@@ -124,7 +124,7 @@ class ScipyInterpolator(IInterpolator):
         weights: np.ndarray = None
     ) -> np.ndarray:
         """Spline interpolation using scipy.interpolate.UnivariateSpline."""
-        from scipy.interpolate import UnivariateSpline, interp1d
+        from scipy.interpolate import UnivariateSpline
 
         if len(x) < 4:
             # Fall back to linear for too few points

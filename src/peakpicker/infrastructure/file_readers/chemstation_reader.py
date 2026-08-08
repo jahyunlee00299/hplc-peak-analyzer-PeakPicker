@@ -8,7 +8,7 @@ Concrete implementation of IDataReader for Agilent Chemstation .ch files.
 import struct
 import numpy as np
 from pathlib import Path
-from typing import Tuple, Dict
+from typing import Tuple
 import re
 
 from ...interfaces import IDataReader

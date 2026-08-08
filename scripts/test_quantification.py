@@ -2,7 +2,6 @@
 import sys
 import argparse
 sys.path.insert(0, '.')
-from pathlib import Path
 
 # Step 1: Batch peak analysis with rainbow reader
 from src.peakpicker.application import WorkflowBuilder
@@ -59,7 +58,7 @@ quant_result, stat_result, files = quant_workflow.run(
     filename_prefix='cofactor_m2',
 )
 
-print(f'\n=== Quantification Results ===')
+print('\n=== Quantification Results ===')
 print(f'Quantified peaks: {len(quant_result.quantified_peaks)}')
 print(f'Compounds: {quant_result.compound_names}')
 print(f'Samples: {len(quant_result.sample_names)}')
@@ -81,7 +80,7 @@ for compound_name in quant_result.compound_names:
 
 # Step 3: Statistical results
 if stat_result:
-    print(f'\n=== Statistical Results ===')
+    print('\n=== Statistical Results ===')
     print(f'Tests performed: {len(stat_result.test_results)}')
     for tr in stat_result.test_results:
         sig_pairs = [c for c in tr.pairwise_comparisons if c.significance != 'ns']
@@ -90,7 +89,7 @@ if stat_result:
               f'| {len(sig_pairs)} significant pairs')
 
 # Step 4: Output files
-print(f'\n=== Output Files ===')
+print('\n=== Output Files ===')
 for f in files:
     print(f'  {f.name} ({f.stat().st_size / 1024:.1f} KB)')
 

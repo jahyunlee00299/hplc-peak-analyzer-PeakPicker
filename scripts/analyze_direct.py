@@ -159,7 +159,7 @@ def main():
     n_total = len(d_folders)
     print(f"  Processed: {n_ok}/{n_total} samples")
     print(f"  Results:   {output_dir}")
-    print(f"  Summary:   batch_summary.xlsx")
+    print("  Summary:   batch_summary.xlsx")
     print("=" * 60)
 
     return 0 if n_ok == n_total else 1

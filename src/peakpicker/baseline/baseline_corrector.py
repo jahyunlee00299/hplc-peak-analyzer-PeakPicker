@@ -6,7 +6,7 @@ High-level baseline correction orchestrator.
 Composes all baseline components following SOLID principles.
 """
 
-from typing import List, Dict, Any
+from typing import List
 import numpy as np
 
 from ..interfaces import (
@@ -15,7 +15,7 @@ from ..interfaces import (
     IBaselineStrategy,
     IBaselineEvaluator,
 )
-from ..domain import BaselineResult, AnchorPoint, BaselineMethod
+from ..domain import BaselineResult
 from ..config import BaselineCorrectorConfig
 
 from .generators import BaselineGenerator, PostProcessor

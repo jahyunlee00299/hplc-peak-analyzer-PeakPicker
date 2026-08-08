@@ -7,7 +7,6 @@ Replaces magic numbers with configurable parameters.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 from ..domain import DeconvolutionMethod
 

@@ -3,7 +3,7 @@ models.py — Core dataclasses for LC quantification.
 
 SRP: Pure data containers only — no logic.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
 

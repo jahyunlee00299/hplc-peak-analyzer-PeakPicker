@@ -302,7 +302,7 @@ fig.suptitle('Half-Peak Quantification Validation\n(Real HPLC data: 251014_RIBA_
 
 plt.savefig(Path(__file__).parent.parent / 'results' / 'half_peak_validation.png',
             dpi=200, bbox_inches='tight', facecolor='white')
-print(f"\nPlot saved: results/half_peak_validation.png")
+print("\nPlot saved: results/half_peak_validation.png")
 
 # ===== Additional statistics =====
 print(f"\n{'='*70}")
@@ -321,7 +321,7 @@ sym_peaks = [r for r in valid_results if r['asymmetry_ratio'] < 0.10]
 if sym_peaks:
     left_errors = [abs(r['left_x2'] - r['full_area']) / r['full_area'] * 100 for r in sym_peaks if r['full_area'] > 0]
     right_errors = [abs(r['right_x2'] - r['full_area']) / r['full_area'] * 100 for r in sym_peaks if r['full_area'] > 0]
-    print(f"\nFor symmetric peaks (ratio < 0.10):")
+    print("\nFor symmetric peaks (ratio < 0.10):")
     print(f"  Left x2 vs Full area error:  {np.mean(left_errors):.2f}% (mean), {np.max(left_errors):.2f}% (max)")
     print(f"  Right x2 vs Full area error: {np.mean(right_errors):.2f}% (mean), {np.max(right_errors):.2f}% (max)")
 

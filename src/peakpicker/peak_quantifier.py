@@ -10,7 +10,7 @@ import numpy as np
 from scipy.signal import find_peaks
 from scipy.integrate import trapezoid
 
-from .models import CompoundMethod, QuantResult
+from .models import CompoundMethod
 from .method_config_lc import SmoothingConfig, PeakDetectionConfig
 from .valley_baseline import BaselineCorrector
 

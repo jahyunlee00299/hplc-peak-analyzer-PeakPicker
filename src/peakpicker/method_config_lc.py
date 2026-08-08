@@ -8,7 +8,6 @@ Note: Named method_config_lc.py to avoid collision with existing quant/method_co
 """
 import yaml
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional, List
 
 from .models import CompoundMethod

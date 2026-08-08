@@ -7,7 +7,7 @@ Following Interface Segregation Principle (ISP).
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 import numpy as np
 
 from ..domain import Peak, DeconvolutionResult, DeconvolvedPeak

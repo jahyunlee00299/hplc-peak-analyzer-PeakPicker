@@ -7,7 +7,6 @@ import argparse
 import sys
 from pathlib import Path
 from typing import List, Dict, Optional
-import json
 from datetime import datetime
 import pandas as pd
 import numpy as np

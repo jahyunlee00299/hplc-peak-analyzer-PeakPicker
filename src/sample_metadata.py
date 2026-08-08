@@ -159,7 +159,6 @@ def read_experiment_metadata(exp_folder: Path) -> list:
 
 
 if __name__ == '__main__':
-    import sys
 
     base = Path(r'C:\Chem32\1\DATA\2. D-Xyl cascade HPLC'
                 r'\Xul 5P production\Pretest')

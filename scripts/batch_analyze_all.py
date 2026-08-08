@@ -12,7 +12,6 @@ C:\\Chem32\\1\\DATA\\ 아래 모든 .D 폴더의 .ch 파일을 직접 읽어서
 """
 
 import sys
-import os
 import time
 import traceback
 import argparse
@@ -389,7 +388,7 @@ def batch_analyze(
     _export_master_summary(all_results, master_summary, out, elapsed)
 
     print(f"\n{'=' * 80}")
-    print(f"  전체 완료!")
+    print("  전체 완료!")
     print(f"  처리: {processed} files in {elapsed:.0f}s ({elapsed/60:.1f}min)")
     print(f"  결과: {out}")
     print(f"{'=' * 80}")
@@ -519,7 +518,7 @@ def _export_master_summary(all_results: list, master_summary: list, out: Path, e
         }])
         info.to_excel(writer, sheet_name='Analysis_Info', index=False)
 
-    print(f"\n  MASTER_SUMMARY.xlsx saved")
+    print("\n  MASTER_SUMMARY.xlsx saved")
 
 
 def _get_project(d_folder_path: str) -> str:

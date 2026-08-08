@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 import numpy as np
 
-from .enums import AnchorSource, PeakType, SignalQuality, BaselineMethod, VisualizationMode
+from .enums import AnchorSource, PeakType, SignalQuality, BaselineMethod
 
 
 @dataclass

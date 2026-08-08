@@ -282,7 +282,7 @@ def main():
         writer.writeheader()
         writer.writerows(rows)
 
-    print(f"\n--- Summary ---")
+    print("\n--- Summary ---")
     print(f"Total files: {stats['total']}")
     print(f"Successfully quantified: {stats['success']}")
     print(f"No peak detected: {stats['no_peak']}")

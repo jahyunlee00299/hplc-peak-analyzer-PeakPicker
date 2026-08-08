@@ -42,7 +42,7 @@ def main():
     OUTPUT_BASE.mkdir(parents=True, exist_ok=True)
 
     print(f"\n{'='*65}")
-    print(f"  PeakPicker — 전체 데이터셋 일괄 처리")
+    print("  PeakPicker — 전체 데이터셋 일괄 처리")
     print(f"  methods  : {METHODS_DIR}")
     print(f"  output   : {OUTPUT_BASE}")
     print(f"  데이터셋 수: {len(DATASETS)}")
@@ -63,7 +63,7 @@ def main():
         method_yaml = MethodSelector.suggest(str(data_path), str(METHODS_DIR))
 
         if method_yaml is None:
-            print(f"  [SKIP] 적합한 메소드 없음.")
+            print("  [SKIP] 적합한 메소드 없음.")
             skipped.append((exp_id, "메소드 미매칭"))
             continue
 

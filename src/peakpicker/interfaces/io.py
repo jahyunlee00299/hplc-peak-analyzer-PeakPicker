@@ -9,7 +9,7 @@ separate interfaces for different export types.
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import numpy as np
 
 from ..domain import (

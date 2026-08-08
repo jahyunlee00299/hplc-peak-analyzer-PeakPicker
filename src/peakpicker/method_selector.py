@@ -82,8 +82,8 @@ class MethodSelector:
         if "RID1A.ch" in detected_signals:
             fallback = methods_path / "xyl5p_hpx87h.yaml"
             if fallback.exists():
-                print(f"  => fallback method: xyl5p_hpx87h.yaml")
+                print("  => fallback method: xyl5p_hpx87h.yaml")
                 return str(fallback)
 
-        print(f"  [SKIP] no suitable method found.")
+        print("  [SKIP] no suitable method found.")
         return None

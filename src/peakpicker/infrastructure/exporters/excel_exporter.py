@@ -7,7 +7,7 @@ Interface Segregation: Separate from CSV and plot exporters.
 """
 
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from datetime import datetime
 
 import pandas as pd

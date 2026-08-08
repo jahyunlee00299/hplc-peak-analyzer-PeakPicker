@@ -11,7 +11,6 @@ Example folder name:
 """
 
 import re
-from typing import Dict, Any
 
 from ...interfaces import ISampleNameParser
 from ...domain import SampleConditions

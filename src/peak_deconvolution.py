@@ -16,7 +16,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks, savgol_filter
 from dataclasses import dataclass
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional
 import warnings
 
 from src.peak_models import (
@@ -898,7 +898,7 @@ if __name__ == "__main__":
     result = decon.analyze_peak(rt, signal, peak_start_idx, peak_end_idx, force_deconvolution=True)
 
     if result and result.success:
-        print(f"Deconvolution successful!")
+        print("Deconvolution successful!")
         print(f"Method: {result.method}")
         print(f"Fit quality (R²): {result.fit_quality:.4f}")
         print(f"RMSE: {result.rmse:.4f}")

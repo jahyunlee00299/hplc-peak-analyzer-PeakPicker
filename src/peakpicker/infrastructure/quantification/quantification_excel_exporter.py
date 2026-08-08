@@ -11,7 +11,6 @@ Implements IQuantificationExporter interface.
 import logging
 from pathlib import Path
 from typing import List, Dict, Optional
-from collections import defaultdict
 
 import pandas as pd
 import numpy as np
@@ -19,10 +18,7 @@ import numpy as np
 from ...interfaces.quantification import IQuantificationExporter
 from ...domain.models import (
     QuantificationResult,
-    QuantifiedPeak,
     StatisticalAnalysisResult,
-    StatisticalTestResult,
-    TukeyHSDComparison,
 )
 from ...config.quantification_config import StatisticalConfig
 

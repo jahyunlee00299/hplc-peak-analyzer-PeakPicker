@@ -7,7 +7,7 @@ Interface Segregation: Separate from data exporters.
 """
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 import matplotlib.pyplot as plt

@@ -3,7 +3,8 @@
 ===========================================================
 Multi-panel figure: chromatogram overlay, Xul production, AcO accumulation
 """
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 import numpy as np
@@ -11,7 +12,6 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import seaborn as sns
 from pathlib import Path
 from scipy.ndimage import minimum_filter1d, uniform_filter1d
 from chemstation_parser import ChemstationParser
@@ -309,7 +309,7 @@ def main():
                 dpi=300, bbox_inches='tight', pad_inches=0.15)
     fig.savefig(OUTPUT_DIR / '260225_AcP_optimization_multipanel.pdf',
                 bbox_inches='tight', pad_inches=0.15)
-    print(f"Saved: 260225_AcP_optimization_multipanel.png/pdf")
+    print("Saved: 260225_AcP_optimization_multipanel.png/pdf")
     plt.close(fig)
 
     # ========================================
@@ -367,7 +367,7 @@ def main():
 
     fig2.savefig(OUTPUT_DIR / '260225_summary_table.png',
                  dpi=300, bbox_inches='tight', pad_inches=0.2)
-    print(f"Saved: 260225_summary_table.png")
+    print("Saved: 260225_summary_table.png")
     plt.close(fig2)
 
     # ========================================
@@ -414,7 +414,7 @@ def main():
                  dpi=300, bbox_inches='tight', pad_inches=0.15)
     fig3.savefig(OUTPUT_DIR / '260225_Xul_production.pdf',
                  bbox_inches='tight', pad_inches=0.15)
-    print(f"Saved: 260225_Xul_production.png/pdf")
+    print("Saved: 260225_Xul_production.png/pdf")
     plt.close(fig3)
 
     print("\nAll 260225 visualizations complete!")

@@ -7,7 +7,7 @@ LSP: XulSampleParser and GenericSampleParser are fully interchangeable.
 """
 import re
 from pathlib import Path
-from typing import List, Optional, Protocol, runtime_checkable
+from typing import List, Protocol, runtime_checkable
 
 from .models import SampleMeta
 

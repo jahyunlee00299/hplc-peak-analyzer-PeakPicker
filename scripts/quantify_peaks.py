@@ -395,7 +395,7 @@ class PeakQuantifier:
             return
 
         # 샘플별 통계
-        print(f"\n샘플별 주 피크 정보:")
+        print("\n샘플별 주 피크 정보:")
         print(f"{'샘플':<40} {'RT':>8} {'높이':>12} {'면적':>15} {'폭':>8}")
         print("-" * 90)
 
@@ -580,7 +580,7 @@ class PeakQuantifier:
 
             ax1_log.set_xlabel('시간 (min)', fontsize=11, fontweight='bold')
             ax1_log.set_ylabel('강도 (mAU, log scale)', fontsize=11, fontweight='bold')
-            ax1_log.set_title(f'원본 크로마토그램 (로그 스케일)', fontsize=12, fontweight='bold')
+            ax1_log.set_title('원본 크로마토그램 (로그 스케일)', fontsize=12, fontweight='bold')
             ax1_log.legend(fontsize=10, loc='upper right')
             ax1_log.grid(True, alpha=0.3, which='both')
             if xlim_min is not None:

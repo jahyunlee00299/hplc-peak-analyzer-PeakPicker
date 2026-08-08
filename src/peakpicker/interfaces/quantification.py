@@ -15,7 +15,6 @@ from ..domain.models import (
     BatchResult,
     CompoundDefinition,
     SampleConditions,
-    QuantifiedPeak,
     QuantificationResult,
     StatisticalAnalysisResult,
 )
