@@ -67,12 +67,12 @@ class TestMadBugFix:
     """
 
     def _make_finder(self):
-        from solid.baseline.anchor_finders.valley_finder import CompositeAnchorFinder
-        from solid.config import AnchorFinderConfig
+        from peakpicker.baseline.anchor_finders.valley_finder import CompositeAnchorFinder
+        from peakpicker.config import AnchorFinderConfig
         return CompositeAnchorFinder(finders=[], config=AnchorFinderConfig())
 
     def _make_anchors(self, values):
-        from solid.domain import AnchorPoint, AnchorSource
+        from peakpicker.domain import AnchorPoint, AnchorSource
         finder = self._make_finder()
         anchors = [
             AnchorPoint(index=i, time=float(i), value=float(v),
@@ -102,7 +102,7 @@ class TestMadBugFix:
         finder = self._make_finder()
 
         def count_kept(values):
-            from solid.domain import AnchorPoint, AnchorSource
+            from peakpicker.domain import AnchorPoint, AnchorSource
             anchors = [AnchorPoint(index=i, time=float(i), value=float(v),
                                    confidence=1.0, source=AnchorSource.VALLEY)
                        for i, v in enumerate(values)]
@@ -130,7 +130,7 @@ class TestArplsStrategy:
 
     def test_flat_baseline_recovery(self):
         """선형 드리프트 베이스라인 복원"""
-        from solid.baseline.strategies.arpls_strategy import ArplsStrategy
+        from peakpicker.baseline.strategies.arpls_strategy import ArplsStrategy
         time = np.linspace(0, 10, 500)
         # 선형 드리프트 + 가우시안 피크
         true_baseline = 1000 + 200 * time
@@ -147,7 +147,7 @@ class TestArplsStrategy:
         assert np.mean(rel_err) < 0.15, f"ARPLS 베이스라인 오차 {np.mean(rel_err)*100:.1f}% > 15%"
 
     def test_returns_same_length(self):
-        from solid.baseline.strategies.arpls_strategy import ArplsStrategy
+        from peakpicker.baseline.strategies.arpls_strategy import ArplsStrategy
         time = np.linspace(0, 10, 300)
         signal = np.random.default_rng(0).normal(1000, 50, 300)
         strat = ArplsStrategy()
@@ -156,7 +156,7 @@ class TestArplsStrategy:
 
     def test_baseline_below_peaks(self):
         """베이스라인은 피크 신호보다 항상 낮아야 함"""
-        from solid.baseline.strategies.arpls_strategy import ArplsStrategy
+        from peakpicker.baseline.strategies.arpls_strategy import ArplsStrategy
         time = np.linspace(0, 10, 500)
         signal = (500 + 200 * np.sin(time / 3)
                   + 80_000 * np.exp(-0.5 * ((time - 5) / 0.4) ** 2))
@@ -174,8 +174,8 @@ class TestArplsStrategy:
 class TestTwoPassDetector:
 
     def _make_detector(self):
-        from solid.peak_analysis.detectors.two_pass_detector import TwoPassPeakDetector
-        from solid.infrastructure.signal_processing.scipy_adapter import ScipySignalProcessor
+        from peakpicker.peak_analysis.detectors.two_pass_detector import TwoPassPeakDetector
+        from peakpicker.infrastructure.signal_processing.scipy_adapter import ScipySignalProcessor
         return TwoPassPeakDetector(signal_processor=ScipySignalProcessor())
 
     def test_detects_major_peak(self):
@@ -231,7 +231,7 @@ class TestEmgFitter:
 
     def test_symmetric_peak_fit(self):
         """대칭 Gaussian (tau≈0) → EMG가 잘 fitting해야 함"""
-        from solid.peak_analysis.deconvolution.emg_fitter import EmgFitter
+        from peakpicker.peak_analysis.deconvolution.emg_fitter import EmgFitter
         time = np.linspace(3, 7, 300)
         true_signal = 50_000 * np.exp(-0.5 * ((time - 5) / 0.3) ** 2)
 
@@ -245,7 +245,7 @@ class TestEmgFitter:
 
     def test_asymmetric_peak_fit(self):
         """테일링 있는 EMG 피크 → R² > 0.90"""
-        from solid.peak_analysis.deconvolution.emg_fitter import EmgFitter
+        from peakpicker.peak_analysis.deconvolution.emg_fitter import EmgFitter
         time = np.linspace(3, 10, 500)
         true_signal = make_emg_peak(time, amplitude=50_000,
                                     center=5.0, sigma=0.3, tau=0.5)
@@ -258,7 +258,7 @@ class TestEmgFitter:
 
     def test_two_component_fit(self):
         """두 겹친 피크 분해"""
-        from solid.peak_analysis.deconvolution.emg_fitter import EmgFitter
+        from peakpicker.peak_analysis.deconvolution.emg_fitter import EmgFitter
         time = np.linspace(3, 9, 400)
         s1 = make_emg_peak(time, 60_000, 5.0, 0.25, 0.2)
         s2 = make_emg_peak(time, 30_000, 6.0, 0.25, 0.2)
@@ -272,7 +272,7 @@ class TestEmgFitter:
 
     def test_area_analytical_vs_numerical(self):
         """EMG 분석 면적 vs 사다리꼴 적분 오차 < 5%"""
-        from solid.peak_analysis.deconvolution.emg_fitter import EmgFitter, emg
+        from peakpicker.peak_analysis.deconvolution.emg_fitter import EmgFitter
         time = np.linspace(0, 15, 1000)
         true_signal = make_emg_peak(time, 50_000, 7.0, 0.4, 0.3)
         numerical_area = float(trapezoid(true_signal, time))
@@ -300,12 +300,12 @@ class TestWorkflowBuilder:
         return path, time, signal
 
     def test_default_workflow_builds(self):
-        from solid.application.workflow import WorkflowBuilder
+        from peakpicker.application.workflow import WorkflowBuilder
         wf = WorkflowBuilder().with_auto_reader().with_default_baseline().with_default_peak_detector().build()
         assert wf is not None
 
     def test_arpls_workflow_builds(self):
-        from solid.application.workflow import WorkflowBuilder
+        from peakpicker.application.workflow import WorkflowBuilder
         wf = (WorkflowBuilder()
               .with_auto_reader()
               .with_arpls_baseline(lam=1e5)
@@ -315,7 +315,7 @@ class TestWorkflowBuilder:
 
     def test_two_pass_workflow_detects_peaks(self, tmp_path):
         """ARPLS + 2-Pass 파이프라인 end-to-end"""
-        from solid.application.workflow import WorkflowBuilder
+        from peakpicker.application.workflow import WorkflowBuilder
         path, _, _ = self._make_csv(tmp_path, [(5.0, 100_000, 0.3)])
 
         wf = (WorkflowBuilder()
@@ -343,8 +343,8 @@ class TestProminencePeakDetectorPhase1:
     """
 
     def _make_detector(self):
-        from solid.peak_analysis.detectors.peak_detector import ProminencePeakDetector
-        from solid.infrastructure.signal_processing.scipy_adapter import ScipySignalProcessor
+        from peakpicker.peak_analysis.detectors.peak_detector import ProminencePeakDetector
+        from peakpicker.infrastructure.signal_processing.scipy_adapter import ScipySignalProcessor
         return ProminencePeakDetector(signal_processor=ScipySignalProcessor())
 
     def test_mad_noise_small_scale(self):
@@ -390,7 +390,7 @@ class TestProminencePeakDetectorPhase1:
 
     def test_estimate_noise_static_method(self):
         """_estimate_noise: floor(1.0) 이상의 신호에서 스케일에 비례"""
-        from solid.peak_analysis.detectors.peak_detector import ProminencePeakDetector
+        from peakpicker.peak_analysis.detectors.peak_detector import ProminencePeakDetector
         rng = np.random.default_rng(42)
 
         # 두 신호 모두 floor(1.0)를 훨씬 초과하는 크기여야 비율 검증 가능
@@ -414,8 +414,8 @@ class TestGaussianFitterLogging:
     def test_fit_failure_logs_warning(self):
         """Gaussian fit 실패 시 WARNING 로그 기록 + 안전하게 빈 리스트 반환"""
         import logging
-        from solid.peak_analysis.deconvolution.gaussian_fitter import GaussianFitterStrategy
-        from solid.infrastructure.signal_processing.scipy_adapter import ScipyCurveFitter
+        from peakpicker.peak_analysis.deconvolution.gaussian_fitter import GaussianFitterStrategy
+        from peakpicker.infrastructure.signal_processing.scipy_adapter import ScipyCurveFitter
 
         fitter = GaussianFitterStrategy(curve_fitter=ScipyCurveFitter())
 
@@ -430,7 +430,7 @@ class TestGaussianFitterLogging:
                 records.append(record)
 
         handler = ListHandler(level=logging.WARNING)
-        log = logging.getLogger('solid.peak_analysis.deconvolution.gaussian_fitter')
+        log = logging.getLogger('peakpicker.peak_analysis.deconvolution.gaussian_fitter')
         log.addHandler(handler)
         log.setLevel(logging.WARNING)
 
@@ -454,8 +454,8 @@ class TestGaussianFitterLogging:
 class TestAnalyzerDynamicWindow:
 
     def _make_analyzer(self):
-        from solid.peak_analysis.deconvolution.analyzer import ShoulderDeconvolutionAnalyzer
-        from solid.infrastructure.signal_processing.scipy_adapter import ScipySignalProcessor
+        from peakpicker.peak_analysis.deconvolution.analyzer import ShoulderDeconvolutionAnalyzer
+        from peakpicker.infrastructure.signal_processing.scipy_adapter import ScipySignalProcessor
         return ShoulderDeconvolutionAnalyzer(signal_processor=ScipySignalProcessor())
 
     def test_short_signal_no_crash(self):
@@ -473,7 +473,7 @@ class TestAnalyzerDynamicWindow:
 
     def test_long_signal_uses_capped_window(self):
         """긴 신호(2000포인트)에서 윈도우가 50 이하로 cap됨"""
-        from solid.peak_analysis.deconvolution import analyzer as ana_module
+        from peakpicker.peak_analysis.deconvolution import analyzer as ana_module
         import inspect
 
         # _detect_shoulder 소스에서 half_window 계산 확인

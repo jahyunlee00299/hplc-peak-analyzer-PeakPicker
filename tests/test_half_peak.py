@@ -23,7 +23,7 @@ plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False
 
 # PeakPicker src 모듈 경로
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 
 # ============================================================
@@ -81,7 +81,7 @@ def test_synthetic():
     err_left_asym = abs(asym_left * 2 - true_area) / true_area * 100
     err_right_asym = abs(asym_right * 2 - true_area) / true_area * 100
 
-    print(f"\n[1-b] 비대칭 피크 (오른쪽 어깨 추가, 30% 크기)")
+    print("\n[1-b] 비대칭 피크 (오른쪽 어깨 추가, 30% 크기)")
     print(f"  순수 피크 면적 (참값) : {true_area:>15.1f}")
     print(f"  전체 면적             : {asym_full:>15.1f}  (오차 {err_full:.2f}%)")
     print(f"  왼쪽 반쪽 x2          : {asym_left * 2:>15.1f}  (오차 {err_left_asym:.2f}%)")

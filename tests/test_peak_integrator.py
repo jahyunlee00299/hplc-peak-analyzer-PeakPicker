@@ -5,11 +5,8 @@ Test sample: NE 100mM Xyl (no enzyme control)
   - D-Xylose RT=11.105, Chemstation area=312105.1
 """
 
-import sys
-sys.path.insert(0, r"C:\Users\Jahyun\PeakPicker")
-
 from src.chemstation_parser import read_chemstation_file
-from src.peak_integrator import find_peak_boundaries, integrate_peak, integrate_peak_detailed
+from src.peak_integrator import integrate_peak_detailed
 
 CH_FILE = (
     r"C:\Chem32\1\DATA\2. D-Xyl cascade HPLC\Xul 5P production\Pretest"
