@@ -42,8 +42,7 @@ def _arpls_numpy(y: np.ndarray, lam: float = 1e5, p: float = 0.01,
 
     Baek et al. (2015) Analyst.
     """
-    from scipy.sparse import diags, eye
-    from scipy.sparse.linalg import spsolve
+    from scipy.sparse import diags
 
     n = len(y)
     D = diags([1, -2, 1], [0, 1, 2], shape=(n - 2, n)).toarray()
@@ -59,9 +58,13 @@ def _arpls_numpy(y: np.ndarray, lam: float = 1e5, p: float = 0.01,
             break
         m = np.mean(neg)
         s = np.std(neg)
-        w_new = p * np.exp(-2 * (residuals - (2 * s - m)) / s)
-        w_new = np.clip(w_new, 1e-9, 1.0)
-        w_new[residuals >= 0] = p
+        # ARPLS asymmetric weight (Baek et al. 2015, eq. 8): a logistic sigmoid
+        # that goes to ~1 for background points and ~0 for peak points. The
+        # previous `p * exp(...)` form (no sigmoid denominator, weight forced
+        # to `p` above the threshold) was not this formula and systematically
+        # under-estimated the baseline -- see test_flat_baseline_recovery.
+        exponent = np.clip(2 * (residuals - (2 * s - m)) / s, -500, 500)
+        w_new = 1.0 / (1.0 + np.exp(exponent))
         if np.allclose(w, w_new, atol=1e-6):
             break
         w = w_new

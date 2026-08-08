@@ -32,11 +32,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import numpy as np
+import pandas as pd
 
-from .method_config import CompoundDef, QuantMethod
+from .method_config import QuantMethod
 
 logger = logging.getLogger(__name__)
 

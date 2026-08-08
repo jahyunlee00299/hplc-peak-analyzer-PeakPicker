@@ -8,8 +8,8 @@ from ..domain.models import (
     CompoundDefinition,
     QuantificationResult,
     StatisticalAnalysisResult,
-    VisualizationMode,
 )
+from ..domain.enums import VisualizationMode
 from ..interfaces.quantification import (
     IQuantifier,
     IStatisticalAnalyzer,

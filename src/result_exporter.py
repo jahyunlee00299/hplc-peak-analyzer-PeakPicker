@@ -2,13 +2,14 @@
 Export HPLC Analysis Results to Excel and CSV
 """
 
+from __future__ import annotations
+
 import pandas as pd
 import numpy as np
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 
 
 class ResultExporter:
