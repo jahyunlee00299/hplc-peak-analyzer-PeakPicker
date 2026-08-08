@@ -20,6 +20,7 @@ class MethodSelector:
     # (signal_file_pattern, folder_keyword_upper | None, yaml_name)
     RULES: List[Tuple[str, Optional[str], str]] = [
         ("RID1A.ch", "XUL5P",   "xyl5p_hpx87h.yaml"),
+        ("RID1A.ch", "XYLACP",  "xyl5p_hpx87h.yaml"),   # XylAcP production runs
         ("RID1A.ch", "XYLB",    "xyl5p_hpx87h.yaml"),
         ("RID1A.ch", "XYLA",    "xyl5p_hpx87h.yaml"),
         ("RID1A.ch", "XYL5P",   "xyl5p_hpx87h.yaml"),
