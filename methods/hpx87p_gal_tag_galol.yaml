@@ -1,0 +1,62 @@
+method:
+  name: hpx87p_gal_tag_galol_v1
+  column: Bio-Rad Aminex HPX-87P
+  detector: RID
+  # stoptime ~38 min identifies this column; do not trust the stored Acq. Method name
+  # (found stale/mislabeled in the 260827/260828 87P re-quantitation, see QUANTITATION_RULES.md)
+
+compounds:
+  - name: D-Galactose
+    rt_min: 12.7
+    rt_max: 15.1
+    unit: mM
+    note: >
+      13.9 min canonical RT. CONFIRMED against xlsx in PREBO series (r=0.998, median APE 1.9%).
+      In MPSP series this RT co-elutes with an unidentified non-Gal component -- xlsx_Gal=0 at
+      t>=24h but the peak area implies 50-83 mM residual (Step A2, 260828). In YIELD series the
+      apex drifts 13.9->15.0 min over the run (RT search window widened to bracket the drift) and
+      even at stable RT (t<=12h) the calibrated concentration implies D~109 for Gal while Tag at
+      the same timepoints is consistent with D=40 -- physically inconsistent for one dilution, so
+      this is reported as an unresolved anomaly, not corrected. See REPORT_260828.md.
+  - name: D-Tagatose
+    rt_min: 21.2
+    rt_max: 23.6
+    unit: mM
+    note: >
+      22.4 min canonical RT. Monotonic increase confirmed across PREBO/MPSP/YIELD (Step A, 260827).
+      Median APE 25% pooled tune set; YIELD held-out worse (~40%).
+  # Galactitol: UNASSIGNED, deliberately omitted from `compounds:` (no rt_min/rt_max -- this
+  # schema requires a numeric RT window per compound). None of the 7 recurring 87P peaks
+  # (13.9/22.4/26.7/35.2/5.7/19.8/33.2 min) match xlsx_galol in scale when back-calculated
+  # through the galol calibration curve below (all candidates 5-10x too low -- Step A3, 260828).
+  # Its calibration curve is kept in standard_curves for when a dedicated galol standard
+  # injection resolves the RT. Do not assign any of the 7 RTs to it without new evidence.
+
+standard_curves:
+  D-Galactose:
+    slope: 42799.4601
+    intercept: -2395.9675
+    source: "김지원 260827, Asana task 1217900854120378. Area(nRIU*s) = slope*conc(mM) + intercept."
+  D-Tagatose:
+    slope: 28036.567
+    intercept: -1635.8856
+    source: "김지원 260827, Asana task 1217900854120378."
+  Galactitol:
+    slope: 51034.5757
+    intercept: 1113.6734
+    source: "김지원 260827, Asana task 1217900854120378. RT UNASSIGNED -- see compounds note."
+
+dilution:
+  PREBO: 40      # confirmed: required_D = 36-41 across all 8 timepoints, consistent with anchor
+  MPSP: 40       # per WORKORDER 260827 assumption; NOT independently confirmed (co-elution masks it)
+  YIELD: 40      # per WORKORDER 260827 assumption; Gal-only back-calc implies D~109 but Tag
+                 # contradicts this at the same timepoints -- kept at 40, anomaly reported not corrected
+
+baseline:
+  method: valley_dropline
+  search_half_width_min: 1.2
+  integration: trapezoid_seconds   # area = trapezoid(corrected_signal, time_min*60); see QUANTITATION_RULES.md
+
+qc:
+  excluded_runs:
+    - "260415_MPSP_72H_87P.D"   # aborted run, stoptime 14.6 min, no Postrun in RUN.LOG

@@ -1,5 +1,9 @@
 # PeakPicker
 
+## HPLC Quantitation
+HPLC quantitation / peak area / calibration curve work → read `docs/QUANTITATION_RULES.md`
+FIRST (area convention, calibration YAML schema, column ID, peak assignment, allowed tuning axes).
+
 ## Machine Paths
 Always use `Path.home()` for user-specific paths — never hardcode usernames.
 
