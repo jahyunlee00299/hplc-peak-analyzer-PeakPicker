@@ -13,6 +13,7 @@ import numpy as np
 from ...interfaces import IPeakDetector, IPeakBoundaryFinder, ISignalProcessor
 from ...domain import Peak, PeakType
 from ...config import PeakDetectionConfig
+from ...utils.numeric import trapezoid
 
 logger = logging.getLogger(__name__)
 
@@ -133,12 +134,12 @@ class ProminencePeakDetector(IPeakDetector):
             apex = int(idx)
             peak_signal = corrected_positive[start_idx:end_idx + 1]
             peak_time_s = time[start_idx:end_idx + 1] * 60.0
-            area = float(np.trapezoid(peak_signal, peak_time_s))
-            left_area = float(np.trapezoid(
+            area = float(trapezoid(peak_signal, peak_time_s))
+            left_area = float(trapezoid(
                 corrected_positive[start_idx:apex + 1],
                 time[start_idx:apex + 1] * 60.0,
             ))
-            right_area = float(np.trapezoid(
+            right_area = float(trapezoid(
                 corrected_positive[apex:end_idx + 1],
                 time[apex:end_idx + 1] * 60.0,
             ))

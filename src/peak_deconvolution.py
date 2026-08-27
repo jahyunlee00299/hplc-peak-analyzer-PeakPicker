@@ -24,6 +24,7 @@ from src.peak_models import (
     calculate_peak_asymmetry, exponentially_modified_gaussian,
     multi_emg, estimate_tau_from_asymmetry
 )
+from src.peakpicker.utils.numeric import trapezoid
 
 
 @dataclass
@@ -498,7 +499,7 @@ class PeakDeconvolution:
                 # Calculate area using trapezoid integration (correct physical integration)
                 # This accounts for RT spacing for accurate area calculation
                 component_curve = gaussian(rt, amp, center, sigma)
-                area = np.trapz(component_curve, rt)  # Proper integration over RT
+                area = trapezoid(component_curve, rt)  # Proper integration over RT
 
                 # Note: Alternative methods:
                 # area = np.sum(component_curve) * dt  # Requires uniform dt
@@ -682,7 +683,7 @@ class PeakDeconvolution:
 
                 # Calculate area using trapezoid integration
                 component_curve = exponentially_modified_gaussian(rt, amp, center, sigma, tau)
-                area = np.trapz(component_curve, rt)
+                area = trapezoid(component_curve, rt)
 
                 total_area += area
 
