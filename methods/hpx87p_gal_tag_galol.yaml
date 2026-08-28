@@ -48,7 +48,7 @@ standard_curves:
   D-Galactose:
     slope: 42799.4601
     intercept: -2395.9675
-    source: "김지원, 260827 (received directly, not via Asana). Area(nRIU*s) = slope*conc(mM) + intercept. Raw standard-curve file not in repo/OneDrive/Asana as of 260828 — this is the only record."
+    source: "김지원, 260827 (received directly, not via Asana). Area(nRIU*s) = slope*conc(mM) + intercept. RAW STANDARD-CURVE FILE IS UNAVAILABLE — searched repo, OneDrive and Asana on 260828 and asked 김지원; the request was closed on 260828 without one. These coefficients are the only surviving record and cannot be independently verified."
   D-Tagatose:
     slope: 28036.567
     intercept: -1635.8856
@@ -77,6 +77,12 @@ series_label_swap:
     260415_PREBO: PREBO
 
 dilution:
+  # Keyed by SAMPLE (see series_label_swap), not by filename.
+  BO2_4: 100     # confirmed by 김지원, 260828. 2.5x the BO1 series.
+                 # Gal-implied D is 95.4 (n=7, range 91-96); Tag/Galol scatter to 102-172
+                 # only because y0 dominates their small early-timepoint areas (|y0|/area
+                 # 24% and 36% at t12 vs 1.1% for Gal). Late timepoints give Tag 106.9,
+                 # Galol 102.3. Compute an implied D only where area > 10x |y0|.
   PREBO: 40      # confirmed: required_D = 36-41 across all 8 timepoints, consistent with anchor
   MPSP: 40       # keyed by SAMPLE, not filename (see series_label_swap). Gal reproduces to 8.0%
   YIELD: 40      # keyed by SAMPLE, not filename (see series_label_swap). Gal reproduces to 2.5%.
