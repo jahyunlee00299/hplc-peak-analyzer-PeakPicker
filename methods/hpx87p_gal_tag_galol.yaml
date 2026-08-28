@@ -7,8 +7,8 @@ method:
 
 compounds:
   - name: D-Galactose
-    rt_min: 12.7
-    rt_max: 15.1
+    rt_min: 12.19
+    rt_max: 15.91
     unit: mM
     note: >
       13.9 min canonical RT. CONFIRMED against xlsx in PREBO series (r=0.998, median APE 1.9%).
@@ -19,15 +19,15 @@ compounds:
       the same timepoints is consistent with D=40 -- physically inconsistent for one dilution, so
       this is reported as an unresolved anomaly, not corrected. See REPORT_260828.md.
   - name: D-Tagatose
-    rt_min: 21.2
-    rt_max: 23.6
+    rt_min: 21.44
+    rt_max: 23.36
     unit: mM
     note: >
       22.4 min canonical RT. Monotonic increase confirmed across PREBO/MPSP/YIELD (Step A, 260827).
       Median APE 25% pooled tune set; YIELD held-out worse (~40%).
   - name: Galactitol
-    rt_min: 34.0
-    rt_max: 36.5
+    rt_min: 33.75
+    rt_max: 36.75
     unit: mM
     note: >
       35.0 min canonical RT (apex 34.86-35.28 across all runs). ASSIGNED BY THE USER 260828,
@@ -87,6 +87,16 @@ dilution:
   MPSP: 40       # keyed by SAMPLE, not filename (see series_label_swap). Gal reproduces to 8.0%
   YIELD: 40      # keyed by SAMPLE, not filename (see series_label_swap). Gal reproduces to 2.5%.
                  # The old "D~109" reading was an artefact of the label swap and is retired.
+
+# RT windows widened by 10% on each side, 260828. Measured on the 260415 series:
+#   Gal   12.5-15.6  -> 12.19-15.91   PREBO median APE 3.5% -> 1.3%
+#   Tag   21.6-23.2  -> 21.44-23.36   bias -27.9% -> -23.0% (pooled, n=22)
+#   Galol 34.0-36.5  -> 33.75-36.75   essentially unchanged
+# Widening past ~30% buys nothing and starts to hurt: Tag bias flattens at -20.5%
+# while the spread across timepoints (IQR) grows from 5.6% to 13.9% at +60%, because
+# the window reaches the 19.8 and 26.7 min peaks. The 26.7 peak grows 23x over the run
+# (362 -> 8411 area), so absorbing it makes late timepoints look right and early ones
+# far worse. See CHROMATOGRAM_INVENTORY_260827.md §11.3.
 
 baseline:
   method: valley_dropline
