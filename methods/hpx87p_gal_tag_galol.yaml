@@ -58,11 +58,29 @@ standard_curves:
     intercept: 1113.6734
     source: "김지원, 260827 (received directly, not via Asana). RT UNASSIGNED -- see compounds note."
 
+# ── 260415 archive: series labels are swapped (confirmed by 김지원, 260828) ──
+# Filenames were left as received so this archive still matches the original .7z.
+# Any code reading these files MUST apply the mapping below, on BOTH channels
+# (87P 38 min and 87H 17 min) — the swap happened at the vial, not the injection.
+#   260415_MPSP_*  -> YIELD sample  (design: cell 50, D-Gal 240, formate 400, 200 rpm)
+#   260415_YIELD_* -> MPSP sample   (design: cell 50, D-Gal 100, formate 300, 200 rpm)
+#   260415_PREBO_* -> PREBO         (design: cell 50, D-Gal 200, formate 550, 150 rpm)
+# Taking a filename at face value attributes a 240 mM experiment to a 100 mM one.
+# Detail: KMO repo Phase1/CHROMATOGRAM_INVENTORY_260827.md §11.
+series_label_swap:
+  archive: "260415"
+  confirmed: "김지원, 260828"
+  applies_to_channels: [87P, 87H]
+  mapping:
+    260415_MPSP: YIELD
+    260415_YIELD: MPSP
+    260415_PREBO: PREBO
+
 dilution:
   PREBO: 40      # confirmed: required_D = 36-41 across all 8 timepoints, consistent with anchor
-  MPSP: 40       # per WORKORDER 260827 assumption; NOT independently confirmed (co-elution masks it)
-  YIELD: 40      # per WORKORDER 260827 assumption; Gal-only back-calc implies D~109 but Tag
-                 # contradicts this at the same timepoints -- kept at 40, anomaly reported not corrected
+  MPSP: 40       # keyed by SAMPLE, not filename (see series_label_swap). Gal reproduces to 8.0%
+  YIELD: 40      # keyed by SAMPLE, not filename (see series_label_swap). Gal reproduces to 2.5%.
+                 # The old "D~109" reading was an artefact of the label swap and is retired.
 
 baseline:
   method: valley_dropline
