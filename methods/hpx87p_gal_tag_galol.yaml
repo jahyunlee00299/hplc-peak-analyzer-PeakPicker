@@ -25,12 +25,24 @@ compounds:
     note: >
       22.4 min canonical RT. Monotonic increase confirmed across PREBO/MPSP/YIELD (Step A, 260827).
       Median APE 25% pooled tune set; YIELD held-out worse (~40%).
-  # Galactitol: UNASSIGNED, deliberately omitted from `compounds:` (no rt_min/rt_max -- this
-  # schema requires a numeric RT window per compound). None of the 7 recurring 87P peaks
-  # (13.9/22.4/26.7/35.2/5.7/19.8/33.2 min) match xlsx_galol in scale when back-calculated
-  # through the galol calibration curve below (all candidates 5-10x too low -- Step A3, 260828).
-  # Its calibration curve is kept in standard_curves for when a dedicated galol standard
-  # injection resolves the RT. Do not assign any of the 7 RTs to it without new evidence.
+  - name: Galactitol
+    rt_min: 34.0
+    rt_max: 36.5
+    unit: mM
+    note: >
+      35.0 min canonical RT (apex 34.86-35.28 across all runs). ASSIGNED BY THE USER 260828,
+      then checked against the data: the peak starts at essentially zero (area 10-36 at t=0h),
+      rises with reaction time, and plateaus -- the behaviour of a product, which is what
+      galactitol is in this cascade. Consistent with SP0810, where Galol also elutes LAST of the
+      three (41.57 min, after Gal 19.05 and Tag 26.65; see sp0810_gal_tag_galol.yaml).
+      A prior automated pass reported "no candidate matches galol" -- that pass was wrong twice
+      over: its peak list was built at a 3% detection threshold that this peak did not clear
+      cleanly, and it scored candidates by pooling all three series, where the known per-series
+      scale gap destroys the correlation (17.6 area/mM in PREBO vs 3.8 in YIELD vs 64.5 in MPSP,
+      r=+0.35 pooled). Judge peak identity WITHIN a series, never across them.
+      SCALE IS STILL UNRESOLVED: back-calculated through the galol curve at D=40, 47.6 mM should
+      give ~61,800 area but PREBO reads ~840. The RT assignment is settled; the area-to-concentration
+      scale is blocked on the same open question as Gal and Tag (per-series dilution, asked of 김지원).
 
 standard_curves:
   D-Galactose:
