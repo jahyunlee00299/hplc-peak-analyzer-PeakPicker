@@ -36,15 +36,15 @@ standard_curves:
   D-Galactose:
     slope: 42799.4601
     intercept: -2395.9675
-    source: "김지원 260827, Asana task 1217900854120378. Area(nRIU*s) = slope*conc(mM) + intercept."
+    source: "김지원, 260827 (received directly, not via Asana). Area(nRIU*s) = slope*conc(mM) + intercept. Raw standard-curve file not in repo/OneDrive/Asana as of 260828 — this is the only record."
   D-Tagatose:
     slope: 28036.567
     intercept: -1635.8856
-    source: "김지원 260827, Asana task 1217900854120378."
+    source: "김지원, 260827 (received directly, not via Asana)."
   Galactitol:
     slope: 51034.5757
     intercept: 1113.6734
-    source: "김지원 260827, Asana task 1217900854120378. RT UNASSIGNED -- see compounds note."
+    source: "김지원, 260827 (received directly, not via Asana). RT UNASSIGNED -- see compounds note."
 
 dilution:
   PREBO: 40      # confirmed: required_D = 36-41 across all 8 timepoints, consistent with anchor
