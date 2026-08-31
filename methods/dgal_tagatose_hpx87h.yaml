@@ -70,8 +70,11 @@ compounds:
     color: "#3498db"
 
   Formate:
-    rt_expected: 14.8
-    rt_window: [14.4, 15.3]
+    rt_expected: 15.9   # corrected 260831: real peak confirmed at 15.9-15.95 min
+                        # in 260810 flask titer data (0h/36h/48h/60h + _F-fed reps);
+                        # old rt_expected=14.8/window (14.4,15.3) only ever caught
+                        # noise there. See Notion card 3cbf91ac-a96f-817a-9638-fec2a0b05c32.
+    rt_window: [15.5, 16.3]
     calibration:
       slope: 1.837991e-04   # a=5440.7244, y0=10.4596 (Asana task 1206295769083211)
       intercept: -0.001922
