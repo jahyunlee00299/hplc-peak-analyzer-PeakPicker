@@ -53,10 +53,24 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # apex-search windows; all peaks integrated valley-to-valley between the
 # midpoint-to-neighbor bounds (same construction as quantify_260810_remaining_batches.py)
+#
+# p10.3 added 260903: a genuine, resolvable shoulder peak at RT~10.3-10.4 min sits
+# between p9.4 and p10.9 -- large at vial1/t=0 (height ~1600-2450 nRIU, both
+# untreated and treated) and decays to baseline noise (~120-155 nRIU) by vial3+.
+# Without its own window, the valley-to-valley search for p10.9 walks its LEFT
+# valley past this shoulder's true local minimum and instead lands on the flat
+# baseline further left, integrating the shoulder's area INTO p10.9 -- inflating
+# combined-peak area specifically at early vials and distorting the time-course
+# shape used for the D1 vial<->timepoint mapping and all downstream gal schemes.
+# Confirmed the same shoulder exists in BOTH untreated and treated injections
+# (not GO-reaction-specific), so it is a real co-eluting species, not baseline
+# noise -- giving it a dedicated window is baseline-treatment correctness, not
+# an ad hoc exclusion.
 APEX_WINDOWS = {
     "p6.8":     (6.5,  7.1),
     "p9.4":     (9.1,  9.7),
-    "p10.9":    (10.5, 11.5),   # untreated: GAL+TAG combined | treated: TAG only
+    "p10.3":    (10.2, 10.5),   # shoulder peak, decays to baseline by vial3+
+    "p10.9":    (10.55, 11.5),  # untreated: GAL+TAG combined | treated: TAG only
     "p11.7":    (11.55, 11.95),  # Galactitol
     "p12.9":    (12.6, 13.1),
     "p15.9":    (15.5, 16.3),   # Formate -- internal reference candidate
@@ -65,6 +79,13 @@ APEX_WINDOWS = {
 REGION_START_RT = 5.0
 REGION_END_RT = 19.5
 MAX_VALLEY_SEARCH_MIN = 1.0
+# Formate (p15.9) sits on a negative-sloping/curved RID baseline (a small trough
+# dips to roughly -140 nRIU immediately before the peak rises, confirmed on
+# vial1 untreated rep1) -- the default 1.0 min valley search sometimes lands on
+# that trough instead of the flatter region right at the peak's true toe,
+# inflating baseline-subtracted area inconsistently across vials. A tighter
+# margin keeps the valley search closer to the peak, reducing that variance.
+FORMATE_MAX_VALLEY_SEARCH_MIN = 0.35
 
 # spreadsheet timepoints, in order, for the vial1-7 <-> t0..t12 confirmed mapping
 EARLY_TIMEPOINTS = [0, 1, 3, 4.5, 6, 9, 12]
@@ -84,9 +105,13 @@ def find_valley(time, intensity, lo, hi):
     return np.where(mask)[0][idx_local]
 
 
-def integrate_valley_to_valley(time, intensity, apex_windows, region_start_rt, region_end_rt, max_valley_search_min):
+def integrate_valley_to_valley(time, intensity, apex_windows, region_start_rt, region_end_rt,
+                                max_valley_search_min, per_peak_search_margin=None):
     """Same construction as quantify_260810_remaining_batches.py: apex-in-window,
-    valley bounded by neighboring apex (or region edge), linear baseline, trapezoid area."""
+    valley bounded by neighboring apex (or region edge), linear baseline, trapezoid area.
+    per_peak_search_margin: optional {name: minutes} override of max_valley_search_min for
+    specific peaks (e.g. Formate's curved baseline needs a tighter search, see p10.3 comment)."""
+    per_peak_search_margin = per_peak_search_margin or {}
     names = list(apex_windows.keys())
     apex_idx = {}
     for name, (lo, hi) in apex_windows.items():
@@ -106,13 +131,14 @@ def integrate_valley_to_valley(time, intensity, apex_windows, region_start_rt, r
     for i, name in enumerate(ordered):
         a_idx = apex_idx[name]
         apex_rt = time[a_idx]
+        margin = per_peak_search_margin.get(name, max_valley_search_min)
 
         left_bound_rt = time[left_bound_idx] if i == 0 else time[apex_idx[ordered[i - 1]]]
-        left_lo = max(left_bound_rt, apex_rt - max_valley_search_min)
+        left_lo = max(left_bound_rt, apex_rt - margin)
         left_valley_idx = find_valley(time, intensity, left_lo, apex_rt)
 
         right_bound_rt = time[right_bound_idx] if i == len(ordered) - 1 else time[apex_idx[ordered[i + 1]]]
-        right_hi = min(right_bound_rt, apex_rt + max_valley_search_min)
+        right_hi = min(right_bound_rt, apex_rt + margin)
         right_valley_idx = find_valley(time, intensity, apex_rt, right_hi)
 
         if left_valley_idx is None or right_valley_idx is None:
@@ -161,7 +187,8 @@ def process_all():
                 continue
             time, sig = read_rid(ch)
             matched = integrate_valley_to_valley(
-                time, sig, APEX_WINDOWS, REGION_START_RT, REGION_END_RT, MAX_VALLEY_SEARCH_MIN)
+                time, sig, APEX_WINDOWS, REGION_START_RT, REGION_END_RT, MAX_VALLEY_SEARCH_MIN,
+                per_peak_search_margin={"p15.9": FORMATE_MAX_VALLEY_SEARCH_MIN})
             v, rep = vial_key(d.name)
             for peak_name, pk in matched.items():
                 row = {'kind': kind, 'sample': d.stem, 'vial': v, 'replicate': rep, 'peak': peak_name}
