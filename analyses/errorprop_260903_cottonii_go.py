@@ -110,7 +110,13 @@ def main():
 
     # Now propagate for scheme A and scheme B, at t=0 (vial1) and plateau (vial8-15) as
     # representative early/late cases
-    k = 5.49621596e-04  # from compare_260903_cottonii_go_schemes.py anchor
+    k = 6.44957628e-04  # from compare_260903_cottonii_go_schemes.py anchor
+    # NOTE 260903 (D7 adversarial review): this was stale at 5.49621596e-04 (the
+    # pre-shoulder-peak-fix anchor) until this fix -- every sigma_gal in this
+    # script's earlier output run understated results by ~17%. Value must be
+    # kept in sync with build_scheme_A()'s computed k in
+    # compare_260903_cottonii_go_schemes.py; consider importing it directly
+    # instead of hardcoding if this script is extended further.
 
     def get(kind, vial, rep, peak):
         row = sigma_df[(sigma_df.kind == kind) & (sigma_df.vial == vial) & (sigma_df.replicate == rep) & (sigma_df.peak == peak)]
