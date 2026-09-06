@@ -41,3 +41,8 @@ _tmp_*.py
 scripts/_diag_*.py
 scripts/_analyze_*.py
 analyses/*.txt
+
+# Calibration standards are INPUTS, not outputs: the coefficients in methods/*.yaml
+# cannot be re-derived without them. The 260810 curve was recovered from a KakaoTalk
+# download folder on 260906 after its r2 sat as `null` for weeks.
+!methods/standards/*.xlsx

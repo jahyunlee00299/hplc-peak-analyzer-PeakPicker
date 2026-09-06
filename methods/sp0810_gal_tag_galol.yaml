@@ -18,8 +18,8 @@ compounds:
     calibration:
       slope: 69587.6626      # a
       intercept: -6370.9125  # y0
-      r2: null
-      source: "sp0810_std_gal_galol_tag_2606.xlsx (260812 session, area-matched)"
+      r2: 0.999836
+      source: "sp0810_std_gal_galol_tag_2606.xlsx (260812 session, area-matched); r2 filled 260906 from ~/Documents/카카오톡 받은 파일/ — 5-point fit reproduces slope/intercept to the last digit"
     color: "#3498db"
 
   Tag:
@@ -28,8 +28,8 @@ compounds:
     calibration:
       slope: 58227.8378      # a
       intercept: -284.3917   # y0
-      r2: null
-      source: "sp0810_std_gal_galol_tag_2606.xlsx (260812 session, area-matched)"
+      r2: 0.999911
+      source: "sp0810_std_gal_galol_tag_2606.xlsx (260812 session, area-matched); r2 filled 260906 from ~/Documents/카카오톡 받은 파일/ — 5-point fit reproduces slope/intercept to the last digit"
     color: "#e67e22"
 
   Galol:
@@ -38,8 +38,8 @@ compounds:
     calibration:
       slope: 75968.4499      # a
       intercept: 3183.7165   # y0
-      r2: null
-      source: "sp0810_std_gal_galol_tag_2606.xlsx (260812 session, area-matched)"
+      r2: 0.999984
+      source: "sp0810_std_gal_galol_tag_2606.xlsx (260812 session, area-matched); r2 filled 260906 from ~/Documents/카카오톡 받은 파일/ — 5-point fit reproduces slope/intercept to the last digit"
     color: "#9b59b6"
 
   # Formate은 SP0810 컬럼에서 분석 불가 (사용자 확인, 260812) — method에서 제외
