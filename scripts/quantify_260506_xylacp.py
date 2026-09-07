@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks
 from src.chemstation_parser import ChemstationParser
+from src.peakpicker.utils.numeric import trapezoid
 
 # ── Config ────────────────────────────────────────────────────────────────────
 BASE = Path(r'C:\tmp_hplc')   # junction to the run folder (avoids en-dash in path)
@@ -105,7 +106,7 @@ def integrate_bl(t, y, rt_start, rt_end, bl_left_rt, bl_right_rt):
         return 0.0, None
     baseline = np.interp(t_w, [bl_left_rt, bl_right_rt], [bl_y0, bl_y1])
     y_corr = y_w - baseline
-    area_sec = float(np.trapezoid(y_corr, t_w)) * 60.0
+    area_sec = float(trapezoid(y_corr, t_w)) * 60.0
     rt_peak = float(t_w[np.argmax(y_corr)])
     return area_sec, rt_peak
 
@@ -163,7 +164,7 @@ for folder, sample in SAMPLE_MAP:
         else:
             mask = (t >= cfg["rt"][0]) & (t <= cfg["rt"][1])
             t_w, y_w = t[mask], y[mask]
-            area   = float(np.trapezoid(y_w, t_w)) * 60.0 if len(t_w) >= 2 else 0.0
+            area   = float(trapezoid(y_w, t_w)) * 60.0 if len(t_w) >= 2 else 0.0
             rt_det = float(t_w[np.argmax(y_w)]) if len(t_w) else None
 
         conc_diluted = area_to_conc(area, cfg["slope"], cfg["intercept"])

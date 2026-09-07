@@ -18,6 +18,7 @@ import numpy as np
 from ...interfaces import IPeakDetector, IPeakBoundaryFinder, ISignalProcessor
 from ...domain import Peak, PeakType
 from ...config import PeakDetectionConfig
+from ...utils.numeric import trapezoid
 
 logger = logging.getLogger(__name__)
 
@@ -111,15 +112,15 @@ class TwoPassPeakDetector(IPeakDetector):
             rt_end = float(time[end_idx])
             height = float(corrected[apex])
             # Integrate in seconds (time is in minutes) to match Chemstation units
-            area = float(np.trapezoid(
+            area = float(trapezoid(
                 corrected[start_idx:end_idx + 1],
                 time[start_idx:end_idx + 1] * 60.0,
             ))
-            left_area = float(np.trapezoid(
+            left_area = float(trapezoid(
                 corrected[start_idx:apex + 1],
                 time[start_idx:apex + 1] * 60.0,
             ))
-            right_area = float(np.trapezoid(
+            right_area = float(trapezoid(
                 corrected[apex:end_idx + 1],
                 time[apex:end_idx + 1] * 60.0,
             ))

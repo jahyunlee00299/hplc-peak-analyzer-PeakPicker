@@ -494,5 +494,47 @@ class TestAnalyzerDynamicWindow:
         assert not has_shoulder, "Gaussian 피크에 shoulder가 잘못 감지됨"
 
 
+class TestAreaConventionSeconds:
+    """
+    ChemStation area convention regression guard (260828).
+
+    Area MUST be integrated in seconds (time_min * 60), not minutes -- a bare
+    minute-axis trapezoid silently returns areas 60x too small and every
+    downstream calibration curve (fit in nRIU*s) then reads 60x too high a
+    concentration. This exact regression cost a full HPLC re-quantitation
+    cycle (see ~/scratch/gpo_87p_260827/REPORT_260828.md, Step A2). Pin it
+    here so the next person who "cleans up" the *60.0 in peak_detector.py
+    breaks a test, not a downstream fit silently.
+    """
+
+    def _make_detector(self):
+        from peakpicker.peak_analysis.detectors.peak_detector import ProminencePeakDetector
+        from peakpicker.infrastructure.signal_processing.scipy_adapter import ScipySignalProcessor
+        return ProminencePeakDetector(signal_processor=ScipySignalProcessor())
+
+    def test_area_is_60x_minute_integration(self):
+        """Synthetic Gaussian peak: seconds-area must equal ~60x the minute-axis trapezoid."""
+        det = self._make_detector()
+        time = np.linspace(0, 10, 6000)  # minutes
+        signal = 100_000 * np.exp(-0.5 * ((time - 5) / 0.2) ** 2)
+        peaks = det.detect(time, signal)
+        assert len(peaks) >= 1, "합성 피크가 감지되지 않음"
+        peak = max(peaks, key=lambda p: p.height)
+
+        start, end = peak.index_start, peak.index_end
+        area_minutes = float(trapezoid(signal[start:end + 1], time[start:end + 1]))
+        expected_seconds_area = area_minutes * 60.0
+
+        assert peak.area == pytest.approx(expected_seconds_area, rel=1e-6), (
+            f"Area convention regression: got {peak.area}, expected ~60x the minute-axis "
+            f"integral ({expected_seconds_area}). See QUANTITATION_RULES.md."
+        )
+        # and the inverse: area must NOT match a plain minute-axis integration
+        assert peak.area != pytest.approx(area_minutes, rel=1e-3), (
+            "Area matches minute-axis integration directly -- the *60.0 seconds "
+            "conversion has been silently reverted."
+        )
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v', '--tb=short'])

@@ -1,0 +1,108 @@
+method:
+  name: hpx87p_gal_tag_galol_v1
+  column: Bio-Rad Aminex HPX-87P
+  detector: RID
+  # stoptime ~38 min identifies this column; do not trust the stored Acq. Method name
+  # (found stale/mislabeled in the 260827/260828 87P re-quantitation, see QUANTITATION_RULES.md)
+
+compounds:
+  - name: D-Galactose
+    rt_min: 12.19
+    rt_max: 15.91
+    unit: mM
+    note: >
+      13.9 min canonical RT. CONFIRMED against xlsx in PREBO series (r=0.998, median APE 1.9%).
+      In MPSP series this RT co-elutes with an unidentified non-Gal component -- xlsx_Gal=0 at
+      t>=24h but the peak area implies 50-83 mM residual (Step A2, 260828). In YIELD series the
+      apex drifts 13.9->15.0 min over the run (RT search window widened to bracket the drift) and
+      even at stable RT (t<=12h) the calibrated concentration implies D~109 for Gal while Tag at
+      the same timepoints is consistent with D=40 -- physically inconsistent for one dilution, so
+      this is reported as an unresolved anomaly, not corrected. See REPORT_260828.md.
+  - name: D-Tagatose
+    rt_min: 21.44
+    rt_max: 23.36
+    unit: mM
+    note: >
+      22.4 min canonical RT. Monotonic increase confirmed across PREBO/MPSP/YIELD (Step A, 260827).
+      Median APE 25% pooled tune set; YIELD held-out worse (~40%).
+  - name: Galactitol
+    rt_min: 33.75
+    rt_max: 36.75
+    unit: mM
+    note: >
+      35.0 min canonical RT (apex 34.86-35.28 across all runs). ASSIGNED BY THE USER 260828,
+      then checked against the data: the peak starts at essentially zero (area 10-36 at t=0h),
+      rises with reaction time, and plateaus -- the behaviour of a product, which is what
+      galactitol is in this cascade. Consistent with SP0810, where Galol also elutes LAST of the
+      three (41.57 min, after Gal 19.05 and Tag 26.65; see sp0810_gal_tag_galol.yaml).
+      A prior automated pass reported "no candidate matches galol" -- that pass was wrong twice
+      over: its peak list was built at a 3% detection threshold that this peak did not clear
+      cleanly, and it scored candidates by pooling all three series, where the known per-series
+      scale gap destroys the correlation (17.6 area/mM in PREBO vs 3.8 in YIELD vs 64.5 in MPSP,
+      r=+0.35 pooled). Judge peak identity WITHIN a series, never across them.
+      SCALE IS STILL UNRESOLVED: back-calculated through the galol curve at D=40, 47.6 mM should
+      give ~61,800 area but PREBO reads ~840. The RT assignment is settled; the area-to-concentration
+      scale is blocked on the same open question as Gal and Tag (per-series dilution, asked of 김지원).
+
+standard_curves:
+  D-Galactose:
+    slope: 42799.4601
+    intercept: -2395.9675
+    source: "김지원, 260827 (received directly, not via Asana). Area(nRIU*s) = slope*conc(mM) + intercept. RAW STANDARD-CURVE FILE IS UNAVAILABLE — searched repo, OneDrive and Asana on 260828 and asked 김지원; the request was closed on 260828 without one. These coefficients are the only surviving record and cannot be independently verified."
+  D-Tagatose:
+    slope: 28036.567
+    intercept: -1635.8856
+    source: "김지원, 260827 (received directly, not via Asana)."
+  Galactitol:
+    slope: 51034.5757
+    intercept: 1113.6734
+    source: "김지원, 260827 (received directly, not via Asana). RT UNASSIGNED -- see compounds note."
+
+# ── 260415 archive: series labels are swapped (confirmed by 김지원, 260828) ──
+# Filenames were left as received so this archive still matches the original .7z.
+# Any code reading these files MUST apply the mapping below, on BOTH channels
+# (87P 38 min and 87H 17 min) — the swap happened at the vial, not the injection.
+#   260415_MPSP_*  -> YIELD sample  (design: cell 50, D-Gal 240, formate 400, 200 rpm)
+#   260415_YIELD_* -> MPSP sample   (design: cell 50, D-Gal 100, formate 300, 200 rpm)
+#   260415_PREBO_* -> PREBO         (design: cell 50, D-Gal 200, formate 550, 150 rpm)
+# Taking a filename at face value attributes a 240 mM experiment to a 100 mM one.
+# Detail: KMO repo Phase1/CHROMATOGRAM_INVENTORY_260827.md §11.
+series_label_swap:
+  archive: "260415"
+  confirmed: "김지원, 260828"
+  applies_to_channels: [87P, 87H]
+  mapping:
+    260415_MPSP: YIELD
+    260415_YIELD: MPSP
+    260415_PREBO: PREBO
+
+dilution:
+  # Keyed by SAMPLE (see series_label_swap), not by filename.
+  BO2_4: 100     # confirmed by 김지원, 260828. 2.5x the BO1 series.
+                 # Gal-implied D is 95.4 (n=7, range 91-96); Tag/Galol scatter to 102-172
+                 # only because y0 dominates their small early-timepoint areas (|y0|/area
+                 # 24% and 36% at t12 vs 1.1% for Gal). Late timepoints give Tag 106.9,
+                 # Galol 102.3. Compute an implied D only where area > 10x |y0|.
+  PREBO: 40      # confirmed: required_D = 36-41 across all 8 timepoints, consistent with anchor
+  MPSP: 40       # keyed by SAMPLE, not filename (see series_label_swap). Gal reproduces to 8.0%
+  YIELD: 40      # keyed by SAMPLE, not filename (see series_label_swap). Gal reproduces to 2.5%.
+                 # The old "D~109" reading was an artefact of the label swap and is retired.
+
+# RT windows widened by 10% on each side, 260828. Measured on the 260415 series:
+#   Gal   12.5-15.6  -> 12.19-15.91   PREBO median APE 3.5% -> 1.3%
+#   Tag   21.6-23.2  -> 21.44-23.36   bias -27.9% -> -23.0% (pooled, n=22)
+#   Galol 34.0-36.5  -> 33.75-36.75   essentially unchanged
+# Widening past ~30% buys nothing and starts to hurt: Tag bias flattens at -20.5%
+# while the spread across timepoints (IQR) grows from 5.6% to 13.9% at +60%, because
+# the window reaches the 19.8 and 26.7 min peaks. The 26.7 peak grows 23x over the run
+# (362 -> 8411 area), so absorbing it makes late timepoints look right and early ones
+# far worse. See CHROMATOGRAM_INVENTORY_260827.md §11.3.
+
+baseline:
+  method: valley_dropline
+  search_half_width_min: 1.2
+  integration: trapezoid_seconds   # area = trapezoid(corrected_signal, time_min*60); see QUANTITATION_RULES.md
+
+qc:
+  excluded_runs:
+    - "260415_MPSP_72H_87P.D"   # aborted run, stoptime 14.6 min, no Postrun in RUN.LOG

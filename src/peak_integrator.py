@@ -10,6 +10,8 @@ Supports three integration modes:
 import numpy as np
 from typing import Tuple
 
+from src.peakpicker.utils.numeric import trapezoid
+
 
 def find_peak_boundaries(
     time: np.ndarray,
@@ -138,21 +140,21 @@ def integrate_peak(
         seg_i = intensity[left_idx:right_idx + 1]
         # Valley baseline: straight line from left boundary to right boundary
         baseline = np.linspace(seg_i[0], seg_i[-1], len(seg_i))
-        area = np.trapezoid(seg_i - baseline, seg_t) * 60.0  # min -> s
+        area = trapezoid(seg_i - baseline, seg_t) * 60.0  # min -> s
 
     elif mode == "left_half":
         seg_t = time[left_idx:peak_idx + 1]
         seg_i = intensity[left_idx:peak_idx + 1]
         # Baseline: horizontal line at left boundary signal level
         baseline_val = intensity[left_idx]
-        area = np.trapezoid(seg_i - baseline_val, seg_t) * 60.0
+        area = trapezoid(seg_i - baseline_val, seg_t) * 60.0
 
     elif mode == "right_half":
         seg_t = time[peak_idx:right_idx + 1]
         seg_i = intensity[peak_idx:right_idx + 1]
         # Baseline: horizontal line at right boundary signal level
         baseline_val = intensity[right_idx]
-        area = np.trapezoid(seg_i - baseline_val, seg_t) * 60.0
+        area = trapezoid(seg_i - baseline_val, seg_t) * 60.0
 
     else:
         raise ValueError(f"Unknown mode '{mode}'. Use 'full', 'left_half', or 'right_half'.")

@@ -24,6 +24,7 @@ from scipy.signal import find_peaks
 PEAKPICKER_SRC = os.path.expanduser(r"~\PeakPicker\src")
 sys.path.insert(0, PEAKPICKER_SRC)
 from chemstation_parser import ChemstationParser
+from peakpicker.utils.numeric import trapezoid
 
 # ── 경로 설정 ──────────────────────────────────────────────────────
 DATA_DIR = r"C:\Chem32\1\DATA\2. D-Xyl cascade HPLC\Xul 5P production\Pretest\260317_Xul5P_AcP_Pre"
@@ -111,7 +112,7 @@ def get_area(time, intensity, rt_lo, rt_hi):
     mask = (time >= rt_lo) & (time <= rt_hi)
     if mask.sum() < 2:
         return 0.0
-    return float(np.trapz(intensity[mask], time[mask] * 60))  # nRIU*s
+    return float(trapezoid(intensity[mask], time[mask] * 60))  # nRIU*s
 
 
 def detect_peaks(time, intensity, prominence=300, distance_pts=40):
