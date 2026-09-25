@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Data and Results
+exported_signals/
+results/
+analysis_results/
+*.csv
+*.xlsx
+
+# Temporary files
+*.tmp
+*.log
+
+# Chromatogram images and test outputs
+final_chromatograms/
+*.png
+*.jpg
+*.pdf
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# Test outputs
+test_results/
+test_sessions/
+
+# Scratch/diagnostic one-offs (archive to ~/archive, never commit) — C-05
+_tmp_*.py
+scripts/_diag_*.py
+scripts/_analyze_*.py
+analyses/*.txt
+
+# Calibration standards are INPUTS, not outputs: the coefficients in methods/*.yaml
+# cannot be re-derived without them (a curve once had to be recovered from a chat
+# download folder after its r2 sat as `null` for weeks).
+!methods/standards/*.xlsx
+
+# Private, experiment-specific plugins (parsers/presets/method rules). Not part
+# of the public repo — tracked separately in a private plugins repo.
+/plugins/
+
+# Private lab overlay (tracked in the PeakPicker-analyses repo, never here):
+# experiment scripts, real methods, lab tests, agent config.
+/analyses/
+/methods/*.yaml
+!/methods/example_hpx87h.yaml
+/methods/standards/
+/tests/lab/
+/archive/
+/CLAUDE.md
+/.git-analyses/

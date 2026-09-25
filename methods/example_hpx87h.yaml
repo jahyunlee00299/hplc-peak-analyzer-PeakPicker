@@ -1,0 +1,51 @@
+# Synthetic public example method — invented compounds, RT windows and
+# calibration constants. Used to exercise MethodSelector / MethodConfig on
+# the public code path without depending on any private/lab-specific YAML.
+method_id: example_hpx87h_v1
+column: HPX-87H
+mobile_phase: 5mM H2SO4
+flow_rate_mLmin: 0.5
+temperature_C: 65
+detector: RID
+signal_file: RID1A.ch
+
+match:
+  signal: RID1A.ch
+  keywords: [EXAMPLE_COMPOUND]
+  priority: 5
+
+compounds:
+  CompoundA:
+    rt_expected: 8.00
+    rt_window: [7.70, 8.30]
+    calibration:
+      slope: 5.0e-05
+      intercept: 0.0
+      r2: 0.999
+      source: "synthetic example standard curve"
+    color: "#3498db"
+  CompoundB:
+    rt_expected: 12.50
+    rt_window: [12.10, 12.90]
+    calibration:
+      slope: 3.0e-05
+      intercept: 0.01
+      r2: 0.997
+      source: "synthetic example standard curve"
+    color: "#e67e22"
+
+baseline:
+  method: valley_dropline
+  smoothing: savgol
+  smoothing_window: 11
+  smoothing_poly: 3
+
+peak_detection:
+  min_prominence_factor: 3.0
+  min_height_fraction: 0.01
+  distance_pts: 10
+
+qc:
+  ne_control_keyword: "_NE_"
+  max_product_area_ne: 5000
+  min_r2_calibration: 0.99
