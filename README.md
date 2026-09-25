@@ -32,6 +32,19 @@ src/
     quant/             # Quantification methods (public API: QuantMethod, StandardCurve)
 ```
 
+## Lab-specific code: plugins
+
+The library is generic. Sample-name conventions, quantification presets and
+method-selection rules for a particular lab live outside this repository as
+plugins and method YAMLs — see [docs/PLUGINS.md](docs/PLUGINS.md).
+
+## Related
+
+- [sci-toolkit](https://github.com/jahyunlee00299/sci-toolkit) — the lab's research
+  skill bundle. Its `scripts/hplc_parser.py` is a stdlib-only port of this
+  project's peak detection for quick trace reads; its `lab-data-analysis` skill
+  routes full quantification here.
+
 ## Dependencies
 
 numpy, pandas, scipy, matplotlib, openpyxl, lmfit, pybaselines, rainbow-api
