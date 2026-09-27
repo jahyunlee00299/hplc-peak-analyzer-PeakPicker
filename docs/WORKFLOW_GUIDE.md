@@ -1,43 +1,43 @@
-# 완전 자동화 워크플로우 가이드
+# Fully Automated Workflow Guide
 
-## 개요
+## Overview
 
-`complete_workflow.py`는 HPLC 데이터 분석의 전체 과정을 자동화합니다:
+`complete_workflow.py` automates the entire HPLC data analysis process:
 
 ```
-Export (Chemstation) → 베이스라인 보정 → 피크 검출 → 정량 분석 → 시각화
+Export (Chemstation) → Baseline Correction → Peak Detection → Quantification → Visualization
 ```
 
-## 빠른 시작
+## Quick Start
 
-### 방법 1: Export부터 시작
+### Method 1: Start from Export
 
-Chemstation에서 직접 데이터를 추출하여 분석합니다.
+Extract data directly from Chemstation and analyze it.
 
 ```bash
 python complete_workflow.py
 ```
 
-1. 모드 선택에서 `1` 입력 (Export부터 시작)
-2. Chemstation이 실행 중인지 확인 후 Enter
-3. 폴더 탐색 모드 선택 (대화형/직접 경로/전체 스캔)
-4. 자동으로 분석 및 시각화 완료
+1. Enter `1` at the mode selection (start from Export)
+2. Confirm that Chemstation is running, then press Enter
+3. Choose a folder browsing mode (interactive / direct path / full scan)
+4. Analysis and visualization complete automatically
 
-### 방법 2: 기존 폴더 분석
+### Method 2: Analyze an Existing Folder
 
-이미 export된 CSV 파일이 있는 경우:
+If you already have exported CSV files:
 
 ```bash
 python complete_workflow.py
 ```
 
-1. 모드 선택에서 `2` 입력 (기존 폴더 분석)
-2. 폴더 경로 입력: `result/DEF_LC 2025-05-19 17-57-25`
-3. 자동으로 분석 및 시각화 완료
+1. Enter `2` at the mode selection (analyze an existing folder)
+2. Enter the folder path: `result/DEF_LC 2025-05-19 17-57-25`
+3. Analysis and visualization complete automatically
 
-### 방법 3: 프로그래밍 방식
+### Method 3: Programmatic Usage
 
-Python 코드에서 직접 호출:
+Call directly from Python code:
 
 ```python
 from complete_workflow import WorkflowManager
@@ -50,103 +50,103 @@ if workflow.run_quantification():
     workflow.show_results_viewer()
 ```
 
-## 시각화 창 기능
+## Visualization Window Features
 
-분석이 완료되면 대화형 결과 뷰어가 표시됩니다:
+Once analysis is complete, an interactive result viewer is displayed:
 
-### 탭 1: 검량선 (Calibration Curve)
+### Tab 1: Calibration Curve
 
-- 농도별 피크 면적 그래프
-- 선형 회귀선 (실측값 vs 참조값)
-- R² 값 및 회귀식
-- 반복 측정 분포
+- Peak area vs. concentration graph
+- Linear regression line (measured vs. reference values)
+- R² value and regression equation
+- Distribution of replicate measurements
 
-### 탭 2: 농도별 요약
+### Tab 2: Summary by Concentration
 
-- 농도별 통계 (평균, 표준편차, 샘플 수)
-- RT, 높이, 면적 정보
-- CSV 형식으로 정리된 표
+- Statistics per concentration (mean, standard deviation, sample count)
+- RT, height, area information
+- A table organized in CSV format
 
-### 탭 3: 전체 상세 데이터
+### Tab 3: Full Detail Data
 
-- 모든 피크의 상세 정보
-- 샘플명, 농도, RT, 높이, 면적, 폭 등
-- 최대 500개 행 표시
+- Detailed information for every peak
+- Sample name, concentration, RT, height, area, width, etc.
+- Up to 500 rows displayed
 
-### 하단 버튼
+### Bottom Buttons
 
-- **폴더 열기**: 결과가 저장된 폴더를 탐색기에서 열기
-- **닫기**: 시각화 창 닫기
+- **Open Folder**: open the folder containing the results in Explorer
+- **Close**: close the visualization window
 
-## 출력 결과
+## Output Results
 
-분석 결과는 `result/폴더명/quantification/`에 저장됩니다:
+Analysis results are saved to `result/{folder_name}/quantification/`:
 
 ```
 quantification/
-├── calibration_curve.png       # 검량선 그래프
-├── peak_area_summary.csv       # 농도별 요약 통계
-└── all_peaks_detailed.csv      # 전체 피크 상세 정보
+├── calibration_curve.png       # calibration curve graph
+├── peak_area_summary.csv       # summary statistics by concentration
+└── all_peaks_detailed.csv      # full peak detail information
 ```
 
-## 분석 파라미터
+## Analysis Parameters
 
-### 면적 계산 방법
+### Area Calculation Method
 
-- **경계 검출**: 베이스라인 복귀 지점 (noise_level * 2)
-- **적분 방법**: Trapezoidal integration
-- **시간 단위**: 초 (분 → 초 변환)
-- **정확도**: 97% (참조값 대비)
+- **Boundary detection**: point where the signal returns to baseline (noise_level * 2)
+- **Integration method**: trapezoidal integration
+- **Time unit**: seconds (minutes → seconds conversion)
+- **Accuracy**: 97% (relative to reference values)
 
-### 검량선 비교
+### Calibration Curve Comparison
 
-참조값 (Chemstation 또는 다른 기준):
-- y0 (절편): 2173.0209
-- a (기울기): 52004.0462
+Reference values (Chemstation or another standard):
+- y0 (intercept): 2173.0209
+- a (slope): 52004.0462
 
-실측값과 자동 비교하여 차이를 % 단위로 표시합니다.
+Measured values are automatically compared against the reference, and the difference is shown as a percentage.
 
-## 문제 해결
+## Troubleshooting
 
-### Export 실패
+### Export Failure
 
-- Chemstation이 실행 중인지 확인
-- 올바른 데이터 폴더가 선택되었는지 확인
-- 키보드 자동화 타이밍 조정 필요 시 `auto_export_keyboard_final.py` 수정
+- Check that Chemstation is running
+- Check that the correct data folder is selected
+- If keyboard automation timing needs adjusting, edit `auto_export_keyboard_final.py`
 
-### 분석 실패
+### Analysis Failure
 
-- CSV 파일이 올바른 형식인지 확인 (UTF-16 LE, tab-separated)
-- 폴더 경로에 한글이 포함되어 있는지 확인
-- 피크가 검출되지 않는 경우 신호 강도 확인
+- Check that the CSV file is in the correct format (UTF-16 LE, tab-separated)
+- Check whether the folder path contains Korean characters
+- If no peaks are detected, check the signal intensity
 
-### 시각화 창이 뜨지 않음
+### Visualization Window Does Not Appear
 
-- Tkinter가 설치되어 있는지 확인
-- Pillow 라이브러리 설치: `pip install Pillow`
-- matplotlib 버전 확인: `pip install --upgrade matplotlib`
+- Check that Tkinter is installed
+- Install the Pillow library: `pip install Pillow`
+- Check the matplotlib version: `pip install --upgrade matplotlib`
 
-## 고급 사용법
+## Advanced Usage
 
-### 사용자 정의 파라미터
+### Custom Parameters
 
-`quantify_peaks.py`의 `PeakQuantifier` 클래스에서 파라미터 조정:
+Adjust parameters in the `PeakQuantifier` class in `quantify_peaks.py`:
 
 ```python
-# 베이스라인 방법 선택
-baseline_method = 'robust_fit'  # 또는 'weighted_spline'
+# Select the baseline method
+baseline_method = 'robust_fit'  # or 'weighted_spline'
 
-# 피크 검출 민감도 조정
+# Adjust peak detection sensitivity
 min_prominence = signal_range * 0.005
 min_height = noise_level * 2
 
-# 베이스라인 복귀 임계값
+# Baseline-return threshold
 baseline_threshold = noise_level * 2
 ```
 
-### 배치 분석
+### Batch Analysis
 
-여러 폴더를 한 번에 분석:
+Analyze multiple folders at once:
 
 ```python
 from complete_workflow import WorkflowManager
@@ -162,15 +162,15 @@ for folder in folders:
     workflow = WorkflowManager()
     workflow.output_folder = Path(folder)
     workflow.run_quantification()
-    # 시각화는 마지막에만 표시
+    # only visualize the last one
 
-# 마지막 결과 시각화
+# Visualize the final result
 workflow.show_results_viewer()
 ```
 
-## 참고
+## Notes
 
-- 전체 프로세스는 일반적으로 1-2분 소요 (샘플 수에 따라 다름)
-- 시각화 창을 닫으면 프로그램이 종료됩니다
-- 분석 중 생성된 모든 CSV 파일은 Excel에서 열 수 있습니다
-- 검량선 이미지는 PNG 형식으로 저장되어 보고서에 바로 삽입 가능합니다
+- The full process typically takes 1-2 minutes (depending on the number of samples)
+- Closing the visualization window ends the program
+- All CSV files generated during analysis can be opened in Excel
+- Calibration curve images are saved in PNG format and can be inserted directly into reports

@@ -118,10 +118,10 @@ class SequenceIntegrityChecker:
 
         signal = d_folder / self.signal_file
         if not signal.exists():
-            info.reason = f"{self.signal_file} 없음"
+            info.reason = f"{self.signal_file} not found"
             return info
         if signal.stat().st_size <= _DATA_START:
-            info.reason = f"데이터 영역 없음 ({signal.stat().st_size} bytes)"
+            info.reason = f"no data region ({signal.stat().st_size} bytes)"
             return info
 
         blob = signal.read_bytes()
@@ -129,7 +129,7 @@ class SequenceIntegrityChecker:
             start = struct.unpack(">i", blob[_OFF_START_MS:_OFF_START_MS + 4])[0]
             end = struct.unpack(">i", blob[_OFF_END_MS:_OFF_END_MS + 4])[0]
         except struct.error as exc:
-            info.reason = f"헤더 파싱 실패: {exc}"
+            info.reason = f"header parse failed: {exc}"
             return info
 
         info.start_min = start / 60000.0
@@ -301,7 +301,7 @@ def build_rename_plan(existing: Iterable[str], mapping: Dict[str, str]) -> Renam
     for dst, srcs in targets.items():
         if len(srcs) > 1:
             plan.conflicts.append(
-                f"여러 원본이 같은 이름으로: {sorted(srcs)} -> {dst}"
+                f"Multiple sources map to the same name: {sorted(srcs)} -> {dst}"
             )
 
     def sort_key(item: Tuple[str, str]) -> Tuple[int, str]:
@@ -315,10 +315,10 @@ def build_rename_plan(existing: Iterable[str], mapping: Dict[str, str]) -> Renam
     state = set(present)
     for src, dst in pending:
         if dst in state and dst not in {s for s, _ in pending}:
-            plan.conflicts.append(f"대상이 이미 존재하며 이동 예정도 아님: {dst}")
+            plan.conflicts.append(f"Destination already exists and is not scheduled to move: {dst}")
             continue
         if dst in state:
-            plan.conflicts.append(f"순서로 해소되지 않는 충돌(순환 의심): {src} -> {dst}")
+            plan.conflicts.append(f"Conflict not resolvable by ordering (suspected cycle): {src} -> {dst}")
             continue
         state.discard(src)
         state.add(dst)
@@ -326,7 +326,7 @@ def build_rename_plan(existing: Iterable[str], mapping: Dict[str, str]) -> Renam
 
     missing = [s for s in mapping if s not in present]
     for name in missing:
-        logger.warning("rename 원본 없음: %s", name)
+        logger.warning("rename source not found: %s", name)
     return plan
 
 
@@ -378,11 +378,11 @@ def verify_rename(
     for src_name, dst_name in sorted(mapping.items()):
         if src_name not in src_manifest:
             differing.append({"src": src_name, "dst": dst_name,
-                              "issue": "원본에 없음"})
+                              "issue": "missing from source"})
             continue
         if dst_name not in dst_manifest:
             differing.append({"src": src_name, "dst": dst_name,
-                              "issue": "사본에 없음"})
+                              "issue": "missing from copy"})
             continue
         left, right = src_manifest[src_name], dst_manifest[dst_name]
         if left == right:
@@ -391,7 +391,7 @@ def verify_rename(
             differing.append({
                 "src": src_name,
                 "dst": dst_name,
-                "issue": "내용 불일치",
+                "issue": "content mismatch",
                 "only_in_src": sorted(set(left) - set(right))[:5],
                 "only_in_dst": sorted(set(right) - set(left))[:5],
                 "changed": sorted(k for k in set(left) & set(right)
@@ -434,12 +434,12 @@ def apply_rename_to_copy(
     """
     src_dir, dst_dir = Path(src_dir), Path(dst_dir)
     if dst_dir.exists():
-        raise FileExistsError(f"대상이 이미 존재합니다: {dst_dir}")
+        raise FileExistsError(f"Destination already exists: {dst_dir}")
 
     names = [p.name for p in src_dir.iterdir() if p.is_dir()]
     plan = build_rename_plan(names, mapping)
     if not plan.is_safe:
-        raise ValueError("rename 계획이 안전하지 않습니다: " + "; ".join(plan.conflicts))
+        raise ValueError("Rename plan is not safe: " + "; ".join(plan.conflicts))
 
     shutil.copytree(src_dir, dst_dir)
 

@@ -1,14 +1,14 @@
 """
-전체 LC 데이터 배치 분석 스크립트
+Full LC data batch analysis script
 ==================================
-C:\\Chem32\\1\\DATA\\ 아래 모든 .D 폴더의 .ch 파일을 직접 읽어서
-피크 검출 + 베이스라인 보정 + 결과 Excel 출력
+Directly reads the .ch files in every .D folder under C:\\Chem32\\1\\DATA\\,
+performs peak detection + baseline correction, and outputs the results to Excel
 
-사용법:
+Usage:
     conda activate PeakPicker
-    python batch_analyze_all.py                    # 전체 분석
-    python batch_analyze_all.py --folder "ProjectA" # 특정 폴더만
-    python batch_analyze_all.py --test              # 테스트 (폴더당 3개만)
+    python batch_analyze_all.py                    # analyze everything
+    python batch_analyze_all.py --folder "ProjectA" # a single folder only
+    python batch_analyze_all.py --test              # test mode (3 files per folder only)
 """
 
 import sys
@@ -38,26 +38,26 @@ from hybrid_baseline import HybridBaselineCorrector
 
 def analyze_single_d_folder(d_folder_path: str, channel: str = "auto") -> dict:
     """
-    단일 .D 폴더 분석
+    Analyze a single .D folder
 
     Args:
-        d_folder_path: .D 폴더 경로
-        channel: 채널 파일명. "auto"이면 RID1A.ch → vwd1A.ch 순으로 자동 탐색
+        d_folder_path: path to the .D folder
+        channel: channel filename. If "auto", automatically searches RID1A.ch -> vwd1A.ch in order
 
     Returns:
-        분석 결과 딕셔너리
+        Analysis result dictionary
     """
     d_folder = Path(d_folder_path)
     sample_name = d_folder.name.replace('.D', '')
 
-    # 채널 자동 감지
+    # Auto-detect the channel
     if channel == "auto":
         for candidate in ['RID1A.ch', 'vwd1A.ch', 'DAD1A.ch']:
             if (d_folder / candidate).exists():
                 channel = candidate
                 break
         else:
-            # .ch 파일 아무거나 찾기
+            # Look for any .ch file
             ch_files = list(d_folder.glob('*.ch'))
             if ch_files:
                 channel = ch_files[0].name
@@ -84,7 +84,7 @@ def analyze_single_d_folder(d_folder_path: str, channel: str = "auto") -> dict:
         return result
 
     try:
-        # 1. .ch 파일 파싱
+        # 1. Parse the .ch file
         parser = ChemstationParser(str(ch_file))
         time_arr, intensity = parser.read()
         metadata = parser.get_metadata()
@@ -97,16 +97,16 @@ def analyze_single_d_folder(d_folder_path: str, channel: str = "auto") -> dict:
         result['num_points'] = len(time_arr)
         result['time_source'] = metadata.get('time_source', 'unknown')
 
-        # 2. 베이스라인 보정
+        # 2. Baseline correction
         corrector = HybridBaselineCorrector(time_arr, intensity)
         baseline, bl_params = corrector.optimize_baseline_with_linear_peaks()
         corrected = intensity - baseline
         corrected = np.maximum(corrected, 0)
 
-        # 3. 노이즈 추정
+        # 3. Noise estimation
         noise_level = _estimate_noise(corrected)
 
-        # 4. 피크 검출 (2-pass adaptive)
+        # 4. Peak detection (2-pass adaptive)
         peaks_detected, peak_data = _detect_peaks(time_arr, corrected, noise_level)
 
         result['status'] = 'ok'
@@ -122,7 +122,7 @@ def analyze_single_d_folder(d_folder_path: str, channel: str = "auto") -> dict:
 
 
 def _estimate_noise(intensity: np.ndarray) -> float:
-    """노이즈 레벨 추정"""
+    """Estimate the noise level"""
     noise_region = np.percentile(intensity, 25)
     threshold = max(noise_region * 1.5, np.percentile(intensity, 30))
     quiet_mask = intensity < threshold
@@ -145,7 +145,7 @@ def _estimate_noise(intensity: np.ndarray) -> float:
 
 
 def _detect_peaks(time_arr: np.ndarray, intensity: np.ndarray, noise_level: float) -> tuple:
-    """2-pass adaptive 피크 검출"""
+    """2-pass adaptive peak detection"""
     signal_range = np.ptp(intensity)
 
     # Pass 1: major peaks
@@ -176,7 +176,7 @@ def _detect_peaks(time_arr: np.ndarray, intensity: np.ndarray, noise_level: floa
     peaks = np.array(all_peaks)[sort_idx]
     proms = np.array(all_proms)[sort_idx]
 
-    # Peak data 계산
+    # Compute peak data
     dt = np.mean(np.diff(time_arr))
     max_width_samples = int(2.0 / dt) if dt > 0 else 2000
 
@@ -241,7 +241,7 @@ def _detect_peaks(time_arr: np.ndarray, intensity: np.ndarray, noise_level: floa
 
 def find_all_d_folders(base_dir: str, folder_filter: str = None) -> dict:
     """
-    base_dir 아래 모든 .D 폴더를 프로젝트 폴더별로 정리
+    Organize every .D folder under base_dir by project folder
 
     Returns:
         {project_name: [d_folder_path, ...], ...}
@@ -253,7 +253,7 @@ def find_all_d_folders(base_dir: str, folder_filter: str = None) -> dict:
         if not item.is_dir():
             continue
         name = item.name
-        # 필터 적용
+        # Apply the filter
         if folder_filter and folder_filter.lower() not in name.lower():
             continue
 
@@ -265,7 +265,7 @@ def find_all_d_folders(base_dir: str, folder_filter: str = None) -> dict:
         if d_folders:
             projects[name] = d_folders
 
-    # base_dir 직접 하위의 .D 폴더도 체크
+    # Also check for .D folders directly under base_dir
     direct_d = sorted([
         str(d) for d in base.glob('*.D')
         if d.is_dir()
@@ -285,15 +285,15 @@ def batch_analyze(
     n_workers: int = None,
 ):
     """
-    전체 배치 분석 실행
+    Run the full batch analysis
 
     Args:
         base_dir: C:\\Chem32\\1\\DATA
-        output_dir: 결과 저장 폴더
-        folder_filter: 특정 폴더만 처리
-        max_per_folder: 폴더당 최대 파일 수 (테스트용)
-        channels: 분석할 채널 목록
-        n_workers: 병렬 워커 수
+        output_dir: folder to save results to
+        folder_filter: process only a specific folder
+        max_per_folder: max files per folder (for testing)
+        channels: list of channels to analyze
+        n_workers: number of parallel workers
     """
     if channels is None:
         channels = ['auto']
@@ -303,7 +303,7 @@ def batch_analyze(
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    # 1. .D 폴더 탐색
+    # 1. Discover .D folders
     print("=" * 80)
     print("  LC DATA BATCH ANALYSIS")
     print(f"  Base: {base_dir}")
@@ -314,14 +314,14 @@ def batch_analyze(
     projects = find_all_d_folders(base_dir, folder_filter)
     total_files = sum(len(v) for v in projects.values())
 
-    print(f"\n프로젝트: {len(projects)}개, 총 .D 파일: {total_files}개")
+    print(f"\nProjects: {len(projects)}, total .D files: {total_files}")
     for pname, dlist in projects.items():
         count = len(dlist)
         if max_per_folder:
             count = min(count, max_per_folder)
         print(f"  {pname}: {count} files")
 
-    # 2. 프로젝트별 분석
+    # 2. Analyze per project
     all_results = []
     master_summary = []
     t_start = time.time()
@@ -342,7 +342,7 @@ def batch_analyze(
         for channel in channels:
             ch_tag = channel.replace('.ch', '')
 
-            # 병렬 분석
+            # Parallel analysis
             tasks = [(df, channel) for df in d_folders]
 
             if n_workers > 1 and len(tasks) > 4:
@@ -363,12 +363,12 @@ def batch_analyze(
                     processed += 1
                     _print_progress(r, processed, total_files, t_start)
 
-            # 채널별 Excel 저장
+            # Save Excel per channel
             _export_project_results(proj_results, proj_out, proj_name, ch_tag)
 
         all_results.extend(proj_results)
 
-        # 프로젝트 요약
+        # Project summary
         ok_count = sum(1 for r in proj_results if r['status'] == 'ok')
         err_count = sum(1 for r in proj_results if r['status'] == 'error')
         total_peaks = sum(r.get('num_peaks', 0) for r in proj_results)
@@ -381,21 +381,21 @@ def batch_analyze(
             'Total_Peaks': total_peaks,
         })
 
-        print(f"\n  {proj_name}: {ok_count}/{len(d_folders)} 성공, {total_peaks} peaks")
+        print(f"\n  {proj_name}: {ok_count}/{len(d_folders)} succeeded, {total_peaks} peaks")
 
-    # 3. 마스터 요약
+    # 3. Master summary
     elapsed = time.time() - t_start
     _export_master_summary(all_results, master_summary, out, elapsed)
 
     print(f"\n{'=' * 80}")
-    print("  전체 완료!")
-    print(f"  처리: {processed} files in {elapsed:.0f}s ({elapsed/60:.1f}min)")
-    print(f"  결과: {out}")
+    print("  All done!")
+    print(f"  Processed: {processed} files in {elapsed:.0f}s ({elapsed/60:.1f}min)")
+    print(f"  Results: {out}")
     print(f"{'=' * 80}")
 
 
 def _print_progress(result: dict, done: int, total: int, t_start: float):
-    """진행 상황 출력"""
+    """Print progress"""
     status = "OK" if result['status'] == 'ok' else f"ERR: {result.get('error', '?')}"
     n_peaks = result.get('num_peaks', 0)
     elapsed = time.time() - t_start
@@ -408,7 +408,7 @@ def _print_progress(result: dict, done: int, total: int, t_start: float):
 
 
 def _export_project_results(results: list, proj_out: Path, proj_name: str, ch_tag: str):
-    """프로젝트별 결과 Excel 저장"""
+    """Save the per-project results to Excel"""
     ok_results = [r for r in results if r['status'] == 'ok']
     if not ok_results:
         return
@@ -480,7 +480,7 @@ def _export_project_results(results: list, proj_out: Path, proj_name: str, ch_ta
 
 
 def _export_master_summary(all_results: list, master_summary: list, out: Path, elapsed: float):
-    """마스터 요약 Excel 저장"""
+    """Save the master summary Excel"""
     master_file = out / "MASTER_SUMMARY.xlsx"
 
     with pd.ExcelWriter(master_file, engine='openpyxl') as writer:
@@ -522,7 +522,7 @@ def _export_master_summary(all_results: list, master_summary: list, out: Path, e
 
 
 def _get_project(d_folder_path: str) -> str:
-    """D folder 경로에서 프로젝트명 추출"""
+    """Extract the project name from a D folder path"""
     parts = Path(d_folder_path).parts
     # C:\Chem32\1\DATA\{project}\...\.D
     try:
@@ -598,9 +598,9 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n[중단] 사용자가 중단했습니다.")
+        print("\n\n[Interrupted] The user interrupted the process.")
         sys.exit(1)
     except Exception as e:
-        print(f"\n[오류] {e}")
+        print(f"\n[Error] {e}")
         traceback.print_exc()
         sys.exit(1)

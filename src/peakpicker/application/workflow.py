@@ -252,7 +252,7 @@ class WorkflowBuilder:
 
         config = config or BaselineCorrectorConfig()
 
-        # 음수 피크(negative peak) 위로 baseline이 지나갈 수 있도록 clip 해제
+        # Disable clipping so the baseline can pass above negative peaks
         config.generator_config.clip_to_signal = False
 
         signal_processor = ScipySignalProcessor()
@@ -260,8 +260,8 @@ class WorkflowBuilder:
 
         anchor_config = config.anchor_config
 
-        # PeakBoundaryAnchorFinder: scipy prominence의 left/right bases를
-        # anchor로 사용 → 피크 내부를 anchor로 잡지 않음, 음수 피크도 처리
+        # PeakBoundaryAnchorFinder: uses scipy prominence's left/right bases
+        # as anchors -> never picks a point inside a peak as an anchor, and also handles negative peaks
         anchor_finder = CompositeAnchorFinder([
             PeakBoundaryAnchorFinder(signal_processor, anchor_config),
             BoundaryAnchorFinder(anchor_config),

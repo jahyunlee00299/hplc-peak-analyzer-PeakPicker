@@ -236,7 +236,7 @@ class TestVerifyRename:
             {"S_1.D": "S_2.D", "S_2.D": "S_3.D", "METHOD.M": "METHOD.M"},
         )
         assert report["passed"] is False
-        assert any(d["issue"] == "내용 불일치" for d in report["differing"])
+        assert any(d["issue"] == "content mismatch" for d in report["differing"])
 
     def test_source_is_left_untouched(self, tmp_path):
         src = self._seed(tmp_path)

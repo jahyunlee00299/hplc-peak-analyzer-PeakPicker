@@ -1,6 +1,6 @@
 """
 Improved Baseline Correction Algorithm
-개선된 하이브리드 베이스라인 보정 알고리즘
+An improved hybrid baseline correction algorithm
 """
 
 import numpy as np
@@ -14,7 +14,7 @@ warnings.filterwarnings('ignore')
 
 @dataclass
 class BaselineAnchor:
-    """베이스라인 앵커 포인트"""
+    """Baseline anchor point"""
     index: int
     rt: float
     value: float
@@ -23,7 +23,7 @@ class BaselineAnchor:
 
 
 class ImprovedBaselineCorrector:
-    """개선된 베이스라인 보정 알고리즘"""
+    """Improved baseline correction algorithm"""
 
     def __init__(self, time: np.ndarray, intensity: np.ndarray):
         """
@@ -37,7 +37,7 @@ class ImprovedBaselineCorrector:
         self.intensity = intensity
         self.anchors: List[BaselineAnchor] = []
 
-        # 자동으로 음수 처리
+        # Automatically handle negative values
         if np.min(intensity) < 0:
             self.intensity = intensity - np.min(intensity)
 
@@ -49,20 +49,20 @@ class ImprovedBaselineCorrector:
         smoothing_window: Optional[int] = None
     ) -> List[BaselineAnchor]:
         """
-        베이스라인 앵커 포인트 찾기 (개선된 알고리즘)
+        Find baseline anchor points (improved algorithm)
 
         Args:
-            valley_prominence_factor: Valley 검출 민감도
-            local_min_percentile: Local minimum 하위 백분위
-            min_anchor_distance: 앵커 간 최소 거리 (데이터 포인트)
-            smoothing_window: 스무딩 윈도우 크기
+            valley_prominence_factor: Valley detection sensitivity
+            local_min_percentile: lower percentile for local minimum
+            min_anchor_distance: minimum distance between anchors (data points)
+            smoothing_window: smoothing window size
 
         Returns:
-            앵커 포인트 리스트
+            List of anchor points
         """
         anchors = []
 
-        # 1. 스무딩
+        # 1. Smoothing
         if smoothing_window is None:
             smoothing_window = max(11, min(51, len(self.intensity) // 30))
         if smoothing_window % 2 == 0:
@@ -73,7 +73,7 @@ class ImprovedBaselineCorrector:
         else:
             smoothed = self.intensity.copy()
 
-        # 2. Valley 검출 (개선된 방법)
+        # 2. Valley detection (improved method)
         valleys = self._find_valleys_improved(
             smoothed,
             prominence_factor=valley_prominence_factor,
@@ -89,7 +89,7 @@ class ImprovedBaselineCorrector:
                 confidence=1.0
             ))
 
-        # 3. Valley 사이 구간에서 Local Minimum 찾기 (개선된 방법)
+        # 3. Find Local Minimum within the segments between valleys (improved method)
         valley_indices = np.concatenate(([0], valleys, [len(self.intensity) - 1]))
 
         for i in range(len(valley_indices) - 1):
@@ -97,7 +97,7 @@ class ImprovedBaselineCorrector:
             end_idx = valley_indices[i + 1]
             segment_length = end_idx - start_idx
 
-            # 구간이 충분히 길면 local minimum 추가
+            # Add a local minimum if the segment is long enough
             if segment_length > min_anchor_distance * 2:
                 local_mins = self._find_local_minima_in_segment(
                     start_idx, end_idx,
@@ -106,7 +106,7 @@ class ImprovedBaselineCorrector:
                 )
 
                 for lm_idx, confidence in local_mins:
-                    # Valley와 거리 체크
+                    # Check distance from valleys
                     if all(abs(lm_idx - v) > min_anchor_distance for v in valleys):
                         anchors.append(BaselineAnchor(
                             index=lm_idx,
@@ -116,7 +116,7 @@ class ImprovedBaselineCorrector:
                             confidence=confidence
                         ))
 
-        # 4. 경계 앵커 추가
+        # 4. Add boundary anchors
         if not any(a.index == 0 for a in anchors):
             anchors.append(BaselineAnchor(
                 index=0,
@@ -135,7 +135,7 @@ class ImprovedBaselineCorrector:
                 confidence=0.8
             ))
 
-        # 5. 정렬 및 중복 제거 (개선된 방법)
+        # 5. Sort and deduplicate (improved method)
         anchors = self._remove_close_anchors(anchors, min_anchor_distance)
         anchors.sort(key=lambda a: a.index)
 
@@ -148,8 +148,8 @@ class ImprovedBaselineCorrector:
         prominence_factor: float,
         window: int
     ) -> np.ndarray:
-        """개선된 Valley 검출"""
-        # 역신호에서 피크 찾기
+        """Improved Valley detection"""
+        # Find peaks in the inverted signal
         inverted = -signal_data
         prominence = np.ptp(signal_data) * prominence_factor
 
@@ -169,23 +169,23 @@ class ImprovedBaselineCorrector:
         percentile: float,
         min_distance: int
     ) -> List[Tuple[int, float]]:
-        """구간 내 Local Minima 찾기 (개선된 방법)"""
+        """Find Local Minima within a segment (improved method)"""
         segment = self.intensity[start_idx:end_idx]
 
         if len(segment) < min_distance:
             return []
 
-        # 하위 percentile 임계값
+        # Lower-percentile threshold
         threshold = np.percentile(segment, percentile)
 
-        # 임계값 이하인 점들 중 극소값 찾기
+        # Find local minima among points at or below the threshold
         local_mins = []
         candidates = np.where(segment <= threshold)[0]
 
         if len(candidates) == 0:
             return []
 
-        # 후보들을 클러스터로 그룹화하여 각 클러스터에서 최소값 선택
+        # Group candidates into clusters and pick the minimum from each cluster
         clusters = []
         current_cluster = [candidates[0]]
 
@@ -197,13 +197,13 @@ class ImprovedBaselineCorrector:
                 current_cluster = [candidates[i]]
         clusters.append(current_cluster)
 
-        # 각 클러스터에서 최소값 선택
+        # Select the minimum value from each cluster
         for cluster in clusters:
             cluster_values = segment[cluster]
             min_idx_in_cluster = cluster[np.argmin(cluster_values)]
             global_idx = start_idx + min_idx_in_cluster
 
-            # Confidence 계산: 주변 기울기가 작을수록 높음
+            # Compute confidence: higher when the surrounding slope is smaller
             confidence = self._calculate_confidence(global_idx)
 
             local_mins.append((global_idx, confidence))
@@ -211,16 +211,16 @@ class ImprovedBaselineCorrector:
         return local_mins
 
     def _calculate_confidence(self, idx: int, window: int = 5) -> float:
-        """앵커 포인트의 신뢰도 계산"""
+        """Compute the confidence of an anchor point"""
         if idx < window or idx >= len(self.intensity) - window:
             return 0.5
 
-        # 주변 기울기의 표준편차 (낮을수록 평평 = 높은 신뢰도)
+        # Standard deviation of the surrounding slope (lower = flatter = higher confidence)
         left_slope = abs(self.intensity[idx] - self.intensity[idx - window])
         right_slope = abs(self.intensity[idx + window] - self.intensity[idx])
         avg_slope = (left_slope + right_slope) / 2
 
-        # 정규화 (0-1 범위)
+        # Normalize (0-1 range)
         max_slope = np.ptp(self.intensity) * 0.1
         confidence = 1.0 / (1.0 + avg_slope / max_slope)
 
@@ -231,22 +231,22 @@ class ImprovedBaselineCorrector:
         anchors: List[BaselineAnchor],
         min_distance: int
     ) -> List[BaselineAnchor]:
-        """너무 가까운 앵커 제거 (개선된 알고리즘)"""
+        """Remove anchors that are too close together (improved algorithm)"""
         if len(anchors) == 0:
             return []
 
-        # 인덱스로 정렬
+        # Sort by index
         sorted_anchors = sorted(anchors, key=lambda a: a.index)
 
-        # 우선순위: valley > boundary > local_min
+        # Priority: valley > boundary > local_min
         priority = {'valley': 3, 'boundary': 2, 'local_min': 1}
 
         filtered = [sorted_anchors[0]]
 
         for anchor in sorted_anchors[1:]:
-            # 마지막 추가된 앵커와의 거리 체크
+            # Check the distance to the last added anchor
             if anchor.index - filtered[-1].index < min_distance:
-                # 더 높은 우선순위 또는 confidence를 가진 것 선택
+                # Keep whichever has higher priority or confidence
                 last = filtered[-1]
 
                 if priority[anchor.type] > priority[last.type]:
@@ -266,18 +266,18 @@ class ImprovedBaselineCorrector:
         apply_rt_relaxation: bool = True
     ) -> np.ndarray:
         """
-        베이스라인 생성 (개선된 방법)
+        Generate the baseline (improved method)
 
         Args:
-            method: 베이스라인 생성 방법
-                - 'adaptive_spline': Confidence 가중치 + RT 기반 적응형 스플라인
-                - 'robust_spline': Outlier 제거 + 강건한 스플라인
-                - 'linear': 단순 선형 보간
-            smooth_factor: 스무딩 강도 (0-2)
-            apply_rt_relaxation: RT 기반 슬로프 완화 적용 여부
+            method: baseline generation method
+                - 'adaptive_spline': confidence-weighted + RT-based adaptive spline
+                - 'robust_spline': outlier removal + robust spline
+                - 'linear': simple linear interpolation
+            smooth_factor: smoothing strength (0-2)
+            apply_rt_relaxation: whether to apply RT-based slope relaxation
 
         Returns:
-            베이스라인 배열
+            Baseline array
         """
         if len(self.anchors) == 0:
             self.find_anchors()
@@ -289,11 +289,11 @@ class ImprovedBaselineCorrector:
         values = np.array([a.value for a in self.anchors])
         confidences = np.array([a.confidence for a in self.anchors])
 
-        # RT 기반 슬로프 완화 적용
+        # Apply RT-based slope relaxation
         if apply_rt_relaxation:
             values = self._apply_rt_based_relaxation(indices, values)
 
-        # 베이스라인 생성
+        # Generate the baseline
         if method == 'adaptive_spline':
             baseline = self._adaptive_spline_baseline(
                 indices, values, confidences, smooth_factor
@@ -307,15 +307,15 @@ class ImprovedBaselineCorrector:
         else:
             raise ValueError(f"Unknown method: {method}")
 
-        # 베이스라인이 신호를 초과하지 않도록
+        # Prevent the baseline from exceeding the signal
         baseline = np.minimum(baseline, self.intensity)
 
-        # 부드럽게 만들기
+        # Smooth it out
         if len(baseline) > 21:
             baseline = signal.savgol_filter(baseline, 21, 2)
             baseline = np.minimum(baseline, self.intensity)
 
-        # 음수 제거
+        # Remove negative values
         baseline = np.maximum(baseline, 0)
 
         return baseline
@@ -324,13 +324,13 @@ class ImprovedBaselineCorrector:
         self,
         indices: np.ndarray,
         values: np.ndarray,
-        rt_threshold: float = 0.5,  # RT 차이 임계값 (분)
-        max_slope_factor: float = 0.15  # 최대 기울기 제한
+        rt_threshold: float = 0.5,  # RT difference threshold (min)
+        max_slope_factor: float = 0.15  # maximum slope limit
     ) -> np.ndarray:
         """
-        RT 기반 슬로프 완화
+        RT-based slope relaxation
 
-        인접 앵커 간 RT 차이가 크면 급격한 기울기 완화
+        Relaxes a steep slope when the RT difference between adjacent anchors is large
         """
         if len(indices) < 2:
             return values
@@ -341,7 +341,7 @@ class ImprovedBaselineCorrector:
             rt_diff = self.time[indices[i+1]] - self.time[indices[i]]
 
             if rt_diff > rt_threshold:
-                # 기울기 계산
+                # Compute the slope
                 value_diff = values[i+1] - values[i]
                 index_diff = indices[i+1] - indices[i]
 
@@ -349,16 +349,16 @@ class ImprovedBaselineCorrector:
                     slope = abs(value_diff / index_diff)
                     max_allowed_slope = np.ptp(self.intensity) * max_slope_factor / len(self.intensity)
 
-                    # 기울기가 너무 크면 완화
+                    # Relax the slope if it is too steep
                     if slope > max_allowed_slope:
-                        # 구간의 최소값으로 조정
+                        # Adjust to the segment's minimum value
                         segment = self.intensity[indices[i]:indices[i+1]+1]
                         segment_min = np.percentile(segment, 2.5)
 
-                        # 더 낮은 값으로 조정
-                        if value_diff > 0:  # 증가 구간
+                        # Adjust to the lower value
+                        if value_diff > 0:  # increasing segment
                             relaxed_values[i+1] = min(values[i+1], segment_min)
-                        else:  # 감소 구간
+                        else:  # decreasing segment
                             relaxed_values[i] = min(values[i], segment_min)
 
         return relaxed_values
@@ -370,12 +370,12 @@ class ImprovedBaselineCorrector:
         confidences: np.ndarray,
         smooth_factor: float
     ) -> np.ndarray:
-        """Confidence 가중치 적용 스플라인"""
+        """Spline with confidence weighting applied"""
         if len(indices) < 4:
             return self._linear_baseline(indices, values)
 
         try:
-            # 가중치 기반 스무딩
+            # Weight-based smoothing
             weights = confidences
             s = len(indices) * smooth_factor * (1 - np.mean(confidences) * 0.3)
 
@@ -393,11 +393,11 @@ class ImprovedBaselineCorrector:
         confidences: np.ndarray,
         smooth_factor: float
     ) -> np.ndarray:
-        """Outlier 제거 후 강건한 스플라인"""
+        """Robust spline after outlier removal"""
         if len(values) < 4:
             return self._linear_baseline(indices, values)
 
-        # MAD 기반 outlier 제거
+        # MAD-based outlier removal
         median = np.median(values)
         mad = np.median(np.abs(values - median))
 
@@ -433,7 +433,7 @@ class ImprovedBaselineCorrector:
         indices: np.ndarray,
         values: np.ndarray
     ) -> np.ndarray:
-        """단순 선형 보간"""
+        """Simple linear interpolation"""
         f = interp1d(indices, values, kind='linear', fill_value='extrapolate')
         return f(np.arange(len(self.intensity)))
 
@@ -444,18 +444,18 @@ class ImprovedBaselineCorrector:
         auto_detect: bool = True
     ) -> np.ndarray:
         """
-        피크 영역에 직선 베이스라인 적용
+        Apply a linear baseline under the peak regions
 
         Args:
-            baseline: 원본 베이스라인
-            peak_indices: 피크 인덱스 리스트 (None이면 자동 검출)
-            auto_detect: 자동으로 피크 검출할지 여부
+            baseline: the original baseline
+            peak_indices: list of peak indices (None = auto-detect)
+            auto_detect: whether to automatically detect peaks
 
         Returns:
-            직선 베이스라인이 적용된 베이스라인
+            The baseline with a linear segment applied under the peak regions
         """
         if peak_indices is None and auto_detect:
-            # 자동 피크 검출
+            # Automatic peak detection
             corrected = np.maximum(self.intensity - baseline, 0)
             noise_level = np.percentile(corrected, 25) * 1.5
 
@@ -472,7 +472,7 @@ class ImprovedBaselineCorrector:
         linear_baseline = baseline.copy()
 
         for peak_idx in peak_indices:
-            # 피크 경계 찾기 (half-height method)
+            # Find the peak boundary (half-height method)
             peak_height = self.intensity[peak_idx] - baseline[peak_idx]
 
             if peak_height <= 0:
@@ -480,17 +480,17 @@ class ImprovedBaselineCorrector:
 
             half_height = baseline[peak_idx] + peak_height / 2
 
-            # 왼쪽 경계
+            # Left boundary
             left_idx = peak_idx
             while left_idx > 0 and self.intensity[left_idx] > half_height:
                 left_idx -= 1
 
-            # 오른쪽 경계
+            # Right boundary
             right_idx = peak_idx
             while right_idx < len(self.intensity) - 1 and self.intensity[right_idx] > half_height:
                 right_idx += 1
 
-            # 직선 베이스라인 적용
+            # Apply the linear baseline
             if right_idx > left_idx:
                 baseline_left = max(0, baseline[left_idx])
                 baseline_right = max(0, baseline[right_idx])
@@ -506,14 +506,14 @@ class ImprovedBaselineCorrector:
         use_linear_peaks: bool = True
     ) -> Tuple[np.ndarray, Dict]:
         """
-        최적 베이스라인 자동 선택
+        Automatically select the optimal baseline
 
         Args:
-            methods: 시도할 방법 리스트
-            use_linear_peaks: 피크 영역에 직선 베이스라인 적용 여부
+            methods: list of methods to try
+            use_linear_peaks: whether to apply a linear baseline under the peaks
 
         Returns:
-            (최적 베이스라인, 파라미터 정보)
+            (optimal baseline, parameter info)
         """
         if methods is None:
             methods = ['adaptive_spline', 'robust_spline']
@@ -522,18 +522,18 @@ class ImprovedBaselineCorrector:
         best_baseline = None
         best_params = {}
 
-        # 앵커 포인트 찾기
+        # Find anchor points
         self.find_anchors()
 
-        # 각 방법 시도
+        # Try each method
         for method in methods:
             baseline = self.generate_baseline(method=method)
 
-            # 피크 영역에 직선 베이스라인 적용
+            # Apply a linear baseline under the peaks
             if use_linear_peaks:
                 baseline = self.apply_linear_to_peaks(baseline)
 
-            # 평가
+            # Evaluate
             corrected = np.maximum(self.intensity - baseline, 0)
             score = self._evaluate_baseline(baseline, corrected)
 
@@ -555,19 +555,19 @@ class ImprovedBaselineCorrector:
         corrected: np.ndarray
     ) -> float:
         """
-        베이스라인 품질 평가 (개선된 방법)
+        Evaluate baseline quality (improved method)
 
-        평가 기준:
-        1. 음수 값 비율 (낮을수록 좋음)
-        2. 베이스라인 부드러움 (적당히 부드러워야 함)
-        3. 피크 보존 (많이 보존될수록 좋음)
-        4. 베이스라인이 신호에 가까운 정도 (너무 높으면 안됨)
+        Evaluation criteria:
+        1. Fraction of negative values (lower is better)
+        2. Baseline smoothness (should be moderately smooth)
+        3. Peak preservation (more preserved is better)
+        4. How close the baseline is to the signal (should not be too high)
         """
-        # 1. 음수 비율 (0-100점)
+        # 1. Negative ratio (0-100 pts)
         neg_ratio = np.sum(corrected < 0) / len(corrected)
         neg_score = (1 - neg_ratio) * 100
 
-        # 2. 부드러움 (0-50점)
+        # 2. Smoothness (0-50 pts)
         if len(baseline) > 2:
             smoothness = np.std(np.diff(baseline, 2))
             max_smoothness = np.ptp(self.intensity) * 0.01
@@ -575,7 +575,7 @@ class ImprovedBaselineCorrector:
         else:
             smooth_score = 25
 
-        # 3. 피크 보존 (0-50점)
+        # 3. Peak preservation (0-50 pts)
         try:
             original_peaks = signal.find_peaks(
                 self.intensity,
@@ -595,7 +595,7 @@ class ImprovedBaselineCorrector:
         except Exception:
             peak_score = 25
 
-        # 4. 베이스라인 높이 (0-25점) - 너무 높으면 감점
+        # 4. Baseline height (0-25 pts) - penalized if too high
         baseline_ratio = np.median(baseline) / (np.median(self.intensity) + 1e-10)
         if baseline_ratio < 0.3:
             height_score = 25
@@ -604,7 +604,7 @@ class ImprovedBaselineCorrector:
         else:
             height_score = 5
 
-        # 종합 점수
+        # Combined score
         total_score = neg_score + smooth_score + peak_score + height_score
 
         return total_score
@@ -617,25 +617,25 @@ def process_exported_signal(
     apply_rt_relaxation: bool = True
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
     """
-    Exported signal CSV 파일 처리
+    Process an exported signal CSV file
 
     Args:
-        csv_file: CSV 파일 경로
-        method: 베이스라인 방법
-        use_linear_peaks: 피크에 직선 베이스라인 적용 여부
-        apply_rt_relaxation: RT 기반 슬로프 완화 적용 여부
+        csv_file: path to the CSV file
+        method: baseline method
+        use_linear_peaks: whether to apply a linear baseline under the peaks
+        apply_rt_relaxation: whether to apply RT-based slope relaxation
 
     Returns:
         (time, intensity, baseline, info_dict)
     """
     import pandas as pd
 
-    # 데이터 로드
+    # Load data
     df = pd.read_csv(csv_file, header=None, sep='\t', encoding='utf-16-le')
     time = df[0].values
     intensity = df[1].values
 
-    # 베이스라인 보정
+    # Baseline correction
     corrector = ImprovedBaselineCorrector(time, intensity)
 
     if method == 'auto':

@@ -1,26 +1,26 @@
-# 베이스라인 알고리즘 개선 사항
+# Baseline Algorithm Improvements
 
-## 개요
+## Overview
 
-`exported_signals` 데이터에 대한 베이스라인 보정 알고리즘을 분석하고 개선했습니다.
+Analyzed and improved the baseline correction algorithm for `exported_signals` data.
 
-## 주요 개선 사항
+## Key Improvements
 
-### 1. 앵커 포인트 검출 개선
+### 1. Improved Anchor Point Detection
 
-#### 기존 방법 (HybridBaselineCorrector)
-- **문제점**: 과도하게 많은 앵커 포인트 생성 (80-85개)
-- Valley와 Local Minimum을 모두 찾지만 중복 제거 로직이 비효율적
-- 불필요한 앵커가 많아 베이스라인이 복잡해짐
+#### Previous Method (HybridBaselineCorrector)
+- **Problem**: Generates an excessive number of anchor points (80-85)
+- Finds both Valley and Local Minimum, but the deduplication logic is inefficient
+- Too many unnecessary anchors make the baseline overly complex
 
-#### 개선 방법 (ImprovedBaselineCorrector)
-- **결과**: 최적화된 앵커 포인트 (12-15개)
-- 클러스터 기반 Local Minimum 검출
-- 우선순위 기반 중복 제거 (Valley > Boundary > Local Min)
-- Confidence 기반 품질 평가
+#### Improved Method (ImprovedBaselineCorrector)
+- **Result**: Optimized anchor points (12-15)
+- Cluster-based Local Minimum detection
+- Priority-based deduplication (Valley > Boundary > Local Min)
+- Confidence-based quality evaluation
 
 ```python
-# 개선된 앵커 검출
+# Improved anchor detection
 corrector = ImprovedBaselineCorrector(time, intensity)
 anchors = corrector.find_anchors(
     valley_prominence_factor=0.01,
@@ -29,215 +29,215 @@ anchors = corrector.find_anchors(
 )
 ```
 
-### 2. RT 기반 슬로프 완화
+### 2. RT-Based Slope Relaxation
 
-#### 새로운 기능
-인접 앵커 간 RT 차이가 클 때 급격한 기울기를 자동으로 완화합니다.
+#### New Feature
+Automatically relaxes steep slopes when the RT difference between adjacent anchors is large.
 
 ```python
-# RT 차이가 0.5분 이상이면 기울기 완화
+# Relax the slope if the RT difference is 0.5 min or more
 baseline = corrector.generate_baseline(
     method='adaptive_spline',
-    apply_rt_relaxation=True  # RT 기반 완화 활성화
+    apply_rt_relaxation=True  # Enable RT-based relaxation
 )
 ```
 
-**작동 원리**:
-- RT 차이 > 0.5분: 기울기 검사
-- 기울기가 너무 크면: 구간 최소값(5% percentile)으로 조정
-- 결과: 더 부드럽고 안정적인 베이스라인
+**How it works**:
+- RT difference > 0.5 min: check the slope
+- If the slope is too steep: adjust to the segment's minimum value (5th percentile)
+- Result: a smoother, more stable baseline
 
-### 3. 개선된 평가 함수
+### 3. Improved Evaluation Function
 
-#### 기존 방법
+#### Previous Method
 ```python
 score = (1 - neg_ratio) * 100 + peak_preservation * 50 - smoothness
 ```
-- 단순한 가중치
-- 베이스라인 높이 고려 안함
+- Simple weighting
+- Does not account for baseline height
 
-#### 개선 방법
+#### Improved Method
 ```python
-# 4가지 기준으로 평가 (총 225점 만점)
-score = neg_score (100점)      # 음수 비율
-      + smooth_score (50점)    # 부드러움
-      + peak_score (50점)      # 피크 보존
-      + height_score (25점)    # 베이스라인 높이
+# Evaluated on 4 criteria (225 points total)
+score = neg_score (100 pts)      # negative ratio
+      + smooth_score (50 pts)    # smoothness
+      + peak_score (50 pts)      # peak preservation
+      + height_score (25 pts)    # baseline height
 ```
 
-- 더 세밀한 평가
-- 베이스라인이 너무 높으면 감점
-- 각 기준별 적절한 가중치 적용
+- More granular evaluation
+- Penalizes a baseline that is too high
+- Applies appropriate weights per criterion
 
-### 4. 효율적인 베이스라인 생성
+### 4. Efficient Baseline Generation
 
-#### 방법 종류
+#### Method Types
 
-**adaptive_spline** (권장):
-- Confidence 가중치 + RT 기반 완화
-- 적응형 스플라인 피팅
-- 가장 균형잡힌 결과
+**adaptive_spline** (recommended):
+- Confidence weighting + RT-based relaxation
+- Adaptive spline fitting
+- Most balanced result
 
 **robust_spline**:
-- Outlier 자동 제거 (MAD 기반)
-- 강건한 피팅
-- 노이즈가 많은 데이터에 효과적
+- Automatic outlier removal (MAD-based)
+- Robust fitting
+- Effective on noisy data
 
 **linear**:
-- 단순 선형 보간
-- 빠른 처리 속도
+- Simple linear interpolation
+- Fast processing
 
-### 5. 자동 음수 처리
+### 5. Automatic Negative-Value Handling
 
 ```python
-# 초기화 시 자동으로 음수 처리
+# Automatically handles negative values at initialization
 corrector = ImprovedBaselineCorrector(time, intensity)
-# 내부적으로 음수 값 자동 보정
+# Negative values are corrected internally
 ```
 
-## 성능 비교
+## Performance Comparison
 
-### 테스트 결과 (3개 샘플)
+### Test Results (3 samples)
 
-| 지표 | 기존 방법 | 개선 방법 | 개선율 |
+| Metric | Previous Method | Improved Method | Improvement |
 |------|-----------|-----------|--------|
-| 앵커 포인트 | 80-85개 | 12-15개 | **-82%** |
-| 피크 검출 | 4개 | 4개 | 동일 |
-| 평균 피크 너비 | 37.9 | 37.9 | 동일 |
-| 음수 비율 | 0.00% | 0.00% | 동일 |
-| 품질 점수 | N/A | 204.6 | N/A |
+| Anchor points | 80-85 | 12-15 | **-82%** |
+| Peaks detected | 4 | 4 | same |
+| Average peak width | 37.9 | 37.9 | same |
+| Negative ratio | 0.00% | 0.00% | same |
+| Quality score | N/A | 204.6 | N/A |
 
-### 주요 장점
+### Key Advantages
 
-1. **단순성**: 앵커 포인트 82% 감소 → 더 부드러운 베이스라인
-2. **정확성**: 피크 검출 성능 유지
-3. **안정성**: RT 기반 슬로프 완화로 급격한 변화 방지
-4. **품질**: 객관적 평가 점수 제공
+1. **Simplicity**: 82% fewer anchor points → a smoother baseline
+2. **Accuracy**: peak detection performance maintained
+3. **Stability**: RT-based slope relaxation prevents abrupt changes
+4. **Quality**: provides an objective evaluation score
 
-## 사용 방법
+## Usage
 
-### 기본 사용
+### Basic Usage
 
 ```python
 from improved_baseline import ImprovedBaselineCorrector
 import pandas as pd
 
-# 데이터 로드
+# Load data
 df = pd.read_csv('exported_signals/sample.csv',
                  header=None, sep='\t', encoding='utf-16-le')
 time = df[0].values
 intensity = df[1].values
 
-# 베이스라인 보정
+# Baseline correction
 corrector = ImprovedBaselineCorrector(time, intensity)
 baseline, params = corrector.optimize_baseline(use_linear_peaks=True)
 
-# 보정된 신호
+# Corrected signal
 corrected = np.maximum(intensity - baseline, 0)
 
-print(f"방법: {params['method']}")
-print(f"앵커: {params['num_anchors']}개")
-print(f"점수: {params['score']:.2f}")
+print(f"Method: {params['method']}")
+print(f"Anchors: {params['num_anchors']}")
+print(f"Score: {params['score']:.2f}")
 ```
 
-### 고급 사용
+### Advanced Usage
 
 ```python
-# 수동 설정
+# Manual configuration
 corrector.find_anchors(
-    valley_prominence_factor=0.01,  # Valley 민감도
-    local_min_percentile=10,        # Local min 임계값
-    min_anchor_distance=15          # 최소 거리
+    valley_prominence_factor=0.01,  # Valley sensitivity
+    local_min_percentile=10,        # Local min threshold
+    min_anchor_distance=15          # Minimum distance
 )
 
 baseline = corrector.generate_baseline(
-    method='adaptive_spline',       # 방법 선택
-    smooth_factor=1.0,              # 스무딩 강도
-    apply_rt_relaxation=True        # RT 완화
+    method='adaptive_spline',       # Method selection
+    smooth_factor=1.0,              # Smoothing strength
+    apply_rt_relaxation=True        # RT relaxation
 )
 
-# 피크에 직선 베이스라인 적용
+# Apply a linear baseline under the peaks
 baseline = corrector.apply_linear_to_peaks(baseline)
 ```
 
-### 간편 함수
+### Convenience Function
 
 ```python
 from improved_baseline import process_exported_signal
 
-# 한 줄로 처리
+# Process in one line
 time, intensity, baseline, params = process_exported_signal(
     'exported_signals/sample.csv',
-    method='auto',  # 자동 최적화
+    method='auto',  # automatic optimization
     use_linear_peaks=True,
     apply_rt_relaxation=True
 )
 ```
 
-## 비교 시각화
+## Comparison Visualization
 
 ```bash
-# 기존 vs 개선 방법 비교
+# Compare previous vs improved method
 python compare_baseline_improvements.py
 ```
 
-생성되는 이미지:
-- 앵커 포인트 비교
-- 베이스라인 비교
-- 보정 후 신호 비교
-- 베이스라인 차이
-- 피크별 상세 비교 테이블
+Generated images:
+- Anchor point comparison
+- Baseline comparison
+- Corrected signal comparison
+- Baseline difference
+- Detailed per-peak comparison table
 
-결과 위치: `result/baseline_comparison/`
+Result location: `result/baseline_comparison/`
 
-## 파일 구조
+## File Structure
 
 ```
 src/
-├── hybrid_baseline.py          # 기존 방법
-└── improved_baseline.py        # 개선된 방법 ✨
+├── hybrid_baseline.py          # previous method
+└── improved_baseline.py        # improved method ✨
 
-compare_baseline_improvements.py  # 비교 스크립트
+compare_baseline_improvements.py  # comparison script
 ```
 
-## 주요 클래스 및 메서드
+## Key Classes and Methods
 
 ### ImprovedBaselineCorrector
 
-**주요 메서드**:
-- `find_anchors()`: 앵커 포인트 검출
-- `generate_baseline()`: 베이스라인 생성
-- `apply_linear_to_peaks()`: 피크에 직선 베이스라인 적용
-- `optimize_baseline()`: 자동 최적화
-- `_apply_rt_based_relaxation()`: RT 기반 슬로프 완화
-- `_evaluate_baseline()`: 베이스라인 품질 평가
+**Key methods**:
+- `find_anchors()`: find anchor points
+- `generate_baseline()`: generate the baseline
+- `apply_linear_to_peaks()`: apply a linear baseline under the peaks
+- `optimize_baseline()`: automatic optimization
+- `_apply_rt_based_relaxation()`: RT-based slope relaxation
+- `_evaluate_baseline()`: evaluate baseline quality
 
 ### BaselineAnchor (dataclass)
 
 ```python
 @dataclass
 class BaselineAnchor:
-    index: int          # 데이터 인덱스
+    index: int          # data index
     rt: float           # Retention Time
-    value: float        # 강도 값
+    value: float        # intensity value
     type: str           # 'valley', 'local_min', 'boundary'
-    confidence: float   # 신뢰도 (0-1)
+    confidence: float   # confidence (0-1)
 ```
 
-## 향후 개선 방향
+## Future Directions
 
-1. **머신러닝 기반 앵커 선택**: 학습 데이터로 최적 앵커 패턴 학습
-2. **피크 타입별 베이스라인**: Sharp vs Broad 피크에 따른 적응형 베이스라인
-3. **배치 최적화**: 여러 샘플 동시 처리 시 파라미터 자동 조정
-4. **실시간 처리**: 온라인 베이스라인 보정 알고리즘
+1. **ML-based anchor selection**: learn optimal anchor patterns from training data
+2. **Baseline per peak type**: adaptive baseline for Sharp vs Broad peaks
+3. **Batch optimization**: automatic parameter tuning when processing multiple samples at once
+4. **Real-time processing**: an online baseline correction algorithm
 
-## 참고 자료
+## References
 
-- 기존 방법: `src/hybrid_baseline.py`
-- 개선 방법: `src/improved_baseline.py`
-- 비교 스크립트: `compare_baseline_improvements.py`
-- 테스트 결과: `result/baseline_comparison/`
+- Previous method: `src/hybrid_baseline.py`
+- Improved method: `src/improved_baseline.py`
+- Comparison script: `compare_baseline_improvements.py`
+- Test results: `result/baseline_comparison/`
 
-## 라이선스
+## License
 
-프로젝트 라이선스를 따릅니다.
+Follows the project license.

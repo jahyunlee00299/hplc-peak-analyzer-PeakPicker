@@ -1,37 +1,37 @@
-# 출력 디렉토리 구조 가이드
+# Output Directory Structure Guide
 
-## 개요
-v2.1부터 출력 파일이 `result/` 폴더에 체계적으로 정리됩니다.
+## Overview
+Starting with v2.1, output files are systematically organized under the `result/` folder.
 
-## 출력 디렉토리 옵션
+## Output Directory Options
 
-### 옵션 1: 제안된 경로 사용 (기본값) ✅
-선택한 데이터 폴더 이름으로 하위 폴더를 자동 생성합니다.
+### Option 1: Use the Suggested Path (default) ✅
+Automatically creates a subfolder named after the selected data folder.
 
-**예시:**
+**Example:**
 ```
-데이터 폴더: C:\Chem32\1\DATA\ExperimentA\
+Data folder: C:\Chem32\1\DATA\ExperimentA\
 
-출력 구조:
+Output structure:
 PeakPicker/
   └── result/
-      └── ExperimentA/           ← 자동 생성
+      └── ExperimentA/           ← auto-created
           ├── Sample1.csv
           ├── Sample2.csv
           └── Sample3.csv
 ```
 
-**장점:**
-- 여러 실험 데이터를 체계적으로 분리
-- 폴더 이름으로 실험 구분 가능
-- 재실행 시 자동으로 같은 폴더에 저장
+**Advantages:**
+- Systematically separates data from multiple experiments
+- Experiments distinguishable by folder name
+- Automatically saved to the same folder on re-runs
 
 ---
 
-### 옵션 2: result/ 폴더에 직접 저장
-모든 CSV 파일을 `result/` 폴더에 직접 저장합니다.
+### Option 2: Save Directly to the result/ Folder
+Saves all CSV files directly into the `result/` folder.
 
-**예시:**
+**Example:**
 ```
 PeakPicker/
   └── result/
@@ -42,20 +42,20 @@ PeakPicker/
       └── Exp2_Sample1.csv
 ```
 
-**사용 시나리오:**
-- 소량의 데이터만 처리할 때
-- 하위 폴더가 필요 없을 때
+**Usage scenarios:**
+- When processing only a small amount of data
+- When subfolders are unnecessary
 
 ---
 
-### 옵션 3: 커스텀 경로
-원하는 경로를 직접 지정합니다.
+### Option 3: Custom Path
+Directly specify the desired path.
 
-**예시:**
+**Example:**
 ```
-입력: D:\HPLC_Results\2025-11-Experiment\
+Input: D:\HPLC_Results\2025-11-Experiment\
 
-출력 구조:
+Output structure:
 D:/HPLC_Results/
   └── 2025-11-Experiment/
       ├── Sample1.csv
@@ -63,31 +63,31 @@ D:/HPLC_Results/
       └── Sample3.csv
 ```
 
-**사용 시나리오:**
-- 특정 프로젝트 폴더에 저장하고 싶을 때
-- 외부 드라이브에 저장하고 싶을 때
+**Usage scenarios:**
+- When you want to save to a specific project folder
+- When you want to save to an external drive
 
 ---
 
-## 실행 예시
+## Execution Examples
 
-### 예시 1: 단일 실험 폴더 처리
+### Example 1: Processing a Single Experiment Folder
 
 ```bash
 python auto_export_keyboard_final.py
 
-# 데이터 폴더 선택
-선택: C:\Chem32\1\DATA\ExperimentA\
+# Select the data folder
+Selection: C:\Chem32\1\DATA\ExperimentA\
 
-# 출력 디렉토리 설정
-제안된 경로: result/ExperimentA/
-선택 (1, 2, 또는 3, Enter=1): [Enter]
+# Configure the output directory
+Suggested path: result/ExperimentA/
+Choice (1, 2, or 3, Enter=1): [Enter]
 
-✅ 출력 디렉토리 생성 완료
+✅ Output directory created
 → result/ExperimentA/
 ```
 
-**결과:**
+**Result:**
 ```
 PeakPicker/
   └── result/
@@ -99,25 +99,25 @@ PeakPicker/
 
 ---
 
-### 예시 2: 여러 실험 폴더 순차 처리
+### Example 2: Processing Multiple Experiment Folders Sequentially
 
-**첫 번째 실행:**
+**First run:**
 ```bash
 python auto_export_keyboard_final.py
 
-# 데이터: C:\Chem32\1\DATA\Experiment_A\
-# 출력: result/Experiment_A/
+# Data: C:\Chem32\1\DATA\Experiment_A\
+# Output: result/Experiment_A/
 ```
 
-**두 번째 실행:**
+**Second run:**
 ```bash
 python auto_export_keyboard_final.py
 
-# 데이터: C:\Chem32\1\DATA\Experiment_B\
-# 출력: result/Experiment_B/
+# Data: C:\Chem32\1\DATA\Experiment_B\
+# Output: result/Experiment_B/
 ```
 
-**결과:**
+**Result:**
 ```
 PeakPicker/
   └── result/
@@ -131,24 +131,24 @@ PeakPicker/
 
 ---
 
-### 예시 3: 전체 스캔 모드 (옵션 3)
+### Example 3: Full Scan Mode (Option 3)
 
 ```bash
 python auto_export_keyboard_final.py
 
-# 옵션 3 선택: 전체 폴더 스캔
-스캔 경로: C:\Chem32\1\DATA\
+# Select Option 3: full folder scan
+Scan path: C:\Chem32\1\DATA\
 
-총 125개 .D 폴더 발견!
+Found 125 .D folders in total!
 
-# 출력 디렉토리 설정
-제안된 경로: result/DATA/
-선택: 1
+# Configure the output directory
+Suggested path: result/DATA/
+Choice: 1
 
-→ result/DATA/ 에 모든 CSV 저장
+→ All CSV files saved to result/DATA/
 ```
 
-**결과:**
+**Result:**
 ```
 PeakPicker/
   └── result/
@@ -156,18 +156,18 @@ PeakPicker/
           ├── Experiment_A_Sample1.csv
           ├── Experiment_A_Sample2.csv
           ├── Experiment_B_Sample1.csv
-          └── ... (125개 파일)
+          └── ... (125 files)
 ```
 
 ---
 
-## 폴더 이름 규칙
+## Folder Naming Rules
 
-### 자동 생성되는 하위 폴더 이름
+### Auto-Generated Subfolder Name
 
-선택한 데이터 폴더의 **마지막 폴더명**이 사용됩니다:
+The **last folder name** of the selected data folder is used:
 
-| 데이터 폴더 경로 | 생성되는 하위 폴더 |
+| Data folder path | Generated subfolder |
 |------------------|-------------------|
 | `C:\Chem32\1\DATA\ExperimentA\` | `result/ExperimentA/` |
 | `C:\Chem32\1\DATA\2. ExperimentB cascade HPLC\` | `result/2. ExperimentB cascade HPLC/` |
@@ -176,63 +176,63 @@ PeakPicker/
 
 ---
 
-## 파일 덮어쓰기
+## File Overwriting
 
-같은 경로에 이미 파일이 있는 경우:
-- ✅ **자동으로 건너뜀** (이미 존재하는 파일)
-- 진행 상황에 `[건너뜀]` 표시
+If a file already exists at the same path:
+- ✅ **Automatically skipped** (file already exists)
+- Shown as `[Skipped]` in the progress output
 
-**예시:**
+**Example:**
 ```
-[1/10] 건너뜀: Sample1 (이미 존재)
+[1/10] Skipped: Sample1 (already exists)
 [2/10] Sample2
-  처리 중: Sample2.D
-  [성공] 45,231 bytes
+  Processing: Sample2.D
+  [Success] 45,231 bytes
 ```
 
 ---
 
-## 권장 워크플로우
+## Recommended Workflow
 
-### 실험별로 분리 저장 (권장) ⭐
+### Separate Saving Per Experiment (recommended) ⭐
 ```bash
-# 각 실험마다 별도로 실행
-1. ExperimentA 실험 → result/ExperimentA/
-2. ExperimentB 실험 → result/ExperimentB/
-3. Control 실험 → result/Control/
+# Run separately for each experiment
+1. ExperimentA experiment → result/ExperimentA/
+2. ExperimentB experiment → result/ExperimentB/
+3. Control experiment → result/Control/
 ```
 
-### 날짜별로 분리 저장
+### Separate Saving by Date
 ```bash
-# 폴더 이름에 날짜 포함
+# Include the date in the folder name
 1. DATA/2025-11-06_Exp1/ → result/2025-11-06_Exp1/
 2. DATA/2025-11-07_Exp2/ → result/2025-11-07_Exp2/
 ```
 
-### 프로젝트별로 커스텀 경로
+### Custom Path Per Project
 ```bash
-# 옵션 3 사용
+# Use Option 3
 1. Project_A → D:/Projects/ProjectA/HPLC_Data/
 2. Project_B → D:/Projects/ProjectB/HPLC_Data/
 ```
 
 ---
 
-## 분석 단계 연동
+## Linking with the Analysis Step
 
-Export 후 자동으로 분석 실행:
+Automatically run analysis after export:
 
 ```bash
 # 1. Export
 python auto_export_keyboard_final.py
-# → result/ExperimentA/ 에 CSV 저장
+# → CSV saved to result/ExperimentA/
 
-# 2. 분석
+# 2. Analyze
 python hplc_analyzer_enhanced.py "result/ExperimentA"
-# → result/ExperimentA/analysis_results/ 에 Excel 저장
+# → Excel saved to result/ExperimentA/analysis_results/
 ```
 
-**최종 구조:**
+**Final structure:**
 ```
 PeakPicker/
   └── result/
@@ -246,12 +246,12 @@ PeakPicker/
 
 ---
 
-## 요약
+## Summary
 
-| 옵션 | 경로 | 사용 시나리오 |
+| Option | Path | Usage scenario |
 |------|------|--------------|
-| **1** | `result/{폴더명}/` | ⭐ 기본값, 실험별 분리 |
-| **2** | `result/` | 단순한 구조, 소량 데이터 |
-| **3** | 사용자 지정 | 특정 프로젝트 경로 |
+| **1** | `result/{folder_name}/` | ⭐ default, separated per experiment |
+| **2** | `result/` | simple structure, small amounts of data |
+| **3** | user-specified | specific project path |
 
-**기본 권장사항:** 옵션 1 (Enter) 사용
+**Default recommendation:** use Option 1 (Enter)

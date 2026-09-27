@@ -2,11 +2,12 @@
 Peak Boundary Anchor Finder
 ===========================
 
-scipy prominence의 left_bases/right_bases를 이용해
-각 피크(양수/음수 모두)의 실제 valley 지점을 앵커로 사용.
+Uses scipy prominence's left_bases/right_bases to take the actual valley
+point of each peak (positive or negative) as an anchor.
 
-Valley-to-valley baseline의 핵심: 피크 경계 = 실제 baseline 앵커.
-LocalMinAnchorFinder와 달리 피크 내부를 앵커로 잡지 않음.
+The core of a valley-to-valley baseline: a peak boundary IS the real baseline
+anchor. Unlike LocalMinAnchorFinder, this never picks a point inside a peak
+as an anchor.
 """
 
 from typing import List
@@ -19,11 +20,11 @@ from ...config import AnchorFinderConfig
 
 class PeakBoundaryAnchorFinder(IAnchorFinder):
     """
-    피크(양수/음수)의 좌우 valley를 앵커 포인트로 사용.
+    Uses the left/right valleys of each peak (positive or negative) as anchor points.
 
-    scipy find_peaks의 prominence base (left_bases, right_bases)를
-    활용하므로 피크 내부를 앵커로 잡는 문제가 없음.
-    음수 피크도 동일 로직으로 처리 → baseline이 음수 피크 위로 지나감.
+    Leverages scipy find_peaks' prominence base (left_bases, right_bases),
+    so it never has the problem of anchoring inside a peak.
+    Negative peaks are handled with the same logic -> the baseline passes above negative peaks.
     """
 
     def __init__(
@@ -53,7 +54,7 @@ class PeakBoundaryAnchorFinder(IAnchorFinder):
 
         anchors = []
 
-        # --- 양수 피크 ---
+        # --- Positive peaks ---
         pos_peaks, pos_props = self.signal_processor.find_peaks(
             smoothed,
             prominence=prominence,
@@ -78,9 +79,10 @@ class PeakBoundaryAnchorFinder(IAnchorFinder):
                     source=AnchorSource.VALLEY,
                 ))
 
-        # --- 음수 피크 ---
-        # -smoothed에서 피크를 찾으면 원래 신호의 negative peak
-        # 이 때 left_bases/right_bases는 음수 피크의 좌우 "어깨" (signal이 다시 올라오는 지점)
+        # --- Negative peaks ---
+        # Finding peaks in -smoothed finds the negative peaks of the original signal.
+        # Here, left_bases/right_bases are the "shoulders" on either side of the
+        # negative peak (the points where the signal rises back up).
         neg_prominence = signal_range * self.config.valley_prominence * 0.5
         neg_peaks, neg_props = self.signal_processor.find_peaks(
             -smoothed,
@@ -91,7 +93,8 @@ class PeakBoundaryAnchorFinder(IAnchorFinder):
             for i in range(len(neg_peaks)):
                 left = int(neg_props['left_bases'][i])
                 right = int(neg_props['right_bases'][i])
-                # baseline은 음수 피크 양쪽 어깨 값 (= signal 위로 지나가야 함)
+                # The baseline is the value at the shoulders on either side of the
+                # negative peak (i.e. it must pass above the signal)
                 anchors.append(AnchorPoint(
                     index=left,
                     time=float(time[left]),

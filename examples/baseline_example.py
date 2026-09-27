@@ -1,24 +1,24 @@
 """
-개선된 베이스라인 보정 예제
+Improved baseline correction examples
 """
 import sys
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
-# 프로젝트 경로 추가
+# Add the project path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 from improved_baseline import ImprovedBaselineCorrector, process_exported_signal
 
 
 def example_1_basic_usage():
-    """예제 1: 기본 사용법"""
+    """Example 1: basic usage"""
     print("=" * 60)
-    print("예제 1: 기본 사용법")
+    print("Example 1: basic usage")
     print("=" * 60)
 
-    # 간편 함수 사용
+    # Use the convenience function
     csv_file = Path('../exported_signals').glob('*.csv').__next__()
 
     time, intensity, baseline, params = process_exported_signal(
@@ -27,15 +27,15 @@ def example_1_basic_usage():
         use_linear_peaks=True
     )
 
-    print(f"\n파일: {csv_file.name}")
-    print(f"방법: {params['method']}")
-    print(f"앵커 포인트: {params['num_anchors']}개")
-    print(f"품질 점수: {params['score']:.2f}")
+    print(f"\nFile: {csv_file.name}")
+    print(f"Method: {params['method']}")
+    print(f"Anchor points: {params['num_anchors']}")
+    print(f"Quality score: {params['score']:.2f}")
 
-    # 보정된 신호
+    # Corrected signal
     corrected = np.maximum(intensity - baseline, 0)
 
-    # 간단한 시각화
+    # Simple visualization
     plt.figure(figsize=(12, 6))
 
     plt.subplot(2, 1, 1)
@@ -58,42 +58,42 @@ def example_1_basic_usage():
 
     plt.tight_layout()
     plt.savefig('../results/example_1_basic.png', dpi=150)
-    print("\n저장: results/example_1_basic.png")
+    print("\nSaved: results/example_1_basic.png")
     plt.close()
 
 
 def example_2_manual_control():
-    """예제 2: 수동 제어"""
+    """Example 2: manual control"""
     print("\n" + "=" * 60)
-    print("예제 2: 수동 제어")
+    print("Example 2: manual control")
     print("=" * 60)
 
     import pandas as pd
 
     csv_file = Path('../exported_signals').glob('*.csv').__next__()
 
-    # 데이터 로드
+    # Load data
     df = pd.read_csv(csv_file, header=None, sep='\t', encoding='utf-16-le')
     time = df[0].values
     intensity = df[1].values
 
-    # Corrector 생성
+    # Create the corrector
     corrector = ImprovedBaselineCorrector(time, intensity)
 
-    # 앵커 포인트 수동 설정
+    # Manually configure anchor points
     anchors = corrector.find_anchors(
         valley_prominence_factor=0.01,
         local_min_percentile=10,
         min_anchor_distance=15
     )
 
-    print(f"\n앵커 포인트: {len(anchors)}개")
-    print("\n앵커 타입 분포:")
-    print(f"  Valley: {sum(1 for a in anchors if a.type == 'valley')}개")
-    print(f"  Local Min: {sum(1 for a in anchors if a.type == 'local_min')}개")
-    print(f"  Boundary: {sum(1 for a in anchors if a.type == 'boundary')}개")
+    print(f"\nAnchor points: {len(anchors)}")
+    print("\nAnchor type distribution:")
+    print(f"  Valley: {sum(1 for a in anchors if a.type == 'valley')}")
+    print(f"  Local Min: {sum(1 for a in anchors if a.type == 'local_min')}")
+    print(f"  Boundary: {sum(1 for a in anchors if a.type == 'boundary')}")
 
-    # 세 가지 방법으로 베이스라인 생성
+    # Generate baselines with all three methods
     methods = {
         'adaptive_spline': 'Adaptive Spline',
         'robust_spline': 'Robust Spline',
@@ -120,7 +120,7 @@ def example_2_manual_control():
         plt.legend()
         plt.grid(True, alpha=0.3)
 
-    # 앵커 포인트 표시
+    # Show the anchor points
     plt.subplot(2, 2, 4)
     plt.plot(time, intensity, 'b-', alpha=0.6, label='Signal')
 
@@ -145,14 +145,14 @@ def example_2_manual_control():
 
     plt.tight_layout()
     plt.savefig('../results/example_2_manual.png', dpi=150)
-    print("\n저장: results/example_2_manual.png")
+    print("\nSaved: results/example_2_manual.png")
     plt.close()
 
 
 def example_3_optimization():
-    """예제 3: 자동 최적화"""
+    """Example 3: automatic optimization"""
     print("\n" + "=" * 60)
-    print("예제 3: 자동 최적화")
+    print("Example 3: automatic optimization")
     print("=" * 60)
 
     import pandas as pd
@@ -165,23 +165,23 @@ def example_3_optimization():
 
     corrector = ImprovedBaselineCorrector(time, intensity)
 
-    # 자동 최적화 (여러 방법 시도)
+    # Automatic optimization (try multiple methods)
     baseline, params = corrector.optimize_baseline(
         methods=['adaptive_spline', 'robust_spline'],
         use_linear_peaks=True
     )
 
-    print(f"\n최적 방법: {params['method']}")
-    print(f"앵커 포인트: {params['num_anchors']}개")
-    print(f"품질 점수: {params['score']:.2f}")
-    print(f"직선 피크 적용: {params['use_linear_peaks']}")
+    print(f"\nBest method: {params['method']}")
+    print(f"Anchor points: {params['num_anchors']}")
+    print(f"Quality score: {params['score']:.2f}")
+    print(f"Linear peaks applied: {params['use_linear_peaks']}")
 
     corrected = np.maximum(intensity - baseline, 0)
 
-    # 상세 시각화
+    # Detailed visualization
     fig = plt.figure(figsize=(14, 10))
 
-    # 원본 + 베이스라인
+    # Original + baseline
     ax1 = plt.subplot(3, 1, 1)
     ax1.plot(time, intensity, 'b-', label='Original', alpha=0.7)
     ax1.plot(time, baseline, 'r--', linewidth=2, label='Baseline')
@@ -192,7 +192,7 @@ def example_3_optimization():
     ax1.legend()
     ax1.grid(True, alpha=0.3)
 
-    # 보정 후
+    # After correction
     ax2 = plt.subplot(3, 1, 2)
     ax2.plot(time, corrected, 'g-', linewidth=1.5)
     ax2.fill_between(time, 0, corrected, alpha=0.3, color='green')
@@ -201,11 +201,11 @@ def example_3_optimization():
     ax2.set_title('Corrected Signal')
     ax2.grid(True, alpha=0.3)
 
-    # 베이스라인 상세
+    # Baseline detail
     ax3 = plt.subplot(3, 1, 3)
     ax3.plot(time, baseline, 'r-', linewidth=2)
 
-    # 앵커 포인트 표시
+    # Show the anchor points
     for anchor in corrector.anchors:
         if anchor.type == 'valley':
             color, marker, label = 'red', 'v', 'Valley'
@@ -226,14 +226,14 @@ def example_3_optimization():
 
     plt.tight_layout()
     plt.savefig('../results/example_3_optimization.png', dpi=150)
-    print("\n저장: results/example_3_optimization.png")
+    print("\nSaved: results/example_3_optimization.png")
     plt.close()
 
 
 def example_4_rt_relaxation():
-    """예제 4: RT 기반 슬로프 완화"""
+    """Example 4: RT-based slope relaxation"""
     print("\n" + "=" * 60)
-    print("예제 4: RT 기반 슬로프 완화")
+    print("Example 4: RT-based slope relaxation")
     print("=" * 60)
 
     import pandas as pd
@@ -247,28 +247,28 @@ def example_4_rt_relaxation():
     corrector = ImprovedBaselineCorrector(time, intensity)
     corrector.find_anchors()
 
-    # RT 완화 없이
+    # Without RT relaxation
     baseline_no_relax = corrector.generate_baseline(
         method='adaptive_spline',
         apply_rt_relaxation=False
     )
 
-    # RT 완화 적용
+    # With RT relaxation applied
     baseline_with_relax = corrector.generate_baseline(
         method='adaptive_spline',
         apply_rt_relaxation=True
     )
 
-    print(f"\n앵커 포인트: {len(corrector.anchors)}개")
+    print(f"\nAnchor points: {len(corrector.anchors)}")
 
-    # 기울기 비교
+    # Compare slopes
     slope_no_relax = np.abs(np.diff(baseline_no_relax))
     slope_with_relax = np.abs(np.diff(baseline_with_relax))
 
-    print(f"최대 기울기 (완화 없음): {np.max(slope_no_relax):.2f}")
-    print(f"최대 기울기 (완화 적용): {np.max(slope_with_relax):.2f}")
+    print(f"Max slope (no relaxation): {np.max(slope_no_relax):.2f}")
+    print(f"Max slope (with relaxation): {np.max(slope_with_relax):.2f}")
 
-    # 시각화
+    # Visualization
     plt.figure(figsize=(14, 8))
 
     plt.subplot(2, 1, 1)
@@ -296,23 +296,23 @@ def example_4_rt_relaxation():
 
     plt.tight_layout()
     plt.savefig('../results/example_4_rt_relaxation.png', dpi=150)
-    print("\n저장: results/example_4_rt_relaxation.png")
+    print("\nSaved: results/example_4_rt_relaxation.png")
     plt.close()
 
 
 if __name__ == '__main__':
-    # 결과 디렉토리 생성
+    # Create the result directory
     result_dir = Path('../result')
     result_dir.mkdir(exist_ok=True)
 
-    # exported_signals 디렉토리 확인
+    # Check the exported_signals directory
     signals_dir = Path('../exported_signals')
     if not signals_dir.exists() or len(list(signals_dir.glob('*.csv'))) == 0:
-        print("ERROR: exported_signals 디렉토리에 CSV 파일이 없습니다!")
+        print("ERROR: no CSV files found in the exported_signals directory!")
         sys.exit(1)
 
     print("\n" + "="*60)
-    print("개선된 베이스라인 보정 예제 실행")
+    print("Running improved baseline correction examples")
     print("="*60)
 
     try:
@@ -322,9 +322,9 @@ if __name__ == '__main__':
         example_4_rt_relaxation()
 
         print("\n" + "="*60)
-        print("모든 예제 실행 완료!")
+        print("All examples completed!")
         print("="*60)
-        print(f"\n결과 위치: {result_dir.absolute()}/")
+        print(f"\nResults location: {result_dir.absolute()}/")
 
     except Exception as e:
         print(f"\nERROR: {e}")

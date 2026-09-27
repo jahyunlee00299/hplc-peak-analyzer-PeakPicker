@@ -1,6 +1,6 @@
 """
-피크 면적 정량 분석
-통합 피크 검출 시스템을 사용하여 폴더 내 모든 샘플 정량
+Peak area quantification analysis
+Quantifies every sample in a folder using the integrated peak detection system
 """
 import numpy as np
 import pandas as pd
@@ -12,26 +12,26 @@ import re
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 from hybrid_baseline import HybridBaselineCorrector
 
-# 한글 폰트 설정
+# Korean font settings (kept for CJK-capable rendering environments)
 plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False
 
 
 class PeakQuantifier:
-    """피크 면적 정량 분석"""
+    """Peak area quantification analysis"""
 
     def __init__(self, half_peak_mode: str = 'none'):
         self.results = []
         self.half_peak_mode = half_peak_mode
 
     def quantify_sample(self, csv_file, baseline_method='robust_fit'):
-        """단일 샘플 정량"""
-        # 데이터 로드
+        """Quantify a single sample"""
+        # Load data
         df = pd.read_csv(csv_file, header=None, sep='\t', encoding='utf-16-le')
         time = df[0].values
         intensity = df[1].values
 
-        # 베이스라인 보정
+        # Baseline correction
         corrector = HybridBaselineCorrector(time, intensity)
         corrector.find_baseline_anchor_points(valley_prominence=0.01, percentile=10)
         baseline = corrector.generate_hybrid_baseline(
@@ -39,7 +39,7 @@ class PeakQuantifier:
             enhanced_smoothing=True
         )
 
-        # 보정 및 후처리
+        # Correction and post-processing
         corrected_raw = intensity - baseline
         corrected = corrector.post_process_corrected_signal(
             corrected_raw,
@@ -47,7 +47,7 @@ class PeakQuantifier:
             negative_threshold=-50.0
         )
 
-        # 피크 검출
+        # Peak detection
         peaks_info = self._detect_peaks(time, corrected)
 
         return {
@@ -140,7 +140,7 @@ class PeakQuantifier:
         }
 
     def _detect_peaks(self, time, corrected):
-        """피크 검출 및 면적 계산 (SNR 기반 적응형 파라미터)"""
+        """Peak detection and area calculation (SNR-based adaptive parameters)"""
         from scipy import signal
         from scipy.integrate import trapezoid
 
@@ -151,7 +151,7 @@ class PeakQuantifier:
         min_height = params['min_height']
         min_width = params['min_width']
 
-        # 양수 피크만 검출
+        # Detect positive peaks only
         peaks, props = signal.find_peaks(
             corrected,
             prominence=min_prominence,
@@ -164,11 +164,11 @@ class PeakQuantifier:
         for i, peak_idx in enumerate(peaks):
             peak_height = corrected[peak_idx]
 
-            # 피크 높이 기반 경계 임계값 (피크 높이의 1%)
-            # 이 방식은 작은 피크와 큰 피크 모두에서 일관된 경계 검출을 보장
+            # Peak-height-based boundary threshold (1% of the peak height)
+            # This approach ensures consistent boundary detection for both small and large peaks
             boundary_threshold = max(peak_height * 0.01, noise_level * 0.5)
 
-            # 베이스라인 복귀 지점 찾기
+            # Find the point where the signal returns to baseline
             left_idx = peak_idx
             while left_idx > 0 and corrected[left_idx] > boundary_threshold:
                 left_idx -= 1
@@ -177,8 +177,8 @@ class PeakQuantifier:
             while right_idx < len(corrected) - 1 and corrected[right_idx] > boundary_threshold:
                 right_idx += 1
 
-            # 면적 계산 (초 단위로 변환)
-            peak_region_time = time[left_idx:right_idx+1] * 60  # 분 → 초
+            # Area calculation (converted to seconds)
+            peak_region_time = time[left_idx:right_idx+1] * 60  # min -> sec
             peak_region_signal = np.maximum(corrected[left_idx:right_idx+1], 0)
 
             # Half-peak quantification
@@ -232,39 +232,39 @@ class PeakQuantifier:
                 'asymmetry_warning': asymmetry_warning,
             })
 
-        # 면적 순 정렬
+        # Sort by area
         peaks_info.sort(key=lambda p: p['area'], reverse=True)
 
         return peaks_info
 
     def analyze_folder(self, folder_path, create_individual_plots=True):
-        """폴더 내 모든 샘플 분석"""
+        """Analyze every sample in a folder"""
         folder = Path(folder_path)
         csv_files = sorted(folder.glob('*.csv'))
 
         print(f"\n{'='*80}")
-        print(f"폴더: {folder.name}")
+        print(f"Folder: {folder.name}")
         print(f"{'='*80}")
-        print(f"총 {len(csv_files)}개 샘플 발견\n")
+        print(f"Found {len(csv_files)} samples\n")
 
         all_results = []
-        sample_details = []  # 개별 샘플 상세 정보 저장
+        sample_details = []  # store per-sample details
 
         for csv_file in csv_files:
             sample_name = csv_file.stem
-            print(f"분석 중: {sample_name}")
+            print(f"Analyzing: {sample_name}")
 
             try:
                 result = self.quantify_sample(csv_file)
 
-                # 샘플명에서 정보 추출
+                # Extract info from the sample name
                 sample_info = self._parse_sample_name(sample_name)
 
-                # 피크 정보
+                # Peak info
                 peaks = result['peaks']
 
-                # 결과 저장
-                for i, peak in enumerate(peaks[:5], 1):  # 상위 5개 피크만
+                # Store results
+                for i, peak in enumerate(peaks[:5], 1):  # top 5 peaks only
                     all_results.append({
                         'sample': sample_name,
                         'concentration': sample_info.get('concentration', 'unknown'),
@@ -278,11 +278,11 @@ class PeakQuantifier:
                         'prominence': peak['prominence']
                     })
 
-                print(f"  검출된 피크: {len(peaks)}개")
+                print(f"  Peaks detected: {len(peaks)}")
                 if len(peaks) > 0:
-                    print(f"  주 피크 RT: {peaks[0]['rt']:.2f} min, 면적: {peaks[0]['area']:.1f}")
+                    print(f"  Main peak RT: {peaks[0]['rt']:.2f} min, area: {peaks[0]['area']:.1f}")
 
-                # 샘플 상세 정보 저장
+                # Store sample details
                 sample_details.append({
                     'name': sample_name,
                     'time': result['time'],
@@ -293,29 +293,29 @@ class PeakQuantifier:
                 })
 
             except Exception as e:
-                print(f"  [오류] {e}")
+                print(f"  [Error] {e}")
 
-        # 개별 크로마토그램 저장
+        # Save individual chromatograms
         if create_individual_plots and len(sample_details) > 0:
             self.sample_details = sample_details
 
         return pd.DataFrame(all_results)
 
     def _parse_sample_name(self, sample_name):
-        """샘플명에서 농도 및 반복 정보 추출"""
+        """Extract concentration and replicate info from the sample name"""
         info = {}
 
-        # STD01 같은 샘플 ID 뒤의 농도만 추출
-        # 예: STD01_0_625MM_1 -> 0.625mM
-        #     STD01_10MM_1 -> 10mM
+        # Extract only the concentration following the sample ID like STD01
+        # e.g. STD01_0_625MM_1 -> 0.625mM
+        #      STD01_10MM_1 -> 10mM
 
-        # SP나 다른 ID 이후의 농도 패턴만 찾기
+        # Look only for a concentration pattern after the SP/other ID
         conc_patterns = [
-            # STD01_0_625MM 형태 (SP/STD prefix)
+            # STD01_0_625MM form (SP/STD prefix)
             (r'SP\d+_(\d+_\d+)MM', lambda m: f"{m.group(1).replace('_', '.')}"),
-            # STD01_10MM 형태
+            # STD01_10MM form
             (r'SP\d+_(\d+)MM', lambda m: f"{m.group(1)}"),
-            # 일반적인 패턴 (SP 없는 경우)
+            # Generic pattern (no SP prefix)
             (r'_(\d+_\d+)MM', lambda m: f"{m.group(1).replace('_', '.')}"),
             (r'_(\d+)MM', lambda m: f"{m.group(1)}"),
         ]
@@ -328,7 +328,7 @@ class PeakQuantifier:
                 info['conc_numeric'] = float(conc_value)
                 break
 
-        # 반복 번호 찾기 (마지막 _숫자)
+        # Find the replicate number (trailing _number)
         rep_match = re.search(r'_(\d+)$', sample_name)
         if rep_match:
             info['replicate'] = int(rep_match.group(1))
@@ -336,24 +336,24 @@ class PeakQuantifier:
         return info
 
     def create_summary_report(self, df, output_dir, reference_y0=None, reference_a=None):
-        """요약 리포트 생성 및 참조값 비교"""
+        """Generate the summary report and compare against reference values"""
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # STD 샘플 여부 확인 (샘플명에 'STD' 포함)
+        # Check whether these are STD samples (sample name contains 'STD')
         is_std_samples = df['sample'].str.contains('STD', case=False, na=False).any()
 
-        # 농도별 그룹화 (STD 샘플만)
+        # Group by concentration (STD samples only)
         if is_std_samples and 'concentration' in df.columns and df['concentration'].nunique() > 1:
-            # 주 피크 (rank 1)만 필터
+            # Filter to the main peak (rank 1) only
             main_peaks = df[df['peak_rank'] == 1].copy()
 
-            # 숫자 농도로 정렬
+            # Sort by numeric concentration
             main_peaks['conc_value'] = main_peaks['conc_numeric']
-            main_peaks = main_peaks[main_peaks['conc_value'] > 0]  # unknown 제외
+            main_peaks = main_peaks[main_peaks['conc_value'] > 0]  # exclude unknown
             main_peaks = main_peaks.sort_values('conc_value')
 
-            # 농도별 통계
+            # Statistics by concentration
             summary = main_peaks.groupby('concentration').agg({
                 'area': ['mean', 'std', 'count'],
                 'rt': 'mean',
@@ -361,106 +361,106 @@ class PeakQuantifier:
             }).round(2)
 
             print(f"\n{'='*80}")
-            print("농도별 주 피크 면적 요약")
+            print("Main peak area summary by concentration")
             print(f"{'='*80}")
             print(summary)
         else:
-            # 일반 샘플: 피크 정보 시각화
+            # Generic samples: visualize peak info
             print(f"\n{'='*80}")
-            print("일반 샘플 분석 결과")
+            print("Generic sample analysis results")
             print(f"{'='*80}")
             self._plot_peak_information(df, output_dir)
 
-        # 전체 결과 CSV
+        # Full results CSV
         full_file = output_dir / 'all_peaks_detailed.csv'
         df.to_csv(full_file, index=False, encoding='utf-8-sig')
-        print(f"전체 결과 저장: {full_file}")
+        print(f"Full results saved: {full_file}")
 
-        # 개별 크로마토그램 생성
+        # Generate individual chromatograms
         chromatogram_files = self.create_individual_chromatograms(output_dir)
 
-        # 오버레이 크로마토그램 생성
+        # Generate overlay chromatograms
         overlay_files = self.create_overlay_chromatograms(output_dir)
 
         return df
 
 
     def _plot_peak_information(self, df, output_dir):
-        """일반 샘플 피크 정보 시각화"""
-        # 샘플별 주 피크 (rank 1) 정보
+        """Visualize generic sample peak information"""
+        # Main peak (rank 1) info per sample
         main_peaks = df[df['peak_rank'] == 1].copy()
 
         if len(main_peaks) == 0:
-            print("표시할 주 피크가 없습니다.")
+            print("No main peaks to display.")
             return
 
-        # 샘플별 통계
-        print("\n샘플별 주 피크 정보:")
-        print(f"{'샘플':<40} {'RT':>8} {'높이':>12} {'면적':>15} {'폭':>8}")
+        # Per-sample statistics
+        print("\nMain peak info per sample:")
+        print(f"{'Sample':<40} {'RT':>8} {'Height':>12} {'Area':>15} {'Width':>8}")
         print("-" * 90)
 
         for _, row in main_peaks.iterrows():
             print(f"{row['sample']:<40} {row['rt']:>8.2f} {row['height']:>12.1f} {row['area']:>15.1f} {row['width']:>8.4f}")
 
-        # 시각화
+        # Visualization
         fig, axes = plt.subplots(2, 2, figsize=(16, 12))
 
-        # Panel 1: RT 분포
+        # Panel 1: RT distribution
         ax1 = axes[0, 0]
         ax1.bar(range(len(main_peaks)), main_peaks['rt'].values, color='steelblue', alpha=0.7)
-        ax1.set_xlabel('샘플 번호', fontsize=12, fontweight='bold')
+        ax1.set_xlabel('Sample #', fontsize=12, fontweight='bold')
         ax1.set_ylabel('Retention Time (min)', fontsize=12, fontweight='bold')
-        ax1.set_title('주 피크 RT 분포', fontsize=13, fontweight='bold')
+        ax1.set_title('Main Peak RT Distribution', fontsize=13, fontweight='bold')
         ax1.grid(True, alpha=0.3, axis='y')
 
-        # RT 평균선
+        # RT mean line
         rt_mean = main_peaks['rt'].mean()
         ax1.axhline(rt_mean, color='red', linestyle='--', linewidth=2,
-                   label=f'평균: {rt_mean:.2f} min')
+                   label=f'Mean: {rt_mean:.2f} min')
         ax1.legend(fontsize=10)
 
-        # Panel 2: 면적 분포
+        # Panel 2: area distribution
         ax2 = axes[0, 1]
         ax2.bar(range(len(main_peaks)), main_peaks['area'].values, color='forestgreen', alpha=0.7)
-        ax2.set_xlabel('샘플 번호', fontsize=12, fontweight='bold')
-        ax2.set_ylabel('피크 면적', fontsize=12, fontweight='bold')
-        ax2.set_title('주 피크 면적 분포', fontsize=13, fontweight='bold')
+        ax2.set_xlabel('Sample #', fontsize=12, fontweight='bold')
+        ax2.set_ylabel('Peak Area', fontsize=12, fontweight='bold')
+        ax2.set_title('Main Peak Area Distribution', fontsize=13, fontweight='bold')
         ax2.grid(True, alpha=0.3, axis='y')
 
-        # 면적 평균 및 표준편차
+        # Area mean and standard deviation
         area_mean = main_peaks['area'].mean()
         area_std = main_peaks['area'].std()
         ax2.axhline(area_mean, color='red', linestyle='--', linewidth=2,
-                   label=f'평균: {area_mean:.1f}')
+                   label=f'Mean: {area_mean:.1f}')
         ax2.axhline(area_mean + area_std, color='orange', linestyle=':', linewidth=1.5,
                    label=f'±1 SD: {area_std:.1f}')
         ax2.axhline(area_mean - area_std, color='orange', linestyle=':', linewidth=1.5)
         ax2.legend(fontsize=10)
 
-        # Panel 3: 높이 vs 면적 산점도
+        # Panel 3: height vs. area scatter plot
         ax3 = axes[1, 0]
         scatter = ax3.scatter(main_peaks['height'].values, main_peaks['area'].values,
                             s=100, c=main_peaks['rt'].values, cmap='viridis',
                             alpha=0.7, edgecolors='black', linewidth=1)
-        ax3.set_xlabel('피크 높이 (mAU)', fontsize=12, fontweight='bold')
-        ax3.set_ylabel('피크 면적', fontsize=12, fontweight='bold')
-        ax3.set_title('높이 vs 면적 상관관계', fontsize=13, fontweight='bold')
+        ax3.set_xlabel('Peak Height (mAU)', fontsize=12, fontweight='bold')
+        ax3.set_ylabel('Peak Area', fontsize=12, fontweight='bold')
+        ax3.set_title('Height vs. Area Correlation', fontsize=13, fontweight='bold')
         ax3.grid(True, alpha=0.3)
 
-        # 컬러바 (RT)
+        # Colorbar (RT)
         cbar = plt.colorbar(scatter, ax=ax3)
         cbar.set_label('RT (min)', fontsize=10)
 
-        # Panel 4: 통계 요약 테이블
+        # Panel 4: statistics summary table
         ax4 = axes[1, 1]
         ax4.axis('off')
 
-        # 통계 계산
+        # Compute statistics
         stats = {
-            '항목': ['샘플 수', 'RT 평균', 'RT 표준편차', 'RT 범위',
-                    '면적 평균', '면적 표준편차', '면적 CV%', '면적 범위',
-                    '높이 평균', '높이 표준편차'],
-            '값': [
+            'Item': ['Sample count', 'RT mean', 'RT std dev', 'RT range',
+                    'Area mean', 'Area std dev', 'Area CV%', 'Area range',
+                    'Height mean', 'Height std dev'],
+            'Value': [
                 f"{len(main_peaks)}",
                 f"{main_peaks['rt'].mean():.2f} min",
                 f"{main_peaks['rt'].std():.4f} min",
@@ -474,38 +474,38 @@ class PeakQuantifier:
             ]
         }
 
-        table_data = [[stats['항목'][i], stats['값'][i]] for i in range(len(stats['항목']))]
+        table_data = [[stats['Item'][i], stats['Value'][i]] for i in range(len(stats['Item']))]
 
-        table = ax4.table(cellText=table_data, colLabels=['항목', '값'],
+        table = ax4.table(cellText=table_data, colLabels=['Item', 'Value'],
                          cellLoc='left', loc='center',
                          colWidths=[0.4, 0.6])
         table.auto_set_font_size(False)
         table.set_fontsize(10)
         table.scale(1, 2.5)
 
-        # 헤더 스타일
+        # Header style
         for i in range(2):
             table[(0, i)].set_facecolor('#4CAF50')
             table[(0, i)].set_text_props(weight='bold', color='white')
 
-        # 행 색상 교대
+        # Alternate row colors
         for i in range(1, len(table_data) + 1):
             for j in range(2):
                 if i % 2 == 0:
                     table[(i, j)].set_facecolor('#f0f0f0')
 
-        ax4.set_title('통계 요약', fontsize=13, fontweight='bold', pad=20)
+        ax4.set_title('Statistics Summary', fontsize=13, fontweight='bold', pad=20)
 
         plt.tight_layout()
         plot_file = output_dir / 'peak_information_summary.png'
         plt.savefig(plot_file, dpi=150, bbox_inches='tight')
-        print(f"피크 정보 그래프 저장: {plot_file}")
+        print(f"Peak information graph saved: {plot_file}")
         plt.close()
 
     def create_individual_chromatograms(self, output_dir):
-        """각 샘플별 크로마토그램 시각화"""
+        """Visualize the chromatogram for each sample"""
         if not hasattr(self, 'sample_details') or len(self.sample_details) == 0:
-            print("생성할 크로마토그램이 없습니다.")
+            print("No chromatograms to generate.")
             return []
 
         output_dir = Path(output_dir) / 'chromatograms'
@@ -514,7 +514,7 @@ class PeakQuantifier:
         saved_files = []
 
         print(f"\n{'='*80}")
-        print("개별 크로마토그램 생성 중...")
+        print("Generating individual chromatograms...")
         print(f"{'='*80}")
 
         for sample in self.sample_details:
@@ -525,80 +525,80 @@ class PeakQuantifier:
             corrected = sample['corrected']
             peaks = sample['peaks']
 
-            # 피크가 있는 영역 감지 (x축 범위 설정용)
+            # Detect the peak-containing region (for setting the x-axis range)
             xlim_min, xlim_max = None, None
             if len(peaks) > 0:
-                # 모든 피크의 경계 찾기
+                # Find the boundaries of all peaks
                 all_left_times = [time[p['left_idx']] for p in peaks]
                 all_right_times = [time[p['right_idx']] for p in peaks]
 
-                # 여유 공간 추가 (피크 전후 10%)
+                # Add margin (10% before/after the peaks)
                 time_span = time[-1] - time[0]
                 margin = time_span * 0.05
                 xlim_min = max(time[0], min(all_left_times) - margin)
                 xlim_max = min(time[-1], max(all_right_times) + margin)
 
-            # 6패널 레이아웃 (로그 스케일 추가)
+            # 6-panel layout (with a log-scale panel added)
             fig = plt.figure(figsize=(18, 14))
             gs = fig.add_gridspec(4, 2, hspace=0.35, wspace=0.3,
                                  left=0.06, right=0.97, top=0.95, bottom=0.04)
 
-            # Panel 1: 원본 신호 + 베이스라인 (선형)
+            # Panel 1: original signal + baseline (linear)
             ax1 = fig.add_subplot(gs[0, :])
-            ax1.plot(time, intensity, 'b-', linewidth=1, alpha=0.7, label='원본 신호')
-            ax1.plot(time, baseline, 'r--', linewidth=2, label='베이스라인')
+            ax1.plot(time, intensity, 'b-', linewidth=1, alpha=0.7, label='Original signal')
+            ax1.plot(time, baseline, 'r--', linewidth=2, label='Baseline')
 
-            # 피크 위치 표시
-            for i, peak in enumerate(peaks[:5], 1):  # 상위 5개만
+            # Mark peak positions
+            for i, peak in enumerate(peaks[:5], 1):  # top 5 only
                 peak_idx = peak['index']
                 ax1.axvline(time[peak_idx], color='green', linestyle=':', alpha=0.5)
                 ax1.text(time[peak_idx], intensity[peak_idx], f'P{i}',
                         fontsize=9, ha='center', va='bottom', color='green', fontweight='bold')
 
-            ax1.set_xlabel('시간 (min)', fontsize=11, fontweight='bold')
-            ax1.set_ylabel('강도 (mAU)', fontsize=11, fontweight='bold')
-            ax1.set_title(f'원본 크로마토그램: {sample_name}', fontsize=12, fontweight='bold')
+            ax1.set_xlabel('Time (min)', fontsize=11, fontweight='bold')
+            ax1.set_ylabel('Intensity (mAU)', fontsize=11, fontweight='bold')
+            ax1.set_title(f'Original Chromatogram: {sample_name}', fontsize=12, fontweight='bold')
             ax1.legend(fontsize=10, loc='upper right')
             ax1.grid(True, alpha=0.3)
             if xlim_min is not None:
                 ax1.set_xlim(xlim_min, xlim_max)
 
-            # Panel 2: 원본 신호 + 베이스라인 (로그 스케일)
+            # Panel 2: original signal + baseline (log scale)
             ax1_log = fig.add_subplot(gs[1, :])
-            # 로그 스케일을 위해 양수 값으로 변환
+            # Shift to positive values for the log scale
             intensity_shifted = intensity - np.min(intensity) + 1
             baseline_shifted = baseline - np.min(intensity) + 1
 
-            ax1_log.plot(time, intensity_shifted, 'b-', linewidth=1, alpha=0.7, label='원본 신호')
-            ax1_log.plot(time, baseline_shifted, 'r--', linewidth=2, label='베이스라인')
+            ax1_log.plot(time, intensity_shifted, 'b-', linewidth=1, alpha=0.7, label='Original signal')
+            ax1_log.plot(time, baseline_shifted, 'r--', linewidth=2, label='Baseline')
             ax1_log.set_yscale('log')
 
-            # 피크 위치 표시
+            # Mark peak positions
             for i, peak in enumerate(peaks[:5], 1):
                 peak_idx = peak['index']
                 ax1_log.axvline(time[peak_idx], color='green', linestyle=':', alpha=0.5)
 
-            ax1_log.set_xlabel('시간 (min)', fontsize=11, fontweight='bold')
-            ax1_log.set_ylabel('강도 (mAU, log scale)', fontsize=11, fontweight='bold')
-            ax1_log.set_title('원본 크로마토그램 (로그 스케일)', fontsize=12, fontweight='bold')
+            ax1_log.set_xlabel('Time (min)', fontsize=11, fontweight='bold')
+            ax1_log.set_ylabel('Intensity (mAU, log scale)', fontsize=11, fontweight='bold')
+            ax1_log.set_title('Original Chromatogram (log scale)', fontsize=12, fontweight='bold')
             ax1_log.legend(fontsize=10, loc='upper right')
             ax1_log.grid(True, alpha=0.3, which='both')
             if xlim_min is not None:
                 ax1_log.set_xlim(xlim_min, xlim_max)
 
-            # Panel 3: 보정된 신호 (선형)
+            # Panel 3: corrected signal (linear)
             ax2 = fig.add_subplot(gs[2, :])
-            ax2.plot(time, corrected, 'g-', linewidth=1.5, label='보정 신호')
+            ax2.plot(time, corrected, 'g-', linewidth=1.5, label='Corrected signal')
             ax2.axhline(0, color='black', linestyle='-', linewidth=0.5, alpha=0.5)
 
-            # 피크 영역 채우기
+            # Fill the peak regions
             for i, peak in enumerate(peaks[:5], 1):
                 left_idx = peak['left_idx']
                 right_idx = peak['right_idx']
                 ax2.fill_between(time[left_idx:right_idx+1], 0, corrected[left_idx:right_idx+1],
                                 alpha=0.3, label=f'P{i}' if i <= 3 else None)
 
-                # 피크 정보 표시
+                # Show peak info
                 peak_idx = peak['index']
                 ax2.plot(time[peak_idx], corrected[peak_idx], 'ro', markersize=8)
                 ax2.text(time[peak_idx], corrected[peak_idx] * 1.05,
@@ -606,22 +606,22 @@ class PeakQuantifier:
                         fontsize=8, ha='center', va='bottom',
                         bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7))
 
-            ax2.set_xlabel('시간 (min)', fontsize=11, fontweight='bold')
-            ax2.set_ylabel('강도 (mAU)', fontsize=11, fontweight='bold')
-            ax2.set_title('베이스라인 보정 후', fontsize=12, fontweight='bold')
+            ax2.set_xlabel('Time (min)', fontsize=11, fontweight='bold')
+            ax2.set_ylabel('Intensity (mAU)', fontsize=11, fontweight='bold')
+            ax2.set_title('After Baseline Correction', fontsize=12, fontweight='bold')
             if len(peaks) <= 3:
                 ax2.legend(fontsize=9, loc='upper right')
             ax2.grid(True, alpha=0.3)
             if xlim_min is not None:
                 ax2.set_xlim(xlim_min, xlim_max)
 
-            # Panel 4: 피크 정보 테이블
+            # Panel 4: peak info table
             ax3 = fig.add_subplot(gs[3, 0])
             ax3.axis('off')
 
             if len(peaks) > 0:
                 table_data = []
-                for i, peak in enumerate(peaks[:10], 1):  # 상위 10개
+                for i, peak in enumerate(peaks[:10], 1):  # top 10
                     table_data.append([
                         f'P{i}',
                         f"{peak['rt']:.2f}",
@@ -633,7 +633,7 @@ class PeakQuantifier:
 
                 table = ax3.table(
                     cellText=table_data,
-                    colLabels=['#', 'RT\n(min)', '높이\n(mAU)', '면적', '폭\n(min)', '두드러짐'],
+                    colLabels=['#', 'RT\n(min)', 'Height\n(mAU)', 'Area', 'Width\n(min)', 'Prominence'],
                     cellLoc='center',
                     loc='center',
                     colWidths=[0.08, 0.15, 0.18, 0.22, 0.15, 0.22]
@@ -642,41 +642,41 @@ class PeakQuantifier:
                 table.set_fontsize(9)
                 table.scale(1, 2.2)
 
-                # 헤더 스타일
+                # Header style
                 for i in range(6):
                     table[(0, i)].set_facecolor('#2196F3')
                     table[(0, i)].set_text_props(weight='bold', color='white')
 
-                # 행 색상 교대
+                # Alternate row colors
                 for i in range(1, len(table_data) + 1):
                     for j in range(6):
                         if i % 2 == 0:
                             table[(i, j)].set_facecolor('#f0f0f0')
 
-                ax3.set_title(f'검출된 피크 정보 (상위 {min(len(peaks), 10)}개)',
+                ax3.set_title(f'Detected Peaks (top {min(len(peaks), 10)})',
                             fontsize=11, fontweight='bold', pad=10)
 
-            # Panel 5: 통계 요약
+            # Panel 5: statistics summary
             ax4 = fig.add_subplot(gs[3, 1])
             ax4.axis('off')
 
             stats_data = [
-                ['총 피크 수', f"{len(peaks)}개"],
-                ['데이터 포인트', f"{len(time)}개"],
-                ['시간 범위', f"{time[0]:.2f} ~ {time[-1]:.2f} min"],
-                ['강도 범위 (원본)', f"{np.min(intensity):.1f} ~ {np.max(intensity):.1f}"],
-                ['강도 범위 (보정)', f"{np.min(corrected):.1f} ~ {np.max(corrected):.1f}"],
+                ['Total peaks', f"{len(peaks)}"],
+                ['Data points', f"{len(time)}"],
+                ['Time range', f"{time[0]:.2f} ~ {time[-1]:.2f} min"],
+                ['Intensity range (original)', f"{np.min(intensity):.1f} ~ {np.max(intensity):.1f}"],
+                ['Intensity range (corrected)', f"{np.min(corrected):.1f} ~ {np.max(corrected):.1f}"],
             ]
 
             if len(peaks) > 0:
                 main_peak = peaks[0]
                 stats_data.extend([
                     ['', ''],
-                    ['[주 피크]', ''],
+                    ['[Main peak]', ''],
                     ['RT', f"{main_peak['rt']:.2f} min"],
-                    ['높이', f"{main_peak['height']:.1f} mAU"],
-                    ['면적', f"{main_peak['area']:.1f}"],
-                    ['폭', f"{main_peak['width']:.4f} min"],
+                    ['Height', f"{main_peak['height']:.1f} mAU"],
+                    ['Area', f"{main_peak['area']:.1f}"],
+                    ['Width', f"{main_peak['width']:.4f} min"],
                 ])
 
             stats_table = ax4.table(
@@ -689,57 +689,57 @@ class PeakQuantifier:
             stats_table.set_fontsize(9)
             stats_table.scale(1, 1.8)
 
-            # 주 피크 섹션 강조
+            # Highlight the main peak section
             if len(peaks) > 0:
                 stats_table[(6, 0)].set_facecolor('#4CAF50')
                 stats_table[(6, 1)].set_facecolor('#4CAF50')
                 stats_table[(6, 0)].set_text_props(weight='bold', color='white')
 
-            ax4.set_title('샘플 통계', fontsize=11, fontweight='bold', pad=10)
+            ax4.set_title('Sample Statistics', fontsize=11, fontweight='bold', pad=10)
 
-            plt.suptitle(f'크로마토그램 분석: {sample_name}',
+            plt.suptitle(f'Chromatogram Analysis: {sample_name}',
                         fontsize=14, fontweight='bold', y=0.995)
 
-            # 저장
+            # Save
             output_file = output_dir / f'{sample_name}_chromatogram.png'
             plt.savefig(output_file, dpi=150, bbox_inches='tight')
             plt.close()
 
             saved_files.append(output_file)
-            print(f"  저장: {sample_name}_chromatogram.png")
+            print(f"  Saved: {sample_name}_chromatogram.png")
 
-        print(f"\n총 {len(saved_files)}개 크로마토그램 생성 완료")
-        print(f"저장 위치: {output_dir}/")
+        print(f"\n{len(saved_files)} chromatograms generated in total")
+        print(f"Saved to: {output_dir}/")
 
         return saved_files
 
     def create_overlay_chromatograms(self, output_dir):
-        """유사한 샘플들의 크로마토그램 오버레이"""
+        """Overlay the chromatograms of similar samples"""
         if not hasattr(self, 'sample_details') or len(self.sample_details) == 0:
-            print("생성할 오버레이가 없습니다.")
+            print("No overlays to generate.")
             return []
 
         output_dir = Path(output_dir) / 'overlays'
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 유사한 샘플 스마트 그룹화
+        # Smart grouping of similar samples
         import re
         groups = {}
 
         for sample in self.sample_details:
             sample_name = sample['name']
 
-            # 다양한 패턴으로 그룹화 시도
+            # Try grouping by various patterns
             base_name = None
 
-            # 패턴 1: 마지막 _숫자_ 또는 _숫자 제거 (예: _1_, _2_, _3_)
+            # Pattern 1: strip a trailing _number_ or _number (e.g. _1_, _2_, _3_)
             match = re.search(r'(.+?)_\d+_?$', sample_name)
             if match:
                 base_name = match.group(1)
-            # 패턴 2: 마지막 숫자만 제거 (예: sample1, sample2)
+            # Pattern 2: strip only a trailing number (e.g. sample1, sample2)
             elif re.search(r'\d+$', sample_name):
                 base_name = re.sub(r'\d+$', '', sample_name).rstrip('_')
-            # 패턴 3: 그대로 사용 (그룹화 불가)
+            # Pattern 3: use as-is (cannot be grouped)
             else:
                 base_name = sample_name
 
@@ -747,20 +747,20 @@ class PeakQuantifier:
                 groups[base_name] = []
             groups[base_name].append(sample)
 
-        # 2개 이상의 샘플이 있는 그룹만 오버레이
+        # Only overlay groups with 2 or more samples
         saved_files = []
 
         print(f"\n{'='*80}")
-        print("오버레이 크로마토그램 생성 중...")
+        print("Generating overlay chromatograms...")
         print(f"{'='*80}")
 
         for base_name, samples in groups.items():
             if len(samples) < 2:
                 continue
 
-            print(f"  그룹: {base_name} ({len(samples)}개 샘플)")
+            print(f"  Group: {base_name} ({len(samples)} samples)")
 
-            # 피크가 있는 영역 감지 (모든 샘플의 피크 고려)
+            # Detect the peak-containing region (considering all samples' peaks)
             xlim_min, xlim_max = None, None
             all_peak_times = []
             for sample in samples:
@@ -775,12 +775,12 @@ class PeakQuantifier:
                 xlim_min = max(samples[0]['time'][0], min(all_peak_times) - margin)
                 xlim_max = min(samples[0]['time'][-1], max(all_peak_times) + margin)
 
-            # 4패널 레이아웃 (로그 스케일 추가)
+            # 4-panel layout (with a log-scale panel added)
             fig = plt.figure(figsize=(18, 12))
             gs = fig.add_gridspec(3, 2, hspace=0.35, wspace=0.3,
                                  left=0.06, right=0.97, top=0.93, bottom=0.05)
 
-            # Panel 1: 원본 신호 오버레이 (선형) + Area 데이터 포인트
+            # Panel 1: original signal overlay (linear) + area data points
             ax1 = fig.add_subplot(gs[0, :])
             colors = plt.cm.tab10(np.linspace(0, 1, len(samples)))
 
@@ -792,18 +792,18 @@ class PeakQuantifier:
                 ax1.plot(time, intensity, linewidth=1.5, alpha=0.7,
                         color=color, label=label)
 
-                # 모든 피크 위치에 area 값을 데이터 포인트로 표시
+                # Show the area value as a data point at every peak position
                 for peak in peaks:
                     peak_idx = peak['index']
                     peak_rt = time[peak_idx]
                     peak_intensity = intensity[peak_idx]
                     area = peak['area']
 
-                    # 데이터 포인트 표시
+                    # Show the data point
                     ax1.scatter(peak_rt, peak_intensity, s=80, color=color,
                               edgecolors='black', linewidths=1.5, zorder=10, alpha=0.9)
 
-                    # Area 값 텍스트 표시 (작은 폰트)
+                    # Show the area value as text (small font)
                     ax1.annotate(f'{area:.0f}',
                                xy=(peak_rt, peak_intensity),
                                xytext=(0, 8), textcoords='offset points',
@@ -812,38 +812,38 @@ class PeakQuantifier:
                                bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
                                        edgecolor=color, alpha=0.7))
 
-            ax1.set_xlabel('시간 (min)', fontsize=12, fontweight='bold')
-            ax1.set_ylabel('강도 (mAU)', fontsize=12, fontweight='bold')
-            ax1.set_title(f'원본 크로마토그램 오버레이 (시간대별 Area 표시): {base_name}',
+            ax1.set_xlabel('Time (min)', fontsize=12, fontweight='bold')
+            ax1.set_ylabel('Intensity (mAU)', fontsize=12, fontweight='bold')
+            ax1.set_title(f'Original Chromatogram Overlay (area shown per timepoint): {base_name}',
                          fontsize=13, fontweight='bold')
             ax1.legend(fontsize=10, ncol=min(len(samples), 5), loc='upper left')
             ax1.grid(True, alpha=0.3)
             if xlim_min is not None:
                 ax1.set_xlim(xlim_min, xlim_max)
 
-            # Panel 2: 원본 신호 오버레이 (로그 스케일)
+            # Panel 2: original signal overlay (log scale)
             ax1_log = fig.add_subplot(gs[1, :])
 
             for i, (sample, color) in enumerate(zip(samples, colors), 1):
                 time = sample['time']
                 intensity = sample['intensity']
-                # 로그 스케일을 위해 양수 값으로 변환
+                # Shift to positive values for the log scale
                 intensity_shifted = intensity - np.min(intensity) + 1
                 label = sample['name'].replace(base_name, '').strip('_') or f'#{i}'
                 ax1_log.plot(time, intensity_shifted, linewidth=1.5, alpha=0.7,
                            color=color, label=label)
 
             ax1_log.set_yscale('log')
-            ax1_log.set_xlabel('시간 (min)', fontsize=12, fontweight='bold')
-            ax1_log.set_ylabel('강도 (mAU, log scale)', fontsize=12, fontweight='bold')
-            ax1_log.set_title(f'원본 크로마토그램 오버레이 (로그 스케일): {base_name}',
+            ax1_log.set_xlabel('Time (min)', fontsize=12, fontweight='bold')
+            ax1_log.set_ylabel('Intensity (mAU, log scale)', fontsize=12, fontweight='bold')
+            ax1_log.set_title(f'Original Chromatogram Overlay (log scale): {base_name}',
                             fontsize=13, fontweight='bold')
             ax1_log.legend(fontsize=10, ncol=min(len(samples), 5))
             ax1_log.grid(True, alpha=0.3, which='both')
             if xlim_min is not None:
                 ax1_log.set_xlim(xlim_min, xlim_max)
 
-            # Panel 3: 베이스라인 보정 후 오버레이
+            # Panel 3: overlay after baseline correction
             ax2 = fig.add_subplot(gs[2, 0])
 
             for i, (sample, color) in enumerate(zip(samples, colors), 1):
@@ -854,15 +854,15 @@ class PeakQuantifier:
                         color=color, label=label)
 
             ax2.axhline(0, color='black', linestyle='-', linewidth=0.5, alpha=0.5)
-            ax2.set_xlabel('시간 (min)', fontsize=11, fontweight='bold')
-            ax2.set_ylabel('강도 (mAU)', fontsize=11, fontweight='bold')
-            ax2.set_title('보정 후 오버레이', fontsize=12, fontweight='bold')
+            ax2.set_xlabel('Time (min)', fontsize=11, fontweight='bold')
+            ax2.set_ylabel('Intensity (mAU)', fontsize=11, fontweight='bold')
+            ax2.set_title('Overlay After Correction', fontsize=12, fontweight='bold')
             ax2.legend(fontsize=9, ncol=min(len(samples), 3))
             ax2.grid(True, alpha=0.3)
             if xlim_min is not None:
                 ax2.set_xlim(xlim_min, xlim_max)
 
-            # Panel 4: 주 피크 비교 테이블
+            # Panel 4: main peak comparison table
             ax3 = fig.add_subplot(gs[2, 1])
             ax3.axis('off')
 
@@ -883,7 +883,7 @@ class PeakQuantifier:
             if len(table_data) > 0:
                 table = ax3.table(
                     cellText=table_data,
-                    colLabels=['샘플', 'RT\n(min)', '높이\n(mAU)', '면적', '총\n피크수'],
+                    colLabels=['Sample', 'RT\n(min)', 'Height\n(mAU)', 'Area', 'Total\npeaks'],
                     cellLoc='center',
                     loc='center',
                     colWidths=[0.15, 0.15, 0.25, 0.25, 0.15]
@@ -892,38 +892,38 @@ class PeakQuantifier:
                 table.set_fontsize(10)
                 table.scale(1, 2.5)
 
-                # 헤더 스타일
+                # Header style
                 for i in range(5):
                     table[(0, i)].set_facecolor('#FF9800')
                     table[(0, i)].set_text_props(weight='bold', color='white')
 
-                # 행 색상 교대
+                # Alternate row colors
                 for i in range(1, len(table_data) + 1):
                     for j in range(5):
                         if i % 2 == 0:
                             table[(i, j)].set_facecolor('#f0f0f0')
 
-                ax3.set_title('주 피크 비교', fontsize=12, fontweight='bold', pad=10)
+                ax3.set_title('Main Peak Comparison', fontsize=12, fontweight='bold', pad=10)
 
-            plt.suptitle(f'반복 측정 비교: {base_name}',
+            plt.suptitle(f'Replicate Comparison: {base_name}',
                         fontsize=14, fontweight='bold')
 
-            # 저장
+            # Save
             output_file = output_dir / f'{base_name}_overlay.png'
             plt.savefig(output_file, dpi=150, bbox_inches='tight')
             plt.close()
 
             saved_files.append(output_file)
-            print(f"    저장: {base_name}_overlay.png")
+            print(f"    Saved: {base_name}_overlay.png")
 
-        print(f"\n총 {len(saved_files)}개 오버레이 생성 완료")
-        print(f"저장 위치: {output_dir}/")
+        print(f"\n{len(saved_files)} overlays generated in total")
+        print(f"Saved to: {output_dir}/")
 
         return saved_files
 
 
 def main():
-    """메인 함수"""
+    """Main function"""
     import sys
 
     if len(sys.argv) > 1:
@@ -932,27 +932,27 @@ def main():
         folder_path = str(Path(__file__).parent.parent / "results" / "DEF_LC 2025-05-19 17-57-25")
 
     print("\n" + "="*80)
-    print("피크 면적 정량 분석")
+    print("Peak Area Quantification Analysis")
     print("="*80)
 
     quantifier = PeakQuantifier()
 
-    # 폴더 분석
+    # Analyze the folder
     df = quantifier.analyze_folder(folder_path)
 
     if len(df) > 0:
-        # 리포트 생성 (참조값 전달)
+        # Generate the report (passing the reference values)
         output_dir = Path(folder_path) / 'quantification'
         reference_y0 = 2173.0209  # tag y0
         reference_a = 52004.0462   # tag a
         quantifier.create_summary_report(df, output_dir, reference_y0, reference_a)
 
         print(f"\n{'='*80}")
-        print("분석 완료!")
+        print("Analysis complete!")
         print(f"{'='*80}")
-        print(f"결과 저장 위치: {output_dir}/")
+        print(f"Results saved to: {output_dir}/")
     else:
-        print("\n분석된 데이터가 없습니다.")
+        print("\nNo data was analyzed.")
 
 
 if __name__ == '__main__':

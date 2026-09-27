@@ -1,153 +1,153 @@
-# 키보드 자동화 타이밍 최적화 가이드
+# Keyboard Automation Timing Optimization Guide
 
-## 개요
-`auto_export_keyboard_final.py`의 키보드 자동화 속도를 최적화하기 위한 가이드입니다.
+## Overview
+A guide to optimizing the keyboard automation speed of `auto_export_keyboard_final.py`.
 
-## 적용된 최적화 (v2.1)
+## Optimizations Applied (v2.1)
 
-### 1. PyAutoGUI 전역 PAUSE 설정
+### 1. Global PyAutoGUI PAUSE Setting
 ```python
-pyautogui.PAUSE = 0.2  # 원래 0.3 → 0.2로 변경
+pyautogui.PAUSE = 0.2  # changed from 0.3 to 0.2
 ```
 
-**영향**: 모든 PyAutoGUI 명령(hotkey, press) 후 자동 대기 시간
-- **원래**: 0.3초 (안정적이지만 느림)
-- **최적화**: 0.2초 (33% 속도 향상)
-- **빠르게**: 0.15초 (2배 빠르지만 안정성 감소 가능)
+**Effect**: automatic wait time after every PyAutoGUI command (hotkey, press)
+- **Original**: 0.3s (stable but slow)
+- **Optimized**: 0.2s (33% speed improvement)
+- **Fast**: 0.15s (2x faster but may reduce stability)
 
-**추천**:
-- 안정성 우선: `0.3`
-- 균형 (기본): `0.2`
-- 속도 우선: `0.15` (테스트 필요)
+**Recommendation**:
+- Prioritize stability: `0.3`
+- Balanced (default): `0.2`
+- Prioritize speed: `0.15` (needs testing)
 
 ---
 
-### 2. export_one_file() 함수 내부 타이밍
+### 2. Timing Inside the export_one_file() Function
 
-| 단계 | 작업 | 원래 | 최적화 | 설명 |
+| Step | Action | Original | Optimized | Notes |
 |------|------|------|--------|------|
-| 1 | File 메뉴 열기 | 0.5s | **0.3s** | 메뉴 열리는 시간만 필요 |
-| 2 | Load Signal 대화상자 | 1.0s | **0.8s** | 대화상자 로딩 |
-| 3a | Ctrl+A (전체 선택) | 0.2s | **0.1s** | 즉시 선택됨 |
-| 3b | Ctrl+V (붙여넣기) | 0.5s | **0.3s** | 텍스트 붙여넣기 |
-| 4 | Enter (파일 열기) | 3.0s | **2.5s** | 📌 **가장 긴 대기** (파일 크기에 따라 다름) |
-| 5 | File 메뉴 열기 | 0.5s | **0.3s** | 메뉴 열기 |
-| 6 | Export 메뉴 | 0.5s | **0.3s** | 서브메뉴 |
-| 7 | CSV 선택 | 0.5s | **0.3s** | 대화상자 |
-| 8a | Down 키 1번 | 0.2s | **0.1s** | 키 입력 간격 |
-| 8b | Down 키 2번 | 0.3s | **0.15s** | 선택 확인 |
-| 9a | Enter 1번 | 0.5s | **0.3s** | 확인 |
-| 9b | Enter 2번 | 2.0s | **1.5s** | Export 완료 대기 |
+| 1 | Open the File menu | 0.5s | **0.3s** | only the menu-opening time is needed |
+| 2 | Load Signal dialog | 1.0s | **0.8s** | dialog loading |
+| 3a | Ctrl+A (select all) | 0.2s | **0.1s** | selects instantly |
+| 3b | Ctrl+V (paste) | 0.5s | **0.3s** | pasting text |
+| 4 | Enter (open file) | 3.0s | **2.5s** | 📌 **longest wait** (depends on file size) |
+| 5 | Open the File menu | 0.5s | **0.3s** | opening the menu |
+| 6 | Export menu | 0.5s | **0.3s** | submenu |
+| 7 | Select CSV | 0.5s | **0.3s** | dialog |
+| 8a | Down key x1 | 0.2s | **0.1s** | keystroke interval |
+| 8b | Down key x2 | 0.3s | **0.15s** | selection confirmation |
+| 9a | Enter x1 | 0.5s | **0.3s** | confirm |
+| 9b | Enter x2 | 2.0s | **1.5s** | wait for export to complete |
 
-**총 대기 시간**:
-- 원래: **10.2초** (PAUSE 0.3s 포함 시 ~13초)
-- 최적화: **7.65초** (PAUSE 0.2s 포함 시 ~9초)
-- **향상**: 약 **30% 속도 증가**
-
----
-
-## 추가 최적화 가능 지점
-
-### 🔴 중요: 신중하게 조정해야 할 항목
-
-#### 1. 파일 로드 대기 (Step 4)
-```python
-time.sleep(2.5)  # 원래 3.0초
-```
-- **현재**: 2.5초
-- **가능한 범위**: 1.5~4.0초
-- **주의**: 파일 크기와 시스템 성능에 따라 다름
-- **권장**: 큰 파일이 많으면 3.0초 유지, 작은 파일만 있으면 2.0초까지 가능
-
-#### 2. Export 완료 대기 (Step 9b)
-```python
-time.sleep(1.5)  # 원래 2.0초
-```
-- **현재**: 1.5초
-- **가능한 범위**: 1.0~3.0초
-- **주의**: Export 작업이 완료되기 전에 다음 파일로 넘어가면 오류 발생
-- **권장**: 1.5초 유지, 문제 발생 시 2.0초로 복구
+**Total wait time**:
+- Original: **10.2s** (with PAUSE 0.3s, ~13s total)
+- Optimized: **7.65s** (with PAUSE 0.2s, ~9s total)
+- **Improvement**: about **30% faster**
 
 ---
 
-## 실험적 최적화 (고급 사용자)
+## Further Optimization Points
 
-### 공격적 최적화 설정
-더 빠른 속도를 원한다면 다음 설정을 시도해보세요:
+### 🔴 Important: Items to Adjust Carefully
 
+#### 1. File Load Wait (Step 4)
 ```python
-# 전역 설정
-pyautogui.PAUSE = 0.15  # 더 빠르게
-
-# export_one_file() 함수 내부
-time.sleep(0.2)  # Step 1: File 메뉴 (원래 0.3)
-time.sleep(0.6)  # Step 2: Load Signal (원래 0.8)
-time.sleep(0.05) # Step 3a: Ctrl+A (원래 0.1)
-time.sleep(0.2)  # Step 3b: Ctrl+V (원래 0.3)
-time.sleep(2.0)  # Step 4: 파일 열기 (원래 2.5) ⚠️ 주의
-time.sleep(0.2)  # Step 5-7: 메뉴들 (원래 0.3)
-time.sleep(0.05) # Step 8a: Down (원래 0.1)
-time.sleep(0.1)  # Step 8b: Down (원래 0.15)
-time.sleep(0.2)  # Step 9a: Enter (원래 0.3)
-time.sleep(1.2)  # Step 9b: Export (원래 1.5) ⚠️ 주의
+time.sleep(2.5)  # originally 3.0s
 ```
+- **Current**: 2.5s
+- **Possible range**: 1.5-4.0s
+- **Note**: depends on file size and system performance
+- **Recommendation**: keep 3.0s if there are many large files; can go down to 2.0s if only small files
 
-**예상 총 시간**: ~6초 (50% 속도 향상)
-**리스크**: 실패율 증가 가능, 충분히 테스트 필요
+#### 2. Export Completion Wait (Step 9b)
+```python
+time.sleep(1.5)  # originally 2.0s
+```
+- **Current**: 1.5s
+- **Possible range**: 1.0-3.0s
+- **Note**: moving to the next file before the export finishes causes an error
+- **Recommendation**: keep 1.5s; restore to 2.0s if problems occur
 
 ---
 
-## 문제 해결
+## Experimental Optimization (Advanced Users)
 
-### Export 실패가 자주 발생하는 경우
+### Aggressive Optimization Settings
+If you want even faster speed, try the following settings:
 
-1. **Step 4 (파일 로드) 시간 증가**
+```python
+# Global setting
+pyautogui.PAUSE = 0.15  # faster
+
+# Inside the export_one_file() function
+time.sleep(0.2)  # Step 1: File menu (originally 0.3)
+time.sleep(0.6)  # Step 2: Load Signal (originally 0.8)
+time.sleep(0.05) # Step 3a: Ctrl+A (originally 0.1)
+time.sleep(0.2)  # Step 3b: Ctrl+V (originally 0.3)
+time.sleep(2.0)  # Step 4: open file (originally 2.5) ⚠️ caution
+time.sleep(0.2)  # Step 5-7: menus (originally 0.3)
+time.sleep(0.05) # Step 8a: Down (originally 0.1)
+time.sleep(0.1)  # Step 8b: Down (originally 0.15)
+time.sleep(0.2)  # Step 9a: Enter (originally 0.3)
+time.sleep(1.2)  # Step 9b: Export (originally 1.5) ⚠️ caution
+```
+
+**Expected total time**: ~6s (50% speed improvement)
+**Risk**: failure rate may increase, thorough testing needed
+
+---
+
+## Troubleshooting
+
+### If Export Failures Occur Frequently
+
+1. **Increase Step 4 (file load) time**
    ```python
-   time.sleep(3.0)  # 또는 3.5초
+   time.sleep(3.0)  # or 3.5s
    ```
 
-2. **Step 9b (Export 완료) 시간 증가**
+2. **Increase Step 9b (export completion) time**
    ```python
-   time.sleep(2.0)  # 또는 2.5초
+   time.sleep(2.0)  # or 2.5s
    ```
 
-3. **전역 PAUSE 증가**
+3. **Increase global PAUSE**
    ```python
-   pyautogui.PAUSE = 0.3  # 원래대로
+   pyautogui.PAUSE = 0.3  # back to original
    ```
 
-### 시스템이 빠른 경우
-- SSD를 사용하고 시스템이 빠르다면 모든 시간을 80%로 줄여도 됨
-- 예: `time.sleep(0.3)` → `time.sleep(0.24)`
+### If the System Is Fast
+- If using an SSD and the system is fast, you can reduce all times to 80%
+- e.g.: `time.sleep(0.3)` → `time.sleep(0.24)`
 
-### 시스템이 느린 경우
-- HDD를 사용하거나 오래된 PC라면 시간 증가 필요
-- 특히 Step 4, 9b는 20-50% 증가 권장
+### If the System Is Slow
+- If using an HDD or an older PC, increase the times
+- Increasing Step 4 and 9b by 20-50% is recommended in particular
 
 ---
 
-## 성능 측정
+## Performance Measurements
 
-100개 파일 기준 예상 시간:
+Estimated time for 100 files:
 
-| 설정 | 파일당 시간 | 100개 총 시간 |
+| Setting | Time per file | Total time for 100 |
 |------|-------------|---------------|
-| 원래 (v2.0) | ~13초 | ~22분 |
-| 최적화 (v2.1) | ~9초 | ~15분 |
-| 공격적 | ~6초 | ~10분 |
+| Original (v2.0) | ~13s | ~22min |
+| Optimized (v2.1) | ~9s | ~15min |
+| Aggressive | ~6s | ~10min |
 
-**실제 시간**: 파일 로드/Export 시간에 따라 달라짐
+**Actual time**: varies depending on file load/export time
 
 ---
 
-## 버전 히스토리
+## Version History
 
 ### v2.1 (2025-11-06)
 - PyAutoGUI PAUSE: 0.3 → 0.2
-- 모든 sleep 시간 최적화
-- 재귀적 폴더 검색 추가
-- 대화형 디렉토리 탐색기 추가
+- Optimized all sleep times
+- Added recursive folder search
+- Added an interactive directory browser
 
 ### v2.0 (2025-11-06)
-- 대화형 경로 입력
-- 하이브리드 베이스라인 통합
+- Interactive path input
+- Integrated hybrid baseline

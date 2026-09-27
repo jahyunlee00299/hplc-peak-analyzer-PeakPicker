@@ -1,12 +1,12 @@
 """
-SOLID 리팩토링 검증 테스트
+SOLID refactor verification tests
 ===========================
 
-1. mad 버그 수정 검증 (신호 스케일 무관)
-2. ARPLS 베이스라인 정확도 테스트
-3. 2-Pass 피크 감지 (major + minor peaks)
-4. EMG fitting (대칭/비대칭 피크)
-5. WorkflowBuilder 통합 테스트
+1. mad bug fix verification (signal-scale independence)
+2. ARPLS baseline accuracy test
+3. 2-Pass peak detection (major + minor peaks)
+4. EMG fitting (symmetric/asymmetric peaks)
+5. WorkflowBuilder integration test
 """
 
 import sys
@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helper: 합성 크로마토그램 생성
+# Helper: generate a synthetic chromatogram
 # ─────────────────────────────────────────────────────────────────────────────
 
 def make_chromatogram(
@@ -55,15 +55,17 @@ def make_emg_peak(time, amplitude, center, sigma, tau):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. MAD 버그 수정 검증
+# 1. MAD bug fix verification
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestMadBugFix:
     """
-    mad < 100 절대값 → signal_range * 0.01 상대값으로 수정 검증.
+    Verifies the fix from an absolute mad < 100 threshold to a relative
+    signal_range * 0.01 threshold.
 
-    _remove_outliers는 baseline anchor 중 너무 낮은 포인트(노이즈 dip 등)를 제거한다.
-    핵심: 제거 기준이 signal scale과 무관해야 한다.
+    _remove_outliers drops baseline anchors whose points are abnormally low
+    (e.g. a noise dip). Key requirement: the removal criterion must be
+    independent of signal scale.
     """
 
     def _make_finder(self):
@@ -82,23 +84,23 @@ class TestMadBugFix:
         return finder, anchors
 
     def test_small_scale_removes_low_outlier(self):
-        """소신호(범위 ~7) — 매우 낮은 outlier(-5.0) 제거"""
+        """Small signal (range ~7) - removes a very low outlier (-5.0)"""
         values = [1.0, 1.1, 1.0, 0.9, 1.2, 1.0, -5.0]
         finder, anchors = self._make_anchors(values)
         result = finder._remove_outliers(anchors)
         result_vals = [p.value for p in result]
-        assert -5.0 not in result_vals, "소신호 음수 이상값 제거 실패"
+        assert -5.0 not in result_vals, "Failed to remove the negative outlier on a small signal"
 
     def test_large_scale_removes_low_outlier(self):
-        """대신호(범위 ~1e5) — 매우 낮은 outlier 제거"""
+        """Large signal (range ~1e5) - removes a very low outlier"""
         values = [100_000.0] * 8 + [-50_000.0]
         finder, anchors = self._make_anchors(values)
         result = finder._remove_outliers(anchors)
         result_vals = [p.value for p in result]
-        assert -50_000.0 not in result_vals, "대신호 음수 이상값 제거 실패"
+        assert -50_000.0 not in result_vals, "Failed to remove the negative outlier on a large signal"
 
     def test_relative_threshold_scale_invariant(self):
-        """같은 패턴의 분포 → 스케일에 무관하게 동일한 포인트 수 유지"""
+        """Same distribution pattern -> the number of retained points must stay the same regardless of scale"""
         finder = self._make_finder()
 
         def count_kept(values):
@@ -108,31 +110,31 @@ class TestMadBugFix:
                        for i, v in enumerate(values)]
             return len(finder._remove_outliers(anchors))
 
-        # 동일한 형태 (정상 10개 + 매우 낮은 outlier 1개), 스케일만 1000배 차이
-        base = [10.0] * 10 + [-10.0]       # 범위: 20, outlier: -10
-        scaled = [v * 1000 for v in base]  # 범위: 20000, outlier: -10000
+        # Same shape (10 normal points + 1 very low outlier), scale differs by 1000x
+        base = [10.0] * 10 + [-10.0]       # range: 20, outlier: -10
+        scaled = [v * 1000 for v in base]  # range: 20000, outlier: -10000
         assert count_kept(base) == count_kept(scaled), \
-            "스케일에 따라 제거 결과가 달라짐 (상대값 버그)"
+            "Removal result differs by scale (relative-threshold bug)"
 
     def test_stable_baseline_not_over_filtered(self):
-        """안정적인 베이스라인 — 과도하게 제거하지 않아야 함"""
+        """A stable baseline must not be over-filtered"""
         values = [100.0, 101.0, 99.0, 100.5, 100.2, 99.8]
         finder, anchors = self._make_anchors(values)
         result = finder._remove_outliers(anchors)
-        assert len(result) >= 4, "안정적 베이스라인 포인트를 너무 많이 제거"
+        assert len(result) >= 4, "Too many stable baseline points were removed"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. ARPLS 베이스라인 테스트
+# 2. ARPLS baseline test
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestArplsStrategy:
 
     def test_flat_baseline_recovery(self):
-        """선형 드리프트 베이스라인 복원"""
+        """Recovering a linear-drift baseline"""
         from peakpicker.baseline.strategies.arpls_strategy import ArplsStrategy
         time = np.linspace(0, 10, 500)
-        # 선형 드리프트 + 가우시안 피크
+        # Linear drift + Gaussian peak
         true_baseline = 1000 + 200 * time
         peak = 50_000 * np.exp(-0.5 * ((time - 5) / 0.3) ** 2)
         signal = true_baseline + peak
@@ -140,11 +142,11 @@ class TestArplsStrategy:
         strat = ArplsStrategy(lam=1e6)
         estimated = strat.generate(time, signal, anchors=[])
 
-        # 피크 외부 구간에서 베이스라인 오차 < 15%
-        # (ARPLS는 피크 근처 edge에서 drift 발생 가능)
+        # Baseline error outside the peak region < 15%
+        # (ARPLS can drift near the peak edge)
         mask = np.abs(time - 5) > 1.5
         rel_err = np.abs(estimated[mask] - true_baseline[mask]) / true_baseline[mask]
-        assert np.mean(rel_err) < 0.15, f"ARPLS 베이스라인 오차 {np.mean(rel_err)*100:.1f}% > 15%"
+        assert np.mean(rel_err) < 0.15, f"ARPLS baseline error {np.mean(rel_err)*100:.1f}% > 15%"
 
     def test_returns_same_length(self):
         from peakpicker.baseline.strategies.arpls_strategy import ArplsStrategy
@@ -155,7 +157,7 @@ class TestArplsStrategy:
         assert len(baseline) == len(signal)
 
     def test_baseline_below_peaks(self):
-        """베이스라인은 피크 신호보다 항상 낮아야 함"""
+        """The baseline must always be below the peak signal"""
         from peakpicker.baseline.strategies.arpls_strategy import ArplsStrategy
         time = np.linspace(0, 10, 500)
         signal = (500 + 200 * np.sin(time / 3)
@@ -164,11 +166,11 @@ class TestArplsStrategy:
         baseline = strat.generate(time, signal, anchors=[])
         peak_region = (time > 4) & (time < 6)
         assert np.all(baseline[peak_region] <= signal[peak_region] * 1.05), \
-            "ARPLS 베이스라인이 피크 신호를 초과"
+            "ARPLS baseline exceeds the peak signal"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. 2-Pass 피크 감지 테스트
+# 3. 2-Pass peak detection test
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestTwoPassDetector:
@@ -184,10 +186,10 @@ class TestTwoPassDetector:
         peaks = det.detect(time, signal)
         assert len(peaks) >= 1
         rts = [p.rt for p in peaks]
-        assert any(abs(rt - 5.0) < 0.5 for rt in rts), f"RT=5.0 피크 미감지: {rts}"
+        assert any(abs(rt - 5.0) < 0.5 for rt in rts), f"RT=5.0 peak not detected: {rts}"
 
     def test_detects_minor_and_major(self):
-        """큰 피크(100k)와 작은 피크(5k) 동시 감지"""
+        """Simultaneously detects a large peak (100k) and a small peak (5k)"""
         det = self._make_detector()
         time, signal = make_chromatogram(peaks=[
             (3.0, 100_000, 0.3),
@@ -197,22 +199,22 @@ class TestTwoPassDetector:
         rts = [p.rt for p in peaks]
         has_major = any(abs(rt - 3.0) < 0.5 for rt in rts)
         has_minor = any(abs(rt - 8.0) < 0.5 for rt in rts)
-        assert has_major, f"Major peak RT=3.0 미감지: {rts}"
-        assert has_minor, f"Minor peak RT=8.0 미감지: {rts}"
+        assert has_major, f"Major peak RT=3.0 not detected: {rts}"
+        assert has_minor, f"Minor peak RT=8.0 not detected: {rts}"
 
     def test_no_duplicate_near_main_peak(self):
-        """주 피크(RT=5.0) 부근에 중복 피크 없음 (노이즈 피크는 다른 위치에 있음)"""
+        """No duplicate peaks near the main peak (RT=5.0); noise peaks are at other positions"""
         det = self._make_detector()
         time, signal = make_chromatogram(peaks=[(5.0, 100_000, 0.3)])
         peaks = det.detect(time, signal)
-        # RT 4.0–6.0 구간에서 0.5분 이내 중복 없어야 함
+        # No duplicates within 0.5 min in the RT 4.0-6.0 range
         main_region = [p for p in peaks if 4.0 <= p.rt <= 6.0]
         rts = sorted(p.rt for p in main_region)
         for i in range(len(rts) - 1):
-            assert rts[i + 1] - rts[i] > 0.2, f"주 피크 부근 중복: {rts}"
+            assert rts[i + 1] - rts[i] > 0.2, f"Duplicate near the main peak: {rts}"
 
     def test_area_sum_reasonable(self):
-        """검출 피크 면적 합이 신호 적분과 유사"""
+        """The sum of the detected peak areas should be close to the signal integral"""
         det = self._make_detector()
         time, signal = make_chromatogram(
             peaks=[(5.0, 100_000, 0.3)], noise_std=0
@@ -220,17 +222,17 @@ class TestTwoPassDetector:
         true_area = float(trapezoid(signal, time))
         peaks = det.detect(time, signal)
         detected_area = sum(p.area for p in peaks)
-        assert detected_area > true_area * 0.5, "검출 면적이 너무 작음"
+        assert detected_area > true_area * 0.5, "Detected area is too small"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. EMG Fitter 테스트
+# 4. EMG Fitter test
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestEmgFitter:
 
     def test_symmetric_peak_fit(self):
-        """대칭 Gaussian (tau≈0) → EMG가 잘 fitting해야 함"""
+        """Symmetric Gaussian (tau≈0) -> EMG should fit it well"""
         from peakpicker.peak_analysis.deconvolution.emg_fitter import EmgFitter
         time = np.linspace(3, 7, 300)
         true_signal = 50_000 * np.exp(-0.5 * ((time - 5) / 0.3) ** 2)
@@ -238,13 +240,13 @@ class TestEmgFitter:
         fitter = EmgFitter()
         result = fitter.fit(time, true_signal, centers=[5.0])
 
-        assert result['r2'] > 0.95, f"대칭 피크 R²={result['r2']:.3f} < 0.95"
+        assert result['r2'] > 0.95, f"Symmetric peak R²={result['r2']:.3f} < 0.95"
         assert len(result['params']) == 1
         _, center, _, _ = result['params'][0]
-        assert abs(center - 5.0) < 0.1, f"센터 오차: {abs(center - 5.0):.3f}"
+        assert abs(center - 5.0) < 0.1, f"Center error: {abs(center - 5.0):.3f}"
 
     def test_asymmetric_peak_fit(self):
-        """테일링 있는 EMG 피크 → R² > 0.90"""
+        """Tailing EMG peak -> R² > 0.90"""
         from peakpicker.peak_analysis.deconvolution.emg_fitter import EmgFitter
         time = np.linspace(3, 10, 500)
         true_signal = make_emg_peak(time, amplitude=50_000,
@@ -253,11 +255,11 @@ class TestEmgFitter:
         fitter = EmgFitter()
         result = fitter.fit(time, true_signal, centers=[5.0])
 
-        assert result['r2'] > 0.90, f"비대칭 EMG R²={result['r2']:.3f} < 0.90"
+        assert result['r2'] > 0.90, f"Asymmetric EMG R²={result['r2']:.3f} < 0.90"
         assert result['areas'][0] > 0
 
     def test_two_component_fit(self):
-        """두 겹친 피크 분해"""
+        """Deconvolving two overlapping peaks"""
         from peakpicker.peak_analysis.deconvolution.emg_fitter import EmgFitter
         time = np.linspace(3, 9, 400)
         s1 = make_emg_peak(time, 60_000, 5.0, 0.25, 0.2)
@@ -267,11 +269,11 @@ class TestEmgFitter:
         fitter = EmgFitter()
         result = fitter.fit(time, signal, centers=[5.0, 6.0])
 
-        assert result['r2'] > 0.90, f"2성분 EMG R²={result['r2']:.3f} < 0.90"
+        assert result['r2'] > 0.90, f"2-component EMG R²={result['r2']:.3f} < 0.90"
         assert len(result['params']) == 2
 
     def test_area_analytical_vs_numerical(self):
-        """EMG 분석 면적 vs 사다리꼴 적분 오차 < 5%"""
+        """EMG analytical area vs. trapezoidal integration error < 5%"""
         from peakpicker.peak_analysis.deconvolution.emg_fitter import EmgFitter
         time = np.linspace(0, 15, 1000)
         true_signal = make_emg_peak(time, 50_000, 7.0, 0.4, 0.3)
@@ -282,11 +284,11 @@ class TestEmgFitter:
         analytical_area = result['areas'][0]
 
         rel_err = abs(analytical_area - numerical_area) / numerical_area
-        assert rel_err < 0.05, f"EMG 면적 오차 {rel_err*100:.1f}% > 5%"
+        assert rel_err < 0.05, f"EMG area error {rel_err*100:.1f}% > 5%"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. WorkflowBuilder 통합 테스트
+# 5. WorkflowBuilder integration test
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestWorkflowBuilder:
@@ -314,7 +316,7 @@ class TestWorkflowBuilder:
         assert wf is not None
 
     def test_two_pass_workflow_detects_peaks(self, tmp_path):
-        """ARPLS + 2-Pass 파이프라인 end-to-end"""
+        """ARPLS + 2-Pass pipeline end-to-end"""
         from peakpicker.application.workflow import WorkflowBuilder
         path, _, _ = self._make_csv(tmp_path, [(5.0, 100_000, 0.3)])
 
@@ -327,16 +329,16 @@ class TestWorkflowBuilder:
         result = wf.analyze_file(path)
         assert len(result.peaks) >= 1
         rts = [p.rt for p in result.peaks]
-        assert any(abs(rt - 5.0) < 0.5 for rt in rts), f"피크 미감지: {rts}"
+        assert any(abs(rt - 5.0) < 0.5 for rt in rts), f"Peak not detected: {rts}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. ProminencePeakDetector Phase 1 수정 테스트
+# 6. ProminencePeakDetector Phase 1 fix test
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestProminencePeakDetectorPhase1:
     """
-    Phase 1 수정 검증:
+    Phase 1 fix verification:
     - MAD-based noise estimation
     - np.trapezoid (deprecation-free)
     - valley cap between adjacent peaks
@@ -348,35 +350,35 @@ class TestProminencePeakDetectorPhase1:
         return ProminencePeakDetector(signal_processor=ScipySignalProcessor())
 
     def test_mad_noise_small_scale(self):
-        """RID 스케일(1–10 범위) 신호에서 피크 감지 (percentile 25가 0이 되는 스케일)"""
+        """Peak detection on an RID-scale signal (range 1-10), where the 25th percentile becomes 0"""
         det = self._make_detector()
         time = np.linspace(0, 10, 1000)
-        # 소신호: 최댓값 5.0, noise ~0.01
+        # Small signal: max 5.0, noise ~0.01
         signal = 5.0 * np.exp(-0.5 * ((time - 5) / 0.3) ** 2)
         signal += np.random.default_rng(0).normal(0, 0.01, 1000)
         signal = np.maximum(signal, 0)
         peaks = det.detect(time, signal)
         rts = [p.rt for p in peaks]
         assert any(abs(rt - 5.0) < 0.5 for rt in rts), \
-            f"소신호 피크 미감지(percentile noise 사용 시 noise=0이 되어 과감지): {rts}"
+            f"Small-signal peak not detected (percentile-based noise estimate becomes 0, causing over-detection): {rts}"
 
     def test_valley_cap_two_adjacent_peaks(self):
-        """인접한 두 피크의 경계가 valley에서 끊어져야 함 (overlap 없음)"""
+        """The boundary between two adjacent peaks must break at the valley (no overlap)"""
         det = self._make_detector()
         time = np.linspace(0, 10, 2000)
-        # 두 피크가 겹쳐 있지 않은 상황
+        # Two peaks that do not overlap
         signal = (100_000 * np.exp(-0.5 * ((time - 3) / 0.3) ** 2)
                   + 80_000 * np.exp(-0.5 * ((time - 7) / 0.3) ** 2))
         peaks = det.detect(time, signal)
         if len(peaks) >= 2:
             peaks_sorted = sorted(peaks, key=lambda p: p.rt)
-            # 첫 번째 피크 끝 ≤ 두 번째 피크 시작 (경계 중복 없음)
+            # End of the first peak <= start of the second peak (no boundary overlap)
             assert peaks_sorted[0].index_end <= peaks_sorted[1].index_start + 5, \
-                (f"Valley cap 미적용: peak1 end={peaks_sorted[0].index_end}, "
+                (f"Valley cap not applied: peak1 end={peaks_sorted[0].index_end}, "
                  f"peak2 start={peaks_sorted[1].index_start}")
 
     def test_trapezoid_no_deprecation_warning(self):
-        """np.trapezoid 사용 — DeprecationWarning 없어야 함"""
+        """Uses np.trapezoid - must not raise a DeprecationWarning"""
         import warnings
         det = self._make_detector()
         time = np.linspace(0, 10, 500)
@@ -384,42 +386,43 @@ class TestProminencePeakDetectorPhase1:
 
         with warnings.catch_warnings():
             warnings.simplefilter("error", DeprecationWarning)
-            peaks = det.detect(time, signal)  # np.trapz 사용 시 DeprecationWarning 발생
+            peaks = det.detect(time, signal)  # np.trapz would raise a DeprecationWarning here
 
         assert len(peaks) >= 1
 
     def test_estimate_noise_static_method(self):
-        """_estimate_noise: floor(1.0) 이상의 신호에서 스케일에 비례"""
+        """_estimate_noise: scales proportionally on signals well above the floor(1.0)"""
         from peakpicker.peak_analysis.detectors.peak_detector import ProminencePeakDetector
         rng = np.random.default_rng(42)
 
-        # 두 신호 모두 floor(1.0)를 훨씬 초과하는 크기여야 비율 검증 가능
+        # Both signals must be far above floor(1.0) to verify the ratio
         small = rng.normal(0, 1_000, 500)       # noise MAD ≈ 1000
         large = rng.normal(0, 1_000_000, 500)   # noise MAD ≈ 1000_000
 
         noise_small = ProminencePeakDetector._estimate_noise(small)
         noise_large = ProminencePeakDetector._estimate_noise(large)
 
-        # 비율이 ~1000배여야 함 (scale-proportional)
+        # The ratio should be ~1000x (scale-proportional)
         ratio = noise_large / noise_small
-        assert 900 < ratio < 1100, f"MAD noise가 scale에 비례하지 않음: ratio={ratio:.1f}"
+        assert 900 < ratio < 1100, f"MAD noise is not proportional to scale: ratio={ratio:.1f}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7. GaussianFitter 예외 로깅 테스트
+# 7. GaussianFitter exception logging test
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestGaussianFitterLogging:
 
     def test_fit_failure_logs_warning(self):
-        """Gaussian fit 실패 시 WARNING 로그 기록 + 안전하게 빈 리스트 반환"""
+        """On a failed Gaussian fit, a WARNING must be logged and an empty list returned safely"""
         import logging
         from peakpicker.peak_analysis.deconvolution.gaussian_fitter import GaussianFitterStrategy
         from peakpicker.infrastructure.signal_processing.scipy_adapter import ScipyCurveFitter
 
         fitter = GaussianFitterStrategy(curve_fitter=ScipyCurveFitter())
 
-        # 완전히 0인 신호: 진폭 초기값이 0이 되어 bounds 충돌로 fit 실패
+        # An all-zero signal: the initial amplitude guess becomes 0, causing a bounds
+        # conflict and the fit to fail
         time = np.linspace(0, 1, 5)
         signal = np.zeros(5)
 
@@ -439,16 +442,16 @@ class TestGaussianFitterLogging:
         finally:
             log.removeHandler(handler)
 
-        # 결과는 빈 리스트 + 안전한 기본값
-        assert isinstance(peaks, list), "fit 실패 시 리스트를 반환해야 함"
-        # 실패 시 WARNING 로그가 남아야 함 (fit이 실제로 실패한 경우만)
+        # Result must be an empty list + safe defaults
+        assert isinstance(peaks, list), "Must return a list when the fit fails"
+        # A WARNING log must remain when the fit actually failed
         if len(peaks) == 0 and r2 == 0.0:
             assert any(r.levelno >= logging.WARNING for r in records), \
-                "fit 실패 시 WARNING 로그 없음"
+                "No WARNING log on fit failure"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 8. Analyzer 동적 윈도우 테스트
+# 8. Analyzer dynamic window test
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestAnalyzerDynamicWindow:
@@ -459,39 +462,39 @@ class TestAnalyzerDynamicWindow:
         return ShoulderDeconvolutionAnalyzer(signal_processor=ScipySignalProcessor())
 
     def test_short_signal_no_crash(self):
-        """짧은 신호(30포인트)에서 ±50 고정 윈도우 → index out of bounds 없어야 함"""
+        """On a short signal (30 points) with a fixed ±50 window, there must be no index-out-of-bounds error"""
         analyzer = self._make_analyzer()
         time = np.linspace(0, 3, 30)
         signal = 1000 * np.exp(-0.5 * ((time - 1.5) / 0.3) ** 2)
         peak_idx = int(np.argmax(signal))
-        # 예외 없이 실행되어야 함
+        # Must run without raising an exception
         try:
             has_shoulder, _ = analyzer._detect_shoulder(time, signal, peak_idx)
             n_inflections = analyzer._count_inflection_points(signal, peak_idx)
         except IndexError as e:
-            pytest.fail(f"짧은 신호에서 IndexError 발생: {e}")
+            pytest.fail(f"IndexError raised on a short signal: {e}")
 
     def test_long_signal_uses_capped_window(self):
-        """긴 신호(2000포인트)에서 윈도우가 50 이하로 cap됨"""
+        """On a long signal (2000 points), the window must be capped at 50 or below"""
         from peakpicker.peak_analysis.deconvolution import analyzer as ana_module
         import inspect
 
-        # _detect_shoulder 소스에서 half_window 계산 확인
+        # Check the half_window calculation in the _detect_shoulder source
         src = inspect.getsource(
             ana_module.ShoulderDeconvolutionAnalyzer._detect_shoulder
         )
         assert 'min(50' in src or 'min(30' in src, \
-            "_detect_shoulder에 동적 윈도우 cap이 없음 (고정값 ±50 그대로)"
+            "_detect_shoulder has no dynamic window cap (still a fixed ±50)"
 
     def test_symmetric_peak_no_shoulder_detected(self):
-        """완벽한 Gaussian 피크 → shoulder 미감지"""
+        """A perfect Gaussian peak -> no shoulder should be detected"""
         analyzer = self._make_analyzer()
         time = np.linspace(0, 10, 500)
         signal = 50_000 * np.exp(-0.5 * ((time - 5) / 0.3) ** 2)
         peak_idx = int(np.argmax(signal))
         has_shoulder, _ = analyzer._detect_shoulder(time, signal, peak_idx)
-        # 완벽한 Gaussian은 shoulder가 없어야 함
-        assert not has_shoulder, "Gaussian 피크에 shoulder가 잘못 감지됨"
+        # A perfect Gaussian must not have a shoulder
+        assert not has_shoulder, "A shoulder was incorrectly detected on a Gaussian peak"
 
 
 class TestAreaConventionSeconds:
@@ -518,7 +521,7 @@ class TestAreaConventionSeconds:
         time = np.linspace(0, 10, 6000)  # minutes
         signal = 100_000 * np.exp(-0.5 * ((time - 5) / 0.2) ** 2)
         peaks = det.detect(time, signal)
-        assert len(peaks) >= 1, "합성 피크가 감지되지 않음"
+        assert len(peaks) >= 1, "The synthetic peak was not detected"
         peak = max(peaks, key=lambda p: p.height)
 
         start, end = peak.index_start, peak.index_end

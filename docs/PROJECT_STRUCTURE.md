@@ -1,31 +1,31 @@
-# 프로젝트 구조
+# Project Structure
 
-## 개요
-PeakPicker는 깔끔하고 체계적인 구조로 정리되어 있습니다.
+## Overview
+PeakPicker is organized into a clean, systematic structure.
 
-## 디렉토리 구조
+## Directory Structure
 
 ```
 PeakPicker/
 │
-├── 📜 메인 스크립트
-│   ├── auto_export_keyboard_final.py   # Chemstation 자동 Export
-│   └── hplc_analyzer_enhanced.py       # HPLC 데이터 분석
+├── 📜 Main scripts
+│   ├── auto_export_keyboard_final.py   # Automatic Chemstation export
+│   └── hplc_analyzer_enhanced.py       # HPLC data analysis
 │
-├── 📚 docs/                            # 문서 폴더
-│   ├── USAGE_EXAMPLES.md               # 상세 사용 가이드 (한글)
-│   ├── OUTPUT_ORGANIZATION_GUIDE.md    # 출력 구조 가이드
-│   └── TIMING_OPTIMIZATION_GUIDE.md    # 성능 최적화 가이드
+├── 📚 docs/                            # Documentation folder
+│   ├── USAGE_EXAMPLES.md               # Detailed usage guide
+│   ├── OUTPUT_ORGANIZATION_GUIDE.md    # Output structure guide
+│   └── TIMING_OPTIMIZATION_GUIDE.md    # Performance optimization guide
 │
-├── 🔧 src/                             # 소스 모듈
-│   ├── hybrid_baseline.py              # 베이스라인 보정 엔진
-│   ├── chemstation_parser.py           # Chemstation 데이터 파싱
-│   └── result_exporter.py              # 결과 Excel 출력
+├── 🔧 src/                             # Source modules
+│   ├── hybrid_baseline.py              # Baseline correction engine
+│   ├── chemstation_parser.py           # Chemstation data parsing
+│   └── result_exporter.py              # Excel result output
 │
-├── 💾 backup_scripts/                  # 백업/개발 스크립트
-│   └── (테스트 및 개발 중 파일들)
+├── 💾 backup_scripts/                  # Backup/development scripts
+│   └── (files from testing and development)
 │
-├── 📊 result/                          # 출력 결과 (자동 생성)
+├── 📊 result/                          # Output results (auto-generated)
 │   ├── Experiment1/
 │   │   ├── Sample1.csv
 │   │   ├── Sample2.csv
@@ -35,146 +35,146 @@ PeakPicker/
 │   ├── Experiment2/
 │   └── ...
 │
-├── 📄 README.md                        # 프로젝트 개요
-├── 📋 requirements.txt                 # Python 패키지 의존성
-└── 🚫 .gitignore                       # Git 제외 설정
+├── 📄 README.md                        # Project overview
+├── 📋 requirements.txt                 # Python package dependencies
+└── 🚫 .gitignore                       # Git exclusion settings
 ```
 
-## 파일 설명
+## File Descriptions
 
-### 메인 스크립트
+### Main Scripts
 
 #### `auto_export_keyboard_final.py`
-- **용도**: Chemstation에서 .D 폴더 → CSV 자동 내보내기
-- **실행**: `python auto_export_keyboard_final.py`
-- **기능**:
-  - 대화형 디렉토리 탐색 (트리 뷰)
-  - 전체 폴더 스캔 모드
-  - 재귀적 .D 폴더 검색
-  - 키보드 자동화 (PyAutoGUI)
+- **Purpose**: automatically export .D folders from Chemstation → CSV
+- **Run**: `python auto_export_keyboard_final.py`
+- **Features**:
+  - Interactive directory browsing (tree view)
+  - Full folder scan mode
+  - Recursive .D folder search
+  - Keyboard automation (PyAutoGUI)
 
 #### `hplc_analyzer_enhanced.py`
-- **용도**: CSV 파일 분석 및 피크 검출
-- **실행**: `python hplc_analyzer_enhanced.py "경로/to/csv"`
-- **기능**:
-  - 하이브리드 베이스라인 보정
-  - 적응형 피크 검출
-  - Excel 결과 리포트 생성
+- **Purpose**: CSV file analysis and peak detection
+- **Run**: `python hplc_analyzer_enhanced.py "path/to/csv"`
+- **Features**:
+  - Hybrid baseline correction
+  - Adaptive peak detection
+  - Excel result report generation
 
-### 소스 모듈 (src/)
+### Source Modules (src/)
 
 #### `hybrid_baseline.py`
-- Valley 감지 + Local Minimum 하이브리드 베이스라인
-- 3가지 연결 방법 (weighted_spline, adaptive_connect, robust_fit)
-- 0.01배~10배 스케일에서 강건한 성능
+- Hybrid baseline combining Valley detection + Local Minimum
+- 3 connection methods (weighted_spline, adaptive_connect, robust_fit)
+- Robust performance across a 0.01x-10x scale range
 
 #### `chemstation_parser.py`
-- Chemstation CSV 파일 파싱
-- 데이터 검증 및 전처리
+- Chemstation CSV file parsing
+- Data validation and preprocessing
 
 #### `result_exporter.py`
-- Excel 리포트 생성 (openpyxl)
-- Summary 및 Peak 상세 정보 시트
+- Excel report generation (openpyxl)
+- Summary and Peak detail info sheets
 
-### 문서 (docs/)
+### Documentation (docs/)
 
 #### `USAGE_EXAMPLES.md`
-- 한글 사용 가이드
-- 단계별 실행 방법
-- 문제 해결 팁
+- Usage guide
+- Step-by-step execution instructions
+- Troubleshooting tips
 
 #### `OUTPUT_ORGANIZATION_GUIDE.md`
-- 출력 디렉토리 구조 설명
-- 3가지 출력 옵션
-- 실험별 폴더 정리 방법
+- Explanation of the output directory structure
+- 3 output options
+- How to organize folders per experiment
 
 #### `TIMING_OPTIMIZATION_GUIDE.md`
-- 키보드 자동화 타이밍 최적화
-- 단계별 시간 설정
-- 성능 튜닝 가이드
+- Keyboard automation timing optimization
+- Per-step time settings
+- Performance tuning guide
 
-## 워크플로우
+## Workflow
 
-### 1단계: Export (Chemstation → CSV)
+### Step 1: Export (Chemstation → CSV)
 ```bash
 python auto_export_keyboard_final.py
 ```
-- 옵션 선택 (대화형 탐색 / 직접 입력 / 전체 스캔)
-- 출력 경로 설정 (result/{폴더명}/)
-- 자동 Export 실행
+- Select an option (interactive browsing / direct input / full scan)
+- Set the output path (result/{folder_name}/)
+- Run the automatic export
 
-**결과**: `result/{폴더명}/*.csv`
+**Result**: `result/{folder_name}/*.csv`
 
-### 2단계: 분석 (CSV → Excel)
+### Step 2: Analyze (CSV → Excel)
 ```bash
-python hplc_analyzer_enhanced.py "result/{폴더명}"
+python hplc_analyzer_enhanced.py "result/{folder_name}"
 ```
-- 베이스라인 보정
-- 피크 검출
-- Excel 리포트 생성
+- Baseline correction
+- Peak detection
+- Excel report generation
 
-**결과**: `result/{폴더명}/analysis_results/*_peaks.xlsx`
+**Result**: `result/{folder_name}/analysis_results/*_peaks.xlsx`
 
-## 데이터 흐름
+## Data Flow
 
 ```
-Chemstation .D 폴더
+Chemstation .D folder
     ↓
 [auto_export_keyboard_final.py]
     ↓
-result/{실험명}/Sample*.csv
+result/{experiment_name}/Sample*.csv
     ↓
 [hplc_analyzer_enhanced.py]
     ↓
-result/{실험명}/analysis_results/Sample*_peaks.xlsx
+result/{experiment_name}/analysis_results/Sample*_peaks.xlsx
 ```
 
-## 폴더 관리
+## Folder Management
 
-### 자동 생성 폴더
-- `result/` - 모든 출력 결과
-- `result/{실험명}/` - 실험별 CSV 파일
-- `result/{실험명}/analysis_results/` - 분석 결과 Excel
+### Auto-Generated Folders
+- `result/` - all output results
+- `result/{experiment_name}/` - CSV files per experiment
+- `result/{experiment_name}/analysis_results/` - analysis result Excel files
 
-### 제외되는 폴더 (.gitignore)
+### Excluded Folders (.gitignore)
 - `__pycache__/`
 - `result/`
 - `exported_signals/`
 - `analysis_results/`
-- `*.csv`, `*.xlsx` (결과 파일)
-- `*.png`, `*.jpg` (그래프)
+- `*.csv`, `*.xlsx` (result files)
+- `*.png`, `*.jpg` (graphs)
 
-### 백업 폴더
-- `backup_scripts/` - 개발/테스트 스크립트 보관
+### Backup Folder
+- `backup_scripts/` - archive of development/test scripts
 
-## 의존성
+## Dependencies
 
-### Python 패키지
+### Python Packages
 ```bash
 pip install numpy scipy pandas openpyxl pyautogui pyperclip
 ```
 
-### 시스템 요구사항
+### System Requirements
 - Python 3.8+
-- Windows OS (Chemstation 호환)
-- Chemstation 설치 (auto_export 사용 시)
+- Windows OS (Chemstation compatible)
+- Chemstation installed (required for auto_export)
 
-## 개발 히스토리
+## Development History
 
 ### v2.1 (2025-11-06)
-- ✅ 프로젝트 구조 개선 (docs/, src/, result/)
-- ✅ 전체 폴더 스캔 모드
-- ✅ 대화형 트리 뷰
-- ✅ 출력 구조 체계화
+- ✅ Improved project structure (docs/, src/, result/)
+- ✅ Full folder scan mode
+- ✅ Interactive tree view
+- ✅ Systematized output structure
 
 ### v2.0 (2025-11-06)
-- ✅ 하이브리드 베이스라인
-- ✅ 대화형 경로 입력
-- ✅ 한글 문서화
+- ✅ Hybrid baseline
+- ✅ Interactive path input
+- ✅ Documentation added
 
-## 참고 문서
+## Related Documents
 
-- [README.md](../README.md) - 프로젝트 개요
-- [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md) - 상세 사용법
-- [OUTPUT_ORGANIZATION_GUIDE.md](OUTPUT_ORGANIZATION_GUIDE.md) - 출력 구조
-- [TIMING_OPTIMIZATION_GUIDE.md](TIMING_OPTIMIZATION_GUIDE.md) - 성능 최적화
+- [README.md](../README.md) - project overview
+- [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md) - detailed usage
+- [OUTPUT_ORGANIZATION_GUIDE.md](OUTPUT_ORGANIZATION_GUIDE.md) - output structure
+- [TIMING_OPTIMIZATION_GUIDE.md](TIMING_OPTIMIZATION_GUIDE.md) - performance optimization
