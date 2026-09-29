@@ -18,6 +18,14 @@ a private overlay and plugged in at run time — see [docs/PLUGINS.md](docs/PLUG
 | `docs/` | Usage, workflow, timing and output-organization guides; plugin mechanism. |
 | `tests/` | Pytest suite. `tests/lab/` (private, gitignored) holds tests that need real lab data. |
 
+## ChemStation folder hygiene
+
+`src/peakpicker/infrastructure/file_readers/chem_layout_qc.py` (rules in `chem_layout_spec.yaml`, the SSOT) checks that a
+folder handed to ChemStation, and a raw data tree, have the layout ChemStation lists correctly: only `.D` runs, no
+sequence files, complete runs, sample identity against a map, provenance md5, no analysis outputs in the raw tree.
+Read-only CLI: `python chem_layout_qc.py check <folder> [--map ...] [--raw ...]` and `... tree <root>`; exit 0 / 1 / 2.
+A lab keeps its real spec in the private overlay `methods/chem_layout_spec.lab.yaml`. See also `sequence_qc.py`.
+
 ## Not in this repository (private overlay, gitignored)
 
 `analyses/`, real `methods/*.yaml` and `methods/standards/`, `plugins/`,

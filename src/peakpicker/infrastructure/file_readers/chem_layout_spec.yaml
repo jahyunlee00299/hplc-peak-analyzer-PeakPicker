@@ -1,0 +1,142 @@
+# GENERIC spec (public). A lab keeps its real spec (experiment name patterns, declared runtimes, local paths) in a private
+# overlay, methods/chem_layout_spec.lab.yaml, which chem_layout_qc.py prefers when it exists (or set CHEM_LAYOUT_SPEC).
+#
+# SSOT: layout rules for ChemStation-visible HPLC data folders (Agilent OpenLAB/ChemStation B.04.x, offline Data Analysis).
+# Consumed by chem_layout_qc.py. Every rule carries its evidence; a rule whose evidence is not yet in stays
+# `pending_evidence` and is NOT run (reported under rules_skipped) - never guess a ChemStation behaviour into a rule.
+#
+# status: observed = backed by direct observation or measured data
+#         pending_evidence = hypothesis awaiting evidence (skipped)
+#         disabled = switched off on purpose (skipped)
+# severity: error (exit 1) | warning (exit 0 unless --strict) | info
+spec_version: 1
+updated: "2026-09-29"
+scope: >
+  A "curated run folder" is a folder we produce (copy/rename of instrument data) that the analyst opens in ChemStation.
+  Rules L1-L7 and L10 apply to ONE such folder. L8 scans a whole tree. Instrument-native sequence folders
+  (with .S/.LOG/.M) are legitimate and are NOT checked by L1/L2.
+
+policy:
+  data_root_is_raw_only: true          # the ChemStation-visible tree holds raw data only
+
+rules:
+  - id: L1
+    name: plain_run_folder
+    severity: error
+    status: observed
+    what: "A folder that directly contains .D run folders must contain nothing else except .D directories."
+    params: {}
+    evidence:
+      - "Observed in the ChemStation offline Data Analysis navigation tree: a folder holding one .D and nothing else is listed as Single Runs; a folder with 32 .D plus sequence files and a csv was not listed at all."
+      - "Ordinary experiment folders that ChemStation lists correctly hold only .D folders."
+    undecided: "Which of the extra entries actually hides the folder is not isolated (see L2)."
+
+  - id: L2
+    name: no_sequence_files
+    severity: error
+    status: observed
+    what: "No sequence summary / log / method files next to the .D runs (they make ChemStation treat the folder as a sequence folder or build its run list from stale names)."
+    params:
+      file_patterns: ["*.S", "*.LOG", "*.B", "ACQUIRING.TXT", "METHODS.REG"]
+      dir_patterns: ["*.M"]
+    evidence:
+      - "Same observation as L1; the unlisted folder contained the sequence summary, log and method files of the acquisition."
+      - "The sequence summary (.S) lists the ORIGINAL data-file names, which no longer exist after a rename (hypothesis supported, cause not isolated)."
+
+  - id: L3
+    name: run_inventory
+    severity: error
+    status: observed
+    what: "Every .D holds a signal file; ACQRES.REG and RUN.LOG are expected (warning if absent)."
+    params:
+      signal_globs: ["*.ch", "*.CH"]
+      expected_files: ["ACQRES.REG", "RUN.LOG"]
+      expected_severity: warning
+    evidence:
+      - "Real runs from an HPX-87H/RID sequence hold ACQ.M, ACQRES.REG, DA.M, LCDIAG.REG, RID1A.ch, RUN.LOG, SAMPLE.MAC."
+
+  - id: L4
+    name: run_complete
+    severity: error
+    status: observed
+    what: "No aborted run inside the ChemStation-visible folder (header end time >= 95 % of the method runtime)."
+    params:
+      complete_fraction: 0.95
+      signal_file: "RID1A.ch"
+      # Declared runtimes (minutes) keyed by the method name stored in the .ch header, e.g. {"METHOD.M": 25.0}.
+      # Needed because the modal fallback in sequence_qc uses the folder's own runs: a folder holding a single aborted
+      # run would otherwise be judged complete against itself.
+      nominal_min_by_method: {}
+    evidence:
+      - "A run copied while its sequence was still acquiring was 78 % complete and ChemStation listed it like a normal run."
+      - "sequence_qc.SequenceIntegrityChecker.read_run / RunInfo.complete (header offsets 0x11A/0x11E)."
+
+  - id: L5
+    name: name_scheme
+    severity: warning
+    status: observed
+    what: "Run folder names follow <exp>_<min>_<condition>_<E|NE>_<rep>_<sampleid>.D so a ChemStation list sorts by time and keeps the original sample id."
+    params:
+      applies_to_prefix: "EXP[0-9]+_"
+      patterns:
+        - '^EXP\d+_\d{4}min_.+_(E|NE)_R\d+_[a-z]\d+\.D$'
+    evidence:
+      - "Names produced by the rename recipe carry experiment, minutes, condition, E|NE, replicate and the original sample id."
+
+  - id: L6
+    name: unique_and_short_names
+    severity: error
+    status: observed
+    what: "Folder names are unique ignoring case (Windows) and the full path stays under the limit."
+    params:
+      max_path_chars: 200
+      path_length_severity: warning
+    evidence:
+      - "Windows file system is case-insensitive; classic MAX_PATH is 260 characters."
+
+  - id: L7
+    name: sample_map_match
+    severity: error
+    status: observed
+    what: "Each run's header sample name equals the header_sample recorded in the sample map for that folder, and every complete map row has its folder. Vial numbers are reused inside a sequence, so the header name is the only reliable identity."
+    params:
+      folder_column: "folder"
+      header_column: "header_sample"
+      complete_column: "complete"
+    requires: ["--map"]
+    evidence:
+      - "Inside one sequence the same vial number can hold different samples on different lines, so the .ch header sample name is the only reliable identity."
+
+  - id: L8
+    name: raw_only_tree
+    severity: warning
+    status: observed
+    what: "In tree mode, flag analysis outputs sitting outside .D folders in the raw data tree."
+    params:
+      analysis_extensions: [".xlsx", ".xls", ".png", ".jpg", ".pdf", ".docx", ".pptx", ".py", ".ipynb", ".json", ".yaml", ".yml", ".md"]
+      analysis_dir_regex: '(?i)(analysis|quantification|results?|output|report|figure|plot|summary)'
+      csv_extension_is_analysis: true
+      ignore_names: ["_RENAME_LOG_readable.csv", "_RELABEL_LOG.csv", "sample_map.csv"]
+    evidence:
+      - "A scan of a real raw data tree found result folders and spreadsheets/figures next to the runs."
+
+  - id: L9
+    name: header_sample_matches_label
+    severity: warning
+    status: pending_evidence
+    what: "RID1A.ch header sample name equals the readable label. Only meaningful once it is established that the ChemStation navigation table shows the header sample name and that rewriting it is structurally safe."
+    params: {}
+    evidence: []
+
+  - id: L10
+    name: provenance_md5
+    severity: error
+    status: observed
+    what: "Every mapped run is byte-identical to its provenance copy (--raw), except runs the map marks incomplete and moved away."
+    params:
+      # Inclusive byte ranges per file name that are zeroed on both sides before comparing, for a deliberately rewritten
+      # header field, e.g. {"RID1A.ch": [[858, 1879]]} for the sample-name field. Empty = strict comparison.
+      masked_ranges: {}
+    requires: ["--map", "--raw"]
+    evidence:
+      - "sequence_qc.verify_rename compares copies byte by byte; an aborted run moved away on purpose shows up as one missing item."
