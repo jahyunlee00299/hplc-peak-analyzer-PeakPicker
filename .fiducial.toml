@@ -18,7 +18,7 @@
 
 rules = ["pointers", "literals"]
 
-pointers_paths = ["methods/standards/hpx87h_response_factors.index.yaml"]
+pointers_paths = ["C:/Users/Jahyun/OneDrive - 호서대학교/Discussions/jahyun/Methods/hpx87h_response_factors.index.yaml"]   # MASTER moved 260929 to Discussions/jahyun/Methods (absolute path; resolved outside the repo)
 
 keys = ["slope", "intercept", "calibration_slope", "calibration_intercept"]
 literals_paths = ["scripts/", "plugins/"]
