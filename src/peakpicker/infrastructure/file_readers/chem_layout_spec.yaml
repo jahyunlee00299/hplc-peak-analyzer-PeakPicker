@@ -27,7 +27,7 @@ rules:
     what: "A folder that directly contains .D run folders must contain nothing else except .D directories."
     params: {}
     evidence:
-      - "Observed in the ChemStation offline Data Analysis navigation tree: a folder holding one .D and nothing else is listed as Single Runs; a folder with 32 .D plus sequence files and a csv was not listed at all."
+      - "Observed in the ChemStation offline Data Analysis navigation tree: a folder holding one .D and nothing else is listed as Single Runs; a folder with many .D plus sequence files and a csv was not listed at all."
       - "Ordinary experiment folders that ChemStation lists correctly hold only .D folders."
     undecided: "Which of the extra entries actually hides the folder is not isolated (see L2)."
 
@@ -68,7 +68,7 @@ rules:
       # run would otherwise be judged complete against itself.
       nominal_min_by_method: {}
     evidence:
-      - "A run copied while its sequence was still acquiring was 78 % complete and ChemStation listed it like a normal run."
+      - "A run copied while its sequence was still acquiring was only partly complete and ChemStation listed it like a normal run."
       - "sequence_qc.SequenceIntegrityChecker.read_run / RunInfo.complete (header offsets 0x11A/0x11E)."
 
   - id: L5

@@ -236,12 +236,14 @@ def rule_l3(c: Ctx) -> List[Finding]:
 def rule_l4(c: Ctx) -> List[Finding]:
     seqqc = _sequence_qc()
     signal = c.params.get("signal_file", "RID1A.ch")
+    fraction = float(c.params.get("complete_fraction", 0.95))
     checker = seqqc.SequenceIntegrityChecker(
         nominal_runtimes=c.params.get("nominal_min_by_method") or {},
-        complete_fraction=float(c.params.get("complete_fraction", 0.95)), signal_file=signal)
+        complete_fraction=fraction, signal_file=signal)
     out = []
     for r in checker.scan_sequence(c.folder):
-        if r.complete:
+        # RunInfo.complete uses sequence_qc's fixed default, so apply the spec's own fraction here.
+        if r.readable and r.completion_ratio is not None and r.completion_ratio >= fraction:
             continue
         if not r.readable:
             if signal in (r.reason or ""):
@@ -260,7 +262,7 @@ def rule_l5(c: Ctx) -> List[Finding]:
     out = []
     for d in c.run_dirs:
         if prefix.match(d.name) and not any(p.match(d.name) for p in pats):
-            out.append(c.finding("L5", d, "name does not follow <exp>_<min>_<arm/TCA>_<E|NE>_<rep>_<sampleid>.D"))
+            out.append(c.finding("L5", d, "name does not follow <exp>_<min>_<condition>_<E|NE>_<rep>_<sampleid>.D"))
     return out
 
 

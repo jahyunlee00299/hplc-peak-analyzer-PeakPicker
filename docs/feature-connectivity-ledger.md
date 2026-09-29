@@ -12,7 +12,7 @@ One entry per delivered unit: scope, layer, inputs/outputs, evidence, refutation
 - **Outputs**: text report, optional JSON (`--json`, written wherever the caller points), exit code 0 / 1 / 2. Never writes next to the data.
 - **Evidence (prove)**: 44 unit tests on synthetic `.D` fixtures; a real-data build in the private overlay reproduced the observed
   ChemStation problem (a folder with sequence files and a stray csv flagged, a single aborted run flagged, names / sample identity /
-  provenance md5 clean) and a raw-tree scan of about 20 000 runs.
+  provenance md5 clean) and a raw-tree scan of a large archive.
 - **Refutation**: mutation check (17 deliberate breakages of the implementation, each killed by the tests after one test was added for
   spec status validation); adverse fixtures (sequence files, stray/hidden files, a file named like a run, lower-case `.d`, empty folder,
   runs one level down, missing/truncated signal, aborted run alone in a folder, vial-reuse header mismatch, missing map rows, flipped byte in a

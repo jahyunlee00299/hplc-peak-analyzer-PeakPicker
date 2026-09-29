@@ -192,6 +192,17 @@ class TestRunContents:
         assert len(rules(rep, "L4")) == 1
         assert "19.49 of 25.00" in rules(rep, "L4")[0].message
 
+    def test_spec_complete_fraction_is_honoured(self, tmp_path):
+        folder = tmp_path / "f"
+        for i in range(3):
+            make_run(folder, f"r{i}.D", end_min=25.0)
+        make_run(folder, "partial.D", end_min=15.0)                    # 60 % of the modal 25 min
+        strict = qc.load_spec()
+        assert [Path(f.path).name for f in rules(qc.check_folder(folder, strict), "L4")] == ["partial.D"]
+        loose = qc.load_spec()
+        next(r for r in loose["rules"] if r["id"] == "L4")["params"]["complete_fraction"] = 0.5
+        assert rules(qc.check_folder(folder, loose), "L4") == []
+
     def test_single_run_with_unknown_method_cannot_be_judged(self, tmp_path):
         """Documented limitation: without a declared runtime the folder's own runs are the reference."""
         folder = tmp_path / "f"
