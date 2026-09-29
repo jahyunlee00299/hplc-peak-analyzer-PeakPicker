@@ -123,10 +123,12 @@ rules:
   - id: L9
     name: header_sample_matches_label
     severity: warning
-    status: pending_evidence
-    what: "RID1A.ch header sample name equals the readable label. Only meaningful once it is established that the ChemStation navigation table shows the header sample name and that rewriting it is structurally safe."
+    status: observed
+    what: "The .ch header sample name equals the readable label (folder name without .D). ChemStation shows the header sample name in the Sample Name column, so a rename that leaves the header untouched keeps the old name on screen."
     params: {}
-    evidence: []
+    evidence:
+      - "Analyst confirmation in ChemStation Data Analysis: after the run folder was renamed AND the header sample-name field rewritten to the folder label, both the file list and the Sample Name column show the readable names."
+      - "The sample name is stored only in the .ch header (length byte + UTF-16LE, zero padded); no other file in a .D holds it (found by exclusion over every file of real runs)."
 
   - id: L10
     name: provenance_md5

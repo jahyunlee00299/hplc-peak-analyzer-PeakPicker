@@ -67,7 +67,8 @@ def _default_spec(monkeypatch):
 def clean(tmp_path):
     folder = tmp_path / "run"
     for i, s in enumerate(("a94", "a95", "a106")):
-        make_run(folder, f"EXP1_0180min_X20_E_R{i + 1}_{s}.D", sample=s)
+        label = f"EXP1_0180min_X20_E_R{i + 1}_{s}"
+        make_run(folder, label + ".D", sample=label)         # header already rewritten to the label (L9 clean)
     return folder
 
 
@@ -93,9 +94,15 @@ class TestCleanFolder:
         assert rep.exit_code() == 0
 
     def test_pending_rule_is_skipped_not_run(self, clean):
-        rep = qc.check_folder(clean)
+        spec = qc.load_spec()
+        next(r for r in spec["rules"] if r["id"] == "L9")["status"] = "pending_evidence"
+        rep = qc.check_folder(clean, spec)
         assert {"id": "L9", "reason": "pending_evidence"} in rep.rules_skipped
         assert "L9" not in rep.rules_run
+
+    def test_l9_runs_by_default_and_clean_folder_has_no_l9_finding(self, clean):
+        rep = qc.check_folder(clean)
+        assert "L9" in rep.rules_run and rules(rep, "L9") == []
 
     def test_map_rules_need_their_inputs(self, clean):
         rep = qc.check_folder(clean)
@@ -270,6 +277,8 @@ class TestSampleMap:
         for r, d in zip(rows, sorted(clean.iterdir())):
             r["header_sample"] = d.name.rsplit("_", 1)[1][:-2]
         rows[0]["header_sample"] = "a91"          # vial 91 was a91 at line 1, a106 at line 16
+        first = sorted(clean.iterdir())[0]
+        _write_ch(first / "RID1A.ch", 25.0, "a94")  # header carries a third name: neither the map's 'a91' nor the label
         write_map(tmp_path / "map.csv", rows)
         out = rules(qc.check_folder(clean, map_path=tmp_path / "map.csv"), "L7")
         assert len(out) == 1 and "neither the recorded original" in out[0].message
