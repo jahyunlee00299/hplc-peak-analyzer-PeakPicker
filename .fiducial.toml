@@ -1,0 +1,35 @@
+# fiducial config for PeakPicker (260929)
+#
+# Standalone .fiducial.toml: settings at the TOP LEVEL, not under [tool.fiducial].
+#
+# Only rules with a real target are enabled (an empty rule reads as a clean pass):
+#   pointers  -- methods/standards/hpx87h_response_factors.index.yaml registers the
+#                HPX-87H response-factor SSOT and every repo file that carries a copy
+#                of its numbers; a moved/deleted copy is reported.
+#   literals  -- calibration slope/intercept typed into scripts/ and plugins/ instead of
+#                being read from methods/*.yaml (QUANTITATION_RULES.md sec 2: "never
+#                hardcode in code"). Reported per file and, with --conflicts, per key.
+# Left out on purpose: names (no versioned config names to compare), coverage (no spec
+# of declared parameters), docs (no document declaring an upstream SSOT in front matter).
+#
+# Scope note: `literals_paths` deliberately excludes src/ (the loader reads YAML) and
+# results/. `keys` are the names the hard-coded curves actually use; `slope`/`intercept`
+# are generic, so expect a few non-calibration hits (baseline slopes) -- read the report.
+
+rules = ["pointers", "literals"]
+
+pointers_paths = ["methods/standards/hpx87h_response_factors.index.yaml"]
+
+keys = ["slope", "intercept", "calibration_slope", "calibration_intercept"]
+literals_paths = ["scripts/", "plugins/"]
+literals_call_keywords = true   # plugins/lab_presets.py passes calibration_slope=... as call keywords
+
+# Running it (paths above are relative to the CURRENT DIRECTORY, not to this file):
+#   cd <PeakPicker working tree that holds the real methods/ and scripts/>
+#   PYTHONPATH=~/paramguard python -m fiducial check          # or --config <this file> from elsewhere
+# 🔴 The files this config checks are git-IGNORED on purpose (.gitignore: /methods/*.yaml,
+# /methods/standards/, dated scripts, plugins/ are lab-local and never go public; origin is a
+# public GitHub repo). A fresh checkout of main therefore has nothing to scan and pointers
+# reports every entry as missing -- run it in the local working tree, not in a clean clone.
+# The SSOT itself (methods/standards/hpx87h_response_factors.yaml + .index.yaml) lives in
+# that ignored directory for the same reason: it carries private Asana/OneDrive references.
