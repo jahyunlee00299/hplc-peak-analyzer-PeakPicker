@@ -20,6 +20,10 @@ sequence is quantified:
    verified by md5 over every file, because a rename that loses data looks
    exactly like a rename that worked.
 
+See also ``chem_layout_qc``: it checks the LAYOUT of a folder handed to ChemStation (only .D runs, no sequence
+files, complete runs, sample identity against a map, provenance md5) using this module's readers, and its rules
+live in ``chem_layout_spec.yaml``.
+
 Why this is not folded into :class:`ChemstationReader`: that class reads one
 chromatogram. These checks are properties of a *set* of runs and of the
 filesystem layout around them, which is a different responsibility.
