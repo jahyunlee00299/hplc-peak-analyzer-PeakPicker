@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hplc-peakpicker"
+dynamic = ["version"]
+description = "HPLC chromatogram peak detection, baseline correction, deconvolution and quantification (clean-architecture Python package)."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+keywords = ["HPLC", "chromatography", "peak detection", "baseline correction", "quantification"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+    "numpy>=1.20.0",
+    "scipy>=1.7.0",
+    "pandas>=1.3.0",
+    "matplotlib>=3.4.0",
+    "openpyxl>=3.0.0",
+    "pyyaml>=5.4",
+    "rainbow-api>=1.0.0",
+    "pybaselines>=1.0.0",
+    "lmfit>=1.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/jahyunlee00299/hplc-peak-analyzer-PeakPicker"
+
+[tool.setuptools.dynamic]
+version = { attr = "peakpicker.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["peakpicker*"]
