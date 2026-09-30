@@ -14,9 +14,23 @@ Chromatography peak detection, deconvolution, and quantification tool for Agilen
 ## Installation
 
 ```bash
+pip install hplc-peakpicker        # from PyPI
+pip install -U hplc-peakpicker     # upgrade to the latest release
+```
+
+From a clone (development):
+
+```bash
 conda activate PeakPicker
 pip install -r requirements.txt
 ```
+
+### Update notice
+
+Building a workflow checks PyPI at most once a day (1.5 s timeout, silent when
+offline) and prints a one-line upgrade hint to stderr when a newer release
+exists. Ask explicitly with `peakpicker.check_for_update()`; turn the check off
+with `PEAKPICKER_NO_UPDATE_CHECK=1` (it is also skipped under CI and pytest).
 
 ## Project Structure
 

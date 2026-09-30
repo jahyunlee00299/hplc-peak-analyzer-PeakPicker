@@ -337,6 +337,9 @@ class QuantificationWorkflowBuilder:
         Raises:
             ValueError: If no quantifier has been configured.
         """
+        from ..update_check import maybe_notify_update
+        maybe_notify_update()
+
         if self._quantifier is None:
             raise ValueError(
                 "A quantifier is required. Call with_default_quantifier() "

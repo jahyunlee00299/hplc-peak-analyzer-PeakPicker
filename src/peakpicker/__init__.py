@@ -47,7 +47,7 @@ Custom Configuration
 ...     .build())
 """
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 __author__ = "PeakPicker Project"
 
 # Domain exports
@@ -117,9 +117,12 @@ from .quant import (
     SampleResult,
 )
 
+from .update_check import check_for_update
+
 __all__ = [
     # Version
     '__version__',
+    'check_for_update',
     # Enums
     'AnchorSource',
     'BaselineMethod',

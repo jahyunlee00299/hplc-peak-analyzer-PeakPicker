@@ -406,6 +406,9 @@ class WorkflowBuilder:
         AnalysisWorkflow
             Configured workflow
         """
+        from ..update_check import maybe_notify_update
+        maybe_notify_update()
+
         if self._reader is None:
             self.with_chemstation_reader()
 
