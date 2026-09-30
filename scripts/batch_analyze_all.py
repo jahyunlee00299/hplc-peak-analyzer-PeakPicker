@@ -27,9 +27,11 @@ from scipy.integrate import trapezoid
 
 # Add src directory to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
 from chemstation_parser import ChemstationParser
 from hybrid_baseline import HybridBaselineCorrector
+from peakpicker.config.paths import get_data_root
 
 
 # ---------------------------------------------------------------------------
@@ -542,13 +544,13 @@ def main():
     )
     parser.add_argument(
         '--base-dir',
-        default=r'C:\Chem32\1\DATA',
-        help='Base data directory (default: C:\\Chem32\\1\\DATA)'
+        default=None,
+        help='Base data directory (default: $CHEM32_DATA, then <OneDrive>/HPLC_DATA, then C:\\Chem32\\1\\DATA)'
     )
     parser.add_argument(
         '--output',
-        default=r'C:\Chem32\1\DATA\analysis_results',
-        help='Output directory for results'
+        default=None,
+        help='Output directory (default: <base-dir parent>/ANALYSIS/batch_results; the data tree stays raw-only)'
     )
     parser.add_argument(
         '--folder',
@@ -579,13 +581,16 @@ def main():
     )
 
     args = parser.parse_args()
+    base_dir = get_data_root(args.base_dir)
+    if args.output is None:
+        args.output = str(base_dir.parent / 'ANALYSIS' / 'batch_results')
 
     channels = list(args.channels)
     if args.vwd:
         channels.append('vwd1A.ch')
 
     batch_analyze(
-        base_dir=args.base_dir,
+        base_dir=str(base_dir),
         output_dir=args.output,
         folder_filter=args.folder,
         max_per_folder=3 if args.test else None,
