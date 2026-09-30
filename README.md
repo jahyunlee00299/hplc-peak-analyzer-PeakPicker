@@ -1,6 +1,14 @@
 # PeakPicker
 
-Chromatography peak detection, deconvolution, and quantification tool for Agilent Chemstation data.
+[![PyPI](https://img.shields.io/pypi/v/hplc-peakpicker)](https://pypi.org/project/hplc-peakpicker/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+HPLC chromatogram peak detection, baseline correction, deconvolution, and
+calibration-curve quantification for Agilent ChemStation data.
+
+```bash
+pip install hplc-peakpicker
+```
 
 ## Features
 
