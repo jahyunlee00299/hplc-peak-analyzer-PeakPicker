@@ -59,3 +59,6 @@ analyses/*.txt
 /archive/
 /CLAUDE.md
 /.git-analyses/
+
+# Personal fiducial override (absolute OneDrive paths) - see .fiducial.toml
+/.fiducial.local.toml
