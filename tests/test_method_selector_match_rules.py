@@ -4,12 +4,8 @@ Uses the public synthetic example method (methods/example_hpx87h.yaml,
 invented CompoundA/CompoundB, no lab-specific data) to exercise the
 selection path without depending on any private YAML.
 """
-import sys
 from pathlib import Path
 
-_SRC = Path(__file__).resolve().parents[1] / "src"
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
 
 from peakpicker.method_selector import MethodSelector  # noqa: E402
 

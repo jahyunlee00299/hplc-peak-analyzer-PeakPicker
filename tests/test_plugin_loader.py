@@ -5,13 +5,9 @@ Covers: idempotent loading, missing-dir no-op, malformed-plugin warning
 """
 import sys
 import textwrap
-from pathlib import Path
 
 import pytest
 
-_SRC = Path(__file__).resolve().parents[1] / "src"
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
 
 from peakpicker import plugins as plugins_mod  # noqa: E402
 

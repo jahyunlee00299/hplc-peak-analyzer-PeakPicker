@@ -12,7 +12,6 @@ from pathlib import Path
 import pytest
 
 _SRC = Path(__file__).resolve().parents[1] / "src"
-sys.path.insert(0, str(_SRC))
 
 # Loaded by file path rather than by package import: `peakpicker.infrastructure`
 # eagerly imports the plot exporter, which needs `peakpicker.utils` - a module

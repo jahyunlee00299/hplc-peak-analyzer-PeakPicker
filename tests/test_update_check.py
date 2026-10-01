@@ -3,15 +3,10 @@
 The network is never touched: _fetch_latest_version is monkeypatched.
 """
 import json
-import sys
 import time
-from pathlib import Path
 
 import pytest
 
-_SRC = Path(__file__).resolve().parents[1] / "src"
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
 
 from peakpicker import update_check as uc  # noqa: E402
 

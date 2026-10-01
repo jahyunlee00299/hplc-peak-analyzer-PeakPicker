@@ -12,13 +12,11 @@ so every production curve must keep predict()'s exact pre-port behaviour
 tests pin that degrade-gracefully requirement alongside the new mechanism.
 """
 import logging
-import sys
 from pathlib import Path
 
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "src"))
 
 from peakpicker.quant.method_config import QuantMethod, StandardCurve  # noqa: E402
 

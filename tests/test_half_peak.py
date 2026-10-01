@@ -4,8 +4,6 @@ Half-Peak Quantification verification test
 Part 1: synthetic data (symmetric/asymmetric Gaussian)
 """
 
-import sys
-import os
 import numpy as np
 from scipy.integrate import trapezoid
 from scipy import signal
@@ -20,8 +18,6 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False
 
-# PeakPicker src module path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 
 # ============================================================

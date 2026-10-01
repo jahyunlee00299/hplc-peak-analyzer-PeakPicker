@@ -5,15 +5,10 @@ them up via get_parser()/get_preset() with no src/ code change.
 Uses a synthetic parser/preset (no lab-specific data) to keep this test
 generic and independent of whatever real plugins live in plugins/.
 """
-import sys
 import textwrap
-from pathlib import Path
 
 import pytest
 
-_SRC = Path(__file__).resolve().parents[1] / "src"
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
 
 from peakpicker import plugins as plugins_mod  # noqa: E402
 from peakpicker import sample_parser  # noqa: E402

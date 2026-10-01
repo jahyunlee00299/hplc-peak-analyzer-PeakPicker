@@ -9,13 +9,10 @@ SOLID refactor verification tests
 5. WorkflowBuilder integration test
 """
 
-import sys
-import os
 import numpy as np
 import pytest
 from scipy.integrate import trapezoid
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
