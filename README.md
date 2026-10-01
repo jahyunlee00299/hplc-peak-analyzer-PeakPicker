@@ -30,7 +30,7 @@ From a clone (development):
 
 ```bash
 conda activate PeakPicker
-pip install -r requirements.txt
+pip install -e .                  # dependencies are declared in pyproject.toml
 ```
 
 ### Update notice

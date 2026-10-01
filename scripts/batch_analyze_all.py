@@ -26,7 +26,6 @@ from scipy import signal
 from scipy.integrate import trapezoid
 
 # Add src directory to path
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
 from chemstation_parser import ChemstationParser
