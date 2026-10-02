@@ -364,7 +364,7 @@ PeakPicker/
 ├── hplc_analyzer_enhanced.py       # Step 2: analyze CSV files
 ├── hybrid_baseline.py              # baseline correction engine
 ├── chemstation_parser.py           # Chemstation format parsing
-├── result_exporter.py              # result export
+├── src/peakpicker/result_writer.py # result export (Excel + overlay plots)
 ├── USAGE_EXAMPLES.md               # this file
 └── backup_scripts/                 # old versions/test scripts
     ├── test_*.py
