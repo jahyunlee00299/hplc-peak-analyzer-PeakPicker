@@ -13,7 +13,6 @@ Date: 2025-11-10
 """
 
 import numpy as np
-from scipy.optimize import curve_fit
 from scipy.signal import find_peaks, savgol_filter
 from dataclasses import dataclass
 from typing import List, Tuple, Optional
@@ -24,6 +23,7 @@ from src.peak_models import (
     calculate_peak_asymmetry, exponentially_modified_gaussian,
     multi_emg, estimate_tau_from_asymmetry
 )
+from src.peak_fit_engine import fit_peak_sum
 from src.peakpicker.utils.numeric import trapezoid
 
 
@@ -66,6 +66,10 @@ class PeakDeconvolution:
     This class detects and separates overlapping peaks using Gaussian
     fitting and sophisticated shoulder peak detection algorithms.
     """
+
+    # Optimiser iteration caps (a fit that reaches the cap is reported as failed, as curve_fit did)
+    GAUSSIAN_MAX_NFEV = 10000
+    EMG_MAX_NFEV = 15000
 
     def __init__(
         self,
@@ -515,13 +519,9 @@ class PeakDeconvolution:
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')
 
-                popt, pcov = curve_fit(
-                    multi_gaussian,
-                    rt,
-                    signal,
-                    p0=p0,
-                    bounds=(bounds_lower, bounds_upper),
-                    maxfev=10000
+                popt = fit_peak_sum(
+                    rt, signal, p0, bounds_lower, bounds_upper,
+                    kind='gaussian', max_nfev=self.GAUSSIAN_MAX_NFEV
                 )
 
             # Calculate fit quality
@@ -708,13 +708,9 @@ class PeakDeconvolution:
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')
 
-                popt, pcov = curve_fit(
-                    multi_emg,
-                    rt,
-                    signal,
-                    p0=p0,
-                    bounds=(bounds_lower, bounds_upper),
-                    maxfev=15000
+                popt = fit_peak_sum(
+                    rt, signal, p0, bounds_lower, bounds_upper,
+                    kind='emg', max_nfev=self.EMG_MAX_NFEV
                 )
 
             # Calculate fit quality
