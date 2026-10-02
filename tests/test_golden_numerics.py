@@ -235,12 +235,6 @@ def test_deconvolution_overlapped_pair_total_area_conserved():
     assert res.total_area == pytest.approx(truth, rel=DECON_AREA_RTOL)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Two overlapped Gaussians (100@4.5 sigma .3, 70@5.2 sigma .35; 2.15 sigma apart) are reported as ONE "
-    "component (sigma .517): deconvolve_peak breaks out of the n_peaks loop as soon as fit_quality > 0.95, "
-    "and a single Gaussian already reaches R2=0.975, so the 2-component model is never tried.",
-)
 def test_deconvolution_overlapped_pair_component_count():
     res = run_decon(_overlapped_pair())
     assert res.n_components == 2
@@ -271,6 +265,35 @@ def test_fit_n_emg_on_pure_gaussian_stays_gaussian_in_the_limit():
     assert res.success
     assert res.total_area == pytest.approx(gauss_area(100.0, 0.3), rel=0.02)
     assert res.components[0].retention_time == pytest.approx(5.0, abs=0.03)
+
+
+@pytest.mark.parametrize("seed", range(6))
+@pytest.mark.parametrize("kind", ["gauss_sd1", "gauss_sd4", "gauss_clean", "emg", "emg_strong"])
+def test_deconvolution_single_peak_is_never_oversplit(kind, seed):
+    """Guard for the BIC component selection: a truly single peak (symmetric, noisy, tailing) stays ONE component."""
+    rng = np.random.default_rng(seed)
+    if kind.startswith("gauss"):
+        sd = {"gauss_sd1": 1.0, "gauss_sd4": 4.0, "gauss_clean": 0.0}[kind]
+        sig = gauss(RT, 100.0, 5.0, 0.3) + rng.normal(0.0, sd, RT.size)
+        truth = gauss_area(100.0, 0.3)
+    else:
+        sigma, tau = (0.25, 0.4) if kind == "emg" else (0.1, 0.5)
+        sig = 500.0 * exponnorm.pdf(RT, tau / sigma, loc=4.0, scale=sigma) + rng.normal(0.0, 1.0, RT.size)
+        truth = 500.0
+    res = run_decon(sig)
+    assert res.success and res.n_components == 1
+    assert res.total_area == pytest.approx(truth, rel=DECON_AREA_RTOL)
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_deconvolution_overlapped_pair_component_count_and_areas_over_seeds(seed):
+    """2.15 sigma apart: two components over several noise realisations, areas near the analytic values."""
+    sig = noisy(gauss(RT, 100.0, 4.5, 0.3) + gauss(RT, 70.0, 5.2, 0.35), seed=seed)
+    res = run_decon(sig)
+    assert res.success and res.n_components == 2
+    comps = sorted(res.components, key=lambda c: c.retention_time)
+    assert comps[0].area == pytest.approx(gauss_area(100.0, 0.3), rel=DECON_AREA_RTOL)
+    assert comps[1].area == pytest.approx(gauss_area(70.0, 0.35), rel=DECON_AREA_RTOL)
 
 
 def test_deconvolution_rejects_too_small_region():

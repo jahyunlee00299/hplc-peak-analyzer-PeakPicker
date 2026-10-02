@@ -319,8 +319,11 @@ class PeakDeconvolution:
         main_peak_rt = rt_peak[main_peak_idx]
 
         # Auto-detect peak centers if not provided
+        user_centers = initial_centers is not None
+        detected_centers = []
         if initial_centers is None:
             initial_centers = self._estimate_peak_centers(rt_peak, signal_peak)
+            detected_centers = list(initial_centers)
 
         if len(initial_centers) == 0:
             return self._create_failed_result(
@@ -328,33 +331,42 @@ class PeakDeconvolution:
                 "No peak centers detected"
             )
 
-        # Try fitting with increasing number of components
+        # Fit 1..N components and choose the count by an information criterion (BIC), not by a raw
+        # R2 threshold: a single Gaussian already reaches R2 > 0.95 on a merged pair, so R2 cannot
+        # tell "one peak" from "two overlapping peaks".
+        n_max = len(initial_centers) if user_centers else self.max_components
+        n_max = min(n_max, self.max_components)
+
         best_result = None
-        best_r2 = -np.inf
+        best_bic = np.inf
+        for n_peaks in range(1, n_max + 1):
+            seed_sets = []
+            if user_centers or len(detected_centers) >= n_peaks:
+                seed_sets.append(initial_centers[:n_peaks])
+            if not user_centers and n_peaks > 1:
+                # Detected maxima can be noise, and merged components have no maximum of their own:
+                # also try centres seeded from area quantiles of the region.
+                seed_sets.append(self._quantile_seed_centers(rt_peak, signal_peak, n_peaks))
+            if not seed_sets:
+                seed_sets.append(self._quantile_seed_centers(rt_peak, signal_peak, n_peaks))
 
-        for n_peaks in range(1, min(len(initial_centers) + 1, self.max_components + 1)):
-            # Use automatic model selection if enabled
-            if self.auto_select_model:
-                result = self._select_best_model(
-                    rt_peak,
-                    signal_peak,
-                    initial_centers[:n_peaks],
-                    main_peak_rt
-                )
-            else:
-                result = self._fit_n_gaussians(
-                    rt_peak,
-                    signal_peak,
-                    initial_centers[:n_peaks],
-                    main_peak_rt
-                )
+            level_result, level_bic = None, np.inf
+            for seeds in seed_sets:
+                if self.auto_select_model:
+                    result = self._select_best_model(rt_peak, signal_peak, seeds, main_peak_rt)
+                else:
+                    result = self._fit_n_gaussians(rt_peak, signal_peak, seeds, main_peak_rt)
+                if not result.success or not self._components_plausible(result, signal_peak):
+                    continue
+                bic = self._bic(result, len(rt_peak), signal_peak)
+                if bic < level_bic:
+                    level_result, level_bic = result, bic
 
-            if result.success and result.fit_quality > best_r2:
-                best_r2 = result.fit_quality
-                best_result = result
-
-            # Stop if fit is good enough
-            if result.success and result.fit_quality > 0.95:
+            # A further component must be strongly supported (delta BIC > 10), else keep the
+            # simpler model and stop adding components.
+            if level_result is not None and (best_result is None or level_bic < best_bic - 10.0):
+                best_result, best_bic = level_result, level_bic
+            elif best_result is not None:
                 break
 
         if best_result is None:
@@ -364,6 +376,42 @@ class PeakDeconvolution:
             )
 
         return best_result
+
+    @staticmethod
+    def _bic(result: DeconvolutionResult, n_points: int, signal: np.ndarray) -> float:
+        """BIC = n ln(RSS/n) + k ln(n); RSS floored at (0.1 % of the apex)^2 per point so that a
+        noise-free fit cannot win on numerical dust alone."""
+        params_per_peak = 4 if result.method.endswith('EMG') else 3
+        k = params_per_peak * result.n_components
+        floor = (1e-3 * float(np.max(np.abs(signal)))) ** 2
+        mse = max(result.rmse ** 2, floor, 1e-300)
+        return n_points * np.log(mse) + k * np.log(n_points)
+
+    @staticmethod
+    def _components_plausible(result: DeconvolutionResult, signal: np.ndarray) -> bool:
+        """Reject unidentifiable multi-component fits: a component below 10 % of the largest, or two
+        centres closer than 1.5 mean sigma (below the resolution limit of the data)."""
+        comps = sorted(result.components, key=lambda c: c.retention_time)
+        if len(comps) < 2:
+            return True
+        amp_max = max(c.amplitude for c in comps)
+        if any(c.amplitude < 0.1 * amp_max for c in comps):
+            return False
+        for left, right in zip(comps[:-1], comps[1:]):
+            sigma_mean = 0.5 * (left.sigma + right.sigma)
+            if right.retention_time - left.retention_time < 1.5 * sigma_mean:
+                return False
+        return True
+
+    @staticmethod
+    def _quantile_seed_centers(rt: np.ndarray, signal: np.ndarray, n_peaks: int) -> List[float]:
+        """Seed n centres at the (i+0.5)/n quantiles of the cumulative area of the region."""
+        weights = np.clip(signal, 0.0, None)
+        cum = np.cumsum(weights)
+        if cum[-1] <= 0:
+            return [float(rt[len(rt) // 2])] * n_peaks
+        cum = cum / cum[-1]
+        return [float(np.interp((i + 0.5) / n_peaks, cum, rt)) for i in range(n_peaks)]
 
     def _estimate_peak_centers(
         self,
@@ -784,39 +832,25 @@ class PeakDeconvolution:
         peak_idx = np.argmax(signal)
         asymmetry = calculate_peak_asymmetry(rt, signal, peak_idx)
 
-        # If highly asymmetric, try EMG first
-        if asymmetry > self.emg_asymmetry_threshold:
-            # Try EMG model first
-            emg_result = self._fit_n_emg(rt, signal, centers, original_rt)
-            if emg_result.success and emg_result.fit_quality > 0.9:
+        # Gaussian is the parsimonious model (3 parameters/peak): fit it first. The EMG (4 parameters
+        # per peak) is only tried when the shape is asymmetric or the Gaussian fit is poor, and it
+        # replaces the Gaussian only if BIC says the extra tail parameter pays for itself
+        # (delta BIC > 10). An overlapped symmetric pair is therefore not turned into tails.
+        gaussian_result = self._fit_n_gaussians(rt, signal, centers, original_rt)
+        needs_emg = asymmetry > self.emg_asymmetry_threshold or not (
+            gaussian_result.success and gaussian_result.fit_quality > 0.95)
+        if not needs_emg:
+            return gaussian_result
+
+        emg_result = self._fit_n_emg(rt, signal, centers, original_rt)
+        if emg_result.success and gaussian_result.success:
+            n = len(rt)
+            if self._bic(emg_result, n, signal) < self._bic(gaussian_result, n, signal) - 10.0:
                 return emg_result
-
-            # Fallback to Gaussian if EMG didn't work well
-            gaussian_result = self._fit_n_gaussians(rt, signal, centers, original_rt)
-
-            # Compare and return best
-            if emg_result.success and gaussian_result.success:
-                return emg_result if emg_result.fit_quality >= gaussian_result.fit_quality else gaussian_result
-            elif emg_result.success:
-                return emg_result
-            else:
-                return gaussian_result
-        else:
-            # Try Gaussian first for symmetric peaks
-            gaussian_result = self._fit_n_gaussians(rt, signal, centers, original_rt)
-            if gaussian_result.success and gaussian_result.fit_quality > 0.95:
-                return gaussian_result
-
-            # Try EMG if Gaussian fit is not great
-            emg_result = self._fit_n_emg(rt, signal, centers, original_rt)
-
-            # Compare and return best
-            if gaussian_result.success and emg_result.success:
-                return gaussian_result if gaussian_result.fit_quality >= emg_result.fit_quality else emg_result
-            elif gaussian_result.success:
-                return gaussian_result
-            else:
-                return emg_result
+            return gaussian_result
+        if emg_result.success:
+            return emg_result
+        return gaussian_result
 
     def _create_failed_result(
         self,
