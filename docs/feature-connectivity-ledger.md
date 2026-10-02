@@ -173,3 +173,14 @@ Every strict xfail was removed only because it XPASSed; no tolerance was loosene
 - **Measured difference (old package EMG was wrong)**: `emg_fitter.emg` clipped the exponent at +-500 and used a plain `erfc`; for sigma/tau >= ~40 (e.g. sigma 0.8, tau 0.02, or EmgFitter's lower bound tau = 1e-6)
   the peak collapsed (max 2e-10 instead of ~1) and the far tail was off by 1e5 relative. The new values follow the old ones exactly wherever the clip was inactive (rtol 1e-9).
 - **Cost**: `src/peak_models.py` now imports the `peakpicker` package (a leaf module no longer standalone; `src.peak_deconvolution` already did).
+
+### Unit 2b - ChemStation readers: NOT merged (they differ), difference pinned
+
+- **Measured** on two real format-130 lab files: `src/chemstation_parser.ChemstationParser` returns 3472 / 3473 points, bit-identical to the independent `rainbow` decoder (max abs diff 0.0);
+  `ChemstationReader` (package) returns 5819 / 5753 points and a different intensity maximum (105190 vs 27302 for the first file) - it reads time at 0x282, scale at 0x127A + offset 0x1282 and decodes
+  the body as variable-length byte deltas, none of which matches format 130 (Pascal "130" header, time 0x11A, scale 0x127C, int16-delta segments at 0x1800).
+- **Decision**: no shim - a delegating shim would change every number the package reader returns. `tests/test_chemstation_readers_characterization.py` pins: legacy round-trips a synthetic format-130 file exactly
+  (incl. the absolute escape), legacy rejects other versions, the package reader's difference is asserted, and a strict xfail marks "package reader recovers format 130" (flips when fixed).
+  Optional `PEAKPICKER_REAL_CH` env var compares against rainbow on a real file.
+- **Deferred (needs a decision)**: `workflow.with_chemstation_reader()` and the auto reader's `ChemstationReader` are wrong for format-130 files; `RainbowChemstationReader` (rainbow) is the correct package route.
+  Replacing the package decoder by the legacy one is a behaviour change (bug fix), not a dedup.
