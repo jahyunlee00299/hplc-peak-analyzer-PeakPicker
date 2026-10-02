@@ -12,6 +12,16 @@ import numpy as np
 from ...interfaces import IBaselineStrategy, IInterpolator
 from ...domain import AnchorPoint, BaselineMethod
 from ...config import BaselineStrategyConfig
+from ..anchor_filters import baseline_anchor_mask
+
+
+def _drop_flank_anchors(anchors: List[AnchorPoint], signal: np.ndarray) -> List[AnchorPoint]:
+    """Return the anchors sorted by index with peak-flank anchors removed (see anchor_filters)."""
+    ordered = sorted(anchors, key=lambda p: p.index)
+    idx = np.array([p.index for p in ordered])
+    val = np.array([p.value for p in ordered])
+    keep = baseline_anchor_mask(idx, val, float(np.ptp(signal)))
+    return [p for p, k in zip(ordered, keep) if k]
 
 
 class WeightedSplineStrategy(IBaselineStrategy):
@@ -74,7 +84,8 @@ class WeightedSplineStrategy(IBaselineStrategy):
         if len(anchors) == 0:
             return np.zeros_like(signal)
 
-        # Extract anchor data
+        # Extract anchor data (sorted by index), dropping anchors that sit on a peak flank
+        anchors = _drop_flank_anchors(anchors, signal)
         indices = np.array([p.index for p in anchors])
         values = np.array([p.value for p in anchors])
         confidences = np.array([p.confidence for p in anchors])
@@ -268,8 +279,8 @@ class AdaptiveConnectStrategy(IBaselineStrategy):
 
         baseline = np.zeros_like(signal, dtype=float)
 
-        # Sort anchors by index
-        sorted_anchors = sorted(anchors, key=lambda p: p.index)
+        # Sort anchors by index and drop anchors that sit on a peak flank
+        sorted_anchors = _drop_flank_anchors(anchors, signal)
 
         from ...domain import AnchorSource
 

@@ -150,3 +150,15 @@ Every strict xfail was removed only because it XPASSed; no tolerance was loosene
   (a77141c: -65/-70, -59/-66, -37/-46, -2.1/-3.1 %). Residual error = the documented cutoff truncation bias plus noise; tests assert a bound derived from both.
 - **Lab file** (D-Xylose, Chemstation reference): -0.89 % (main) -> -1.49 % (a77141c) -> -1.53 %; L+R / full ratio 1.0001.
 - `DeconvolvedPeak.apex_time` added (backward compatible); EMG `retention_time` is mu, not the apex (documented).
+
+## Refactor batch 3 (2026-10-02)
+
+### Unit 1 - package weighted_spline / adaptive_connect flank anchors
+
+- **Defect**: the batch-2 flank-anchor fix (Unit I) was applied to the legacy `hybrid_baseline` only. `WeightedSplineStrategy` and `AdaptiveConnectStrategy`
+  in `src/peakpicker/baseline/strategies/weighted_spline.py` interpolated through every anchor. The production composition
+  (`PeakBoundaryAnchorFinder` + `BoundaryAnchorFinder`, `WorkflowBuilder.with_default_baseline`) never anchors inside a peak and was already accurate (area 100.6-101.4 %);
+  the window-minimum composition (`LocalMinAnchorFinder` + `ValleyAnchorFinder` + `BoundaryAnchorFinder`) recovered a flat-baseline single peak at 36.5 % (weighted_spline) / 52 % (adaptive_connect).
+- **Change**: shared `baseline/anchor_filters.baseline_anchor_mask` (same rule as the legacy method); both strategies drop flank anchors first. `RobustFitStrategy`, `LinearStrategy`, the anchor finders are untouched.
+- **Evidence** (`tests/test_package_baseline_flank.py`): flat single peak within 3 % for 3 seeds x 2 strategies x 2 compositions (pre-fix: 12 failures, 35-65 %), close pair (2.7 sigma) within 5 %, tailing EMG within 5 %.
+- **Refutation**: peak-free linear/curved drift gives a baseline bit-identical to the unfiltered one; the filter rejects a flank anchor but never end anchors or below-baseline dips.
