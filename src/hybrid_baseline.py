@@ -13,6 +13,11 @@ from dataclasses import dataclass
 import warnings
 warnings.filterwarnings('ignore')
 
+try:  # `src` on sys.path
+    from peakpicker.baseline.anchor_filters import baseline_anchor_mask
+except ModuleNotFoundError:  # repo root on sys.path
+    from src.peakpicker.baseline.anchor_filters import baseline_anchor_mask
+
 
 @dataclass
 class BaselinePoint:
@@ -226,30 +231,7 @@ class HybridBaselineCorrector:
         curved baseline, unlike one global median. The first and last anchors are kept, and the
         filter is skipped when fewer than 4 anchors would remain.
         """
-        n = len(indices)
-        keep = np.ones(n, dtype=bool)
-        if n < 6:
-            return keep
-        floor = 0.005 * np.ptp(self.intensity)
-        for _ in range(3):
-            idx_k, val_k = indices[keep], values[keep]
-            if len(idx_k) < 6:
-                break
-            kk = min(k, len(idx_k) - 1)
-            resid = np.empty(len(idx_k))
-            for j in range(len(idx_k)):
-                order = np.argsort(np.abs(idx_k - idx_k[j]))[1:kk + 1]
-                resid[j] = val_k[j] - np.median(val_k[order])
-            scale = max(1.4826 * np.median(np.abs(resid - np.median(resid))), floor)
-            bad = resid > 3.0 * scale
-            bad[0] = bad[-1] = False
-            if not bad.any():
-                break
-            keep_positions = np.flatnonzero(keep)
-            keep[keep_positions[bad]] = False
-        if keep.sum() < 4:
-            return np.ones(n, dtype=bool)
-        return keep
+        return baseline_anchor_mask(indices, values, float(np.ptp(self.intensity)), k=k)
 
     def generate_hybrid_baseline(
         self,

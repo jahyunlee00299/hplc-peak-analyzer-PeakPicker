@@ -184,3 +184,12 @@ Every strict xfail was removed only because it XPASSed; no tolerance was loosene
   Optional `PEAKPICKER_REAL_CH` env var compares against rainbow on a real file.
 - **Deferred (needs a decision)**: `workflow.with_chemstation_reader()` and the auto reader's `ChemstationReader` are wrong for format-130 files; `RainbowChemstationReader` (rainbow) is the correct package route.
   Replacing the package decoder by the legacy one is a behaviour change (bug fix), not a dedup.
+
+### Unit 2c - baseline anchor finding: finders NOT merged, flank mask deduplicated
+
+- **Measured** (3 synthetic chromatograms, 3001 points, noise sd 1; anchors hybrid / improved / package `LocalMin+Valley+Boundary`): flat single peak 60 / 84 / 63, drifting 3-peak 73 / 20 / 84, curved 3-peak 75 / 29 / 87;
+  index overlap hybrid-vs-package 59 / 46 / 44 of 60-87, hybrid-vs-improved 45 / 6 / 5. The algorithms differ by design (adaptive percentile and MAD outlier cut in hybrid; smoothing window, `width=1`, cluster minima,
+  priority dedup and a negative-value shift in improved; fixed windows over the whole signal and a composite filter in the package), so no shim. `improved_baseline` has no caller besides `examples/` and docs.
+  `tests/test_anchor_finders_characterization.py` pins "not identical" and the partial overlap.
+- **Deduplicated**: `HybridBaselineCorrector._baseline_anchor_mask` now delegates to `peakpicker.baseline.anchor_filters.baseline_anchor_mask` (the Unit 1 helper, same algorithm). Equal to a frozen copy of the old method
+  on 3 fixtures x 3 seeds; the batch-2 golden tests (flank filter, area recovery) pass unchanged.
