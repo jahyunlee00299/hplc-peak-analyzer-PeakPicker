@@ -31,7 +31,7 @@ literals_call_keywords = true   # plugins/lab_presets.py passes calibration_slop
 
 # Running it (paths above are relative to the CURRENT DIRECTORY, not to this file):
 #   cd <PeakPicker working tree that holds the real methods/ and scripts/>
-#   PYTHONPATH=~/paramguard python -m fiducial check          # or --config <this file> from elsewhere
+#   fiducial check                                           # (pip install fiducial-check, or PYTHONPATH=~/fiducial python -m fiducial check) or --config <this file> from elsewhere
 # 🔴 The files this config checks are git-IGNORED on purpose (.gitignore: /methods/*.yaml,
 # /methods/standards/, dated scripts, plugins/ are lab-local and never go public; origin is a
 # public GitHub repo). A fresh checkout of main therefore has nothing to scan and pointers
