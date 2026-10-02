@@ -216,6 +216,41 @@ class HybridBaselineCorrector:
 
         return valleys
 
+    def _baseline_anchor_mask(self, indices: np.ndarray, values: np.ndarray, k: int = 7) -> np.ndarray:
+        """
+        Boolean mask of anchors that lie on the baseline rather than on a peak flank.
+
+        An anchor is rejected when it exceeds the median of its k nearest anchors by more than
+        3 robust sigma (MAD of the residuals, floored at 0.5 % of the signal range so a noise-free
+        baseline does not make the test hypersensitive). Neighbour medians follow a drifting or
+        curved baseline, unlike one global median. The first and last anchors are kept, and the
+        filter is skipped when fewer than 4 anchors would remain.
+        """
+        n = len(indices)
+        keep = np.ones(n, dtype=bool)
+        if n < 6:
+            return keep
+        floor = 0.005 * np.ptp(self.intensity)
+        for _ in range(3):
+            idx_k, val_k = indices[keep], values[keep]
+            if len(idx_k) < 6:
+                break
+            kk = min(k, len(idx_k) - 1)
+            resid = np.empty(len(idx_k))
+            for j in range(len(idx_k)):
+                order = np.argsort(np.abs(idx_k - idx_k[j]))[1:kk + 1]
+                resid[j] = val_k[j] - np.median(val_k[order])
+            scale = max(1.4826 * np.median(np.abs(resid - np.median(resid))), floor)
+            bad = resid > 3.0 * scale
+            bad[0] = bad[-1] = False
+            if not bad.any():
+                break
+            keep_positions = np.flatnonzero(keep)
+            keep[keep_positions[bad]] = False
+        if keep.sum() < 4:
+            return np.ones(n, dtype=bool)
+        return keep
+
     def generate_hybrid_baseline(
         self,
         method: str = 'weighted_spline',
@@ -239,6 +274,15 @@ class HybridBaselineCorrector:
         types = [p.type for p in self.baseline_points]
 
         baseline = np.zeros_like(self.intensity)
+
+        if method in ('weighted_spline', 'adaptive_connect'):
+            # The anchor finder takes the lowest point of every window even when the whole window lies
+            # on a peak flank; interpolating through such anchors lifts the baseline under the peak
+            # (flat baseline + one peak: area recovered ~64 %). robust_fit already drops them.
+            keep = self._baseline_anchor_mask(indices, values)
+            indices, values = indices[keep], values[keep]
+            confidences = confidences[keep]
+            types = [t for t, k in zip(types, keep) if k]
 
         if method == 'weighted_spline':
             # Spline fit using confidence as the weight

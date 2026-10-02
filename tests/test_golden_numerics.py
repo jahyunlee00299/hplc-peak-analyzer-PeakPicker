@@ -68,21 +68,9 @@ def test_hybrid_baseline_contract(method, curved):
     assert np.all(baseline <= y + 1e-9)
 
 
-_WEAK_ANCHORS = (
-    "find_baseline_anchor_points picks the lowest point of every fixed-size window even when the whole "
-    "window lies on a peak flank (anchors at t=8.39/12.34/17.61 with values 101/216/137 vs true baseline "
-    "~67/75/85); their weights are small but not zero, so the baseline climbs under the peaks (apex error "
-    "up to +130 on a 600-high peak; its area is recovered at ~68 % instead of 100 %)."
-)
-
-
 @pytest.mark.parametrize(
     "method",
-    [
-        pytest.param("weighted_spline", marks=pytest.mark.xfail(strict=True, reason=_WEAK_ANCHORS)),
-        pytest.param("adaptive_connect", marks=pytest.mark.xfail(strict=True, reason=_WEAK_ANCHORS)),
-        "robust_fit",
-    ],
+    ["weighted_spline", "adaptive_connect", "robust_fit"],
 )
 @pytest.mark.parametrize("curved", [False, True], ids=["linear_base", "curved_base"])
 def test_hybrid_baseline_recovers_peak_areas(method, curved):
@@ -93,8 +81,6 @@ def test_hybrid_baseline_recovers_peak_areas(method, curved):
     assert np.all(np.abs(ratios - 1.0) < BASE_AREA_RTOL), f"area recovery per peak: {ratios.round(3)}"
 
 
-@pytest.mark.xfail(strict=True, reason=_WEAK_ANCHORS + " Simplest case (flat baseline 100, one 1000-high peak): an "
-                   "anchor at the peak upslope (t=9.8, value 511) lifts the baseline to ~357 at the apex; area recovered ~64 %.")
 def test_hybrid_baseline_flat_single_peak_default_method():
     """The default method on the simplest case (flat baseline, one peak)."""
     t = np.linspace(0.0, 20.0, 2001)
@@ -103,6 +89,42 @@ def test_hybrid_baseline_flat_single_peak_default_method():
     sel = (t > 10 - 0.9) & (t < 10 + 0.9)
     ratio = trapezoid((y - baseline)[sel], t[sel]) / gauss_area(1000.0, 0.15)
     assert abs(ratio - 1.0) < BASE_AREA_RTOL, ratio
+
+
+@pytest.mark.parametrize("method", ["weighted_spline", "adaptive_connect"])
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_hybrid_baseline_flat_single_peak_seeds(method, seed):
+    t = np.linspace(0.0, 20.0, 2001)
+    y = 100.0 + gauss(t, 1000.0, 10.0, 0.15) + np.random.default_rng(seed).normal(0.0, 1.0, t.size)
+    baseline = HybridBaselineCorrector(t, y).generate_hybrid_baseline(method=method)
+    sel = (t > 10 - 0.9) & (t < 10 + 0.9)
+    ratio = trapezoid((y - baseline)[sel], t[sel]) / gauss_area(1000.0, 0.15)
+    assert abs(ratio - 1.0) < 0.03, ratio
+
+
+@pytest.mark.parametrize("curved", [False, True], ids=["linear_base", "curved_base"])
+def test_flank_anchor_filter_keeps_every_anchor_on_a_peak_free_drift(curved):
+    """Adverse: with NO peak the flank-anchor filter must not discard legitimate drift/curvature anchors,
+    and the weighted_spline baseline must then be identical to what it was without the filter."""
+    t = np.linspace(0.0, 30.0, 3001)
+    truth = 50.0 + 2.0 * t + (0.05 * (t - 15.0) ** 2 if curved else 0.0)
+    y = truth + np.random.default_rng(4).normal(0.0, 1.0, t.size)
+    corr = HybridBaselineCorrector(t, y)
+    corr.find_baseline_anchor_points()
+    idx = np.array([p.index for p in corr.baseline_points])
+    vals = np.array([p.value for p in corr.baseline_points])
+    assert corr._baseline_anchor_mask(idx, vals).all()
+
+
+def test_flank_anchor_filter_rejects_flank_anchor_but_keeps_flat_baseline_anchors():
+    t = np.linspace(0.0, 20.0, 2001)
+    y = 100.0 + gauss(t, 1000.0, 10.0, 0.15) + np.random.default_rng(3).normal(0.0, 1.0, t.size)
+    corr = HybridBaselineCorrector(t, y)
+    corr.find_baseline_anchor_points()
+    idx = np.array([p.index for p in corr.baseline_points])
+    vals = np.array([p.value for p in corr.baseline_points])
+    keep = corr._baseline_anchor_mask(idx, vals)
+    assert not keep[vals > 120].any() and keep[vals < 105].all()
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
