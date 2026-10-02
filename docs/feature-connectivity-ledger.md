@@ -189,7 +189,11 @@ Every strict xfail was removed only because it XPASSed; no tolerance was loosene
 - **Decision**: no shim - a delegating shim would change every number the package reader returns. `tests/test_chemstation_readers_characterization.py` pins: legacy round-trips a synthetic format-130 file exactly
   (incl. the absolute escape), legacy rejects other versions, the package reader's difference is asserted, and a strict xfail marks "package reader recovers format 130" (flips when fixed).
   Optional `PEAKPICKER_REAL_CH` env var compares against rainbow on a real file.
-- **Deferred (needs a decision)**: `workflow.with_chemstation_reader()` and the auto reader's `ChemstationReader` are wrong for format-130 files; `RainbowChemstationReader` (rainbow) is the correct package route.
+- **Follow-up (independent verification, same day)**: `WorkflowBuilder().build()` without a reader, `create_default_workflow` and the package docstring example routed to the package `ChemstationReader`
+  (real file: 5692 points / max 151941 vs rainbow and legacy 3473 / 126086). The default is now `with_auto_reader()`: rainbow (.D and .ch) -> CSV -> new `LegacyParserReader` (wraps `src/chemstation_parser`,
+  bit-identical to rainbow on real files). `RainbowReader.can_read` is False when rainbow is not installed, and `AutoReader` falls through to the next compatible reader when one fails (the first error is re-raised if all fail).
+  `with_chemstation_reader()` and `ChemstationReader` stay, with a WARNING in their docstrings; the strict xfail keeps documenting the decoder bug. `tests/test_default_reader.py`: default build decodes a synthetic format-130 file
+  identically to the legacy parser (rainbow rejects the synthetic file, so the chain falls through), explicit no-rainbow behaviour is the legacy fallback, and `PEAKPICKER_REAL_CH` compares against rainbow on a real file (passes).
   Replacing the package decoder by the legacy one is a behaviour change (bug fix), not a dedup.
 
 ### Unit 2c - baseline anchor finding: finders NOT merged, flank mask deduplicated

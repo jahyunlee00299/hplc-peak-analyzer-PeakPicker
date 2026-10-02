@@ -20,6 +20,12 @@ from ...domain import ChromatogramData
 logger = logging.getLogger(__name__)
 
 
+def rainbow_available() -> bool:
+    """True when the rainbow-api package can be imported (checked without importing it)."""
+    import importlib.util
+    return importlib.util.find_spec('rainbow') is not None
+
+
 class RainbowReader(IDataReader):
     """
     Reader for Agilent .D folders using the rainbow library.
@@ -109,6 +115,9 @@ class RainbowReader(IDataReader):
     def can_read(self, file_path: Path) -> bool:
         """Check if this reader can handle the file/folder."""
         file_path = Path(file_path)
+
+        if not rainbow_available():
+            return False
 
         if not file_path.exists():
             return False

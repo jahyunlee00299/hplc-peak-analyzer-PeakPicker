@@ -25,12 +25,20 @@ class AutoReader(IDataReader):
         self.readers = readers
 
     def read(self, file_path: Path) -> ChromatogramData:
-        """Read using the first compatible reader."""
+        """Read using the first compatible reader that succeeds (a failing reader falls through to the next one)."""
         file_path = Path(file_path)
 
+        first_error = None
         for reader in self.readers:
             if reader.can_read(file_path):
-                return reader.read(file_path)
+                try:
+                    return reader.read(file_path)
+                except Exception as exc:  # try the next compatible reader; re-raise the first failure if none works
+                    if first_error is None:
+                        first_error = exc
+
+        if first_error is not None:
+            raise first_error
 
         reader_names = [type(r).__name__ for r in self.readers]
         raise ValueError(

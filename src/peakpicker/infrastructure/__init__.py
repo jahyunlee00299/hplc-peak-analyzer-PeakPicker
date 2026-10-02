@@ -14,7 +14,7 @@ from .signal_processing import (
     create_scipy_processors,
 )
 
-from .file_readers import ChemstationReader, CSVReader, RainbowReader, RainbowChemstationReader, AutoReader, DFolderScanner
+from .file_readers import ChemstationReader, CSVReader, RainbowReader, RainbowChemstationReader, AutoReader, LegacyParserReader, DFolderScanner
 
 from .exporters import (
     ExcelExporter,
@@ -46,6 +46,7 @@ __all__ = [
     'RainbowReader',
     'RainbowChemstationReader',
     'AutoReader',
+    'LegacyParserReader',
     'DFolderScanner',
     # Exporters
     'ExcelExporter',

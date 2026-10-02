@@ -194,7 +194,13 @@ class WorkflowBuilder:
         self._plot_exporter = None
 
     def with_chemstation_reader(self) -> 'WorkflowBuilder':
-        """Use Chemstation file reader."""
+        """
+        Use the package's pure-Python Chemstation reader.
+
+        WARNING: this decoder does NOT decode Agilent format-130 ``.ch`` files correctly (measured on real
+        files: 5819 points / max 105190 where rainbow and the legacy parser give 3472 points / max 27302).
+        Prefer ``with_auto_reader()`` (the default), or ``with_rainbow_chemstation_reader()``.
+        """
         from ..infrastructure import ChemstationReader
         self._reader = ChemstationReader()
         return self
@@ -224,14 +230,18 @@ class WorkflowBuilder:
     ) -> 'WorkflowBuilder':
         """
         Use auto-detecting reader that picks the right reader
-        based on the input file type (.D, .ch, or .csv).
+        based on the input file type (.D, .ch, or .csv). This is the default reader.
+
+        Chain: rainbow (.D folders and .ch files) -> CSV -> legacy ChemStation parser (.ch). A reader that
+        fails falls through to the next compatible one, so a missing or failing rainbow degrades to the
+        legacy parser, which matches rainbow exactly on format-130 files.
         """
-        from ..infrastructure import RainbowReader, CSVReader, ChemstationReader
+        from ..infrastructure import RainbowReader, CSVReader, LegacyParserReader
         from ..infrastructure import AutoReader
         self._reader = AutoReader(readers=[
             RainbowReader(preferred_detector=preferred_detector),
             CSVReader(),
-            ChemstationReader(),
+            LegacyParserReader(),
         ])
         return self
 
@@ -410,7 +420,7 @@ class WorkflowBuilder:
         maybe_notify_update()
 
         if self._reader is None:
-            self.with_chemstation_reader()
+            self.with_auto_reader()
 
         if self._baseline_corrector is None:
             self.with_default_baseline()
@@ -442,7 +452,7 @@ def create_default_workflow(output_dir: Path = None) -> AnalysisWorkflow:
         Ready-to-use workflow
     """
     builder = WorkflowBuilder()
-    builder.with_chemstation_reader()
+    builder.with_auto_reader()
     builder.with_default_baseline()
     builder.with_default_peak_detector()
 

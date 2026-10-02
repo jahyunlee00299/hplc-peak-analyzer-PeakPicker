@@ -32,7 +32,7 @@ Using the Builder
 -----------------
 >>> from src.peakpicker.application import WorkflowBuilder
 >>> workflow = (WorkflowBuilder()
-...     .with_chemstation_reader()
+...     .with_auto_reader()
 ...     .with_default_baseline()
 ...     .with_default_peak_detector()
 ...     .with_excel_exporter()

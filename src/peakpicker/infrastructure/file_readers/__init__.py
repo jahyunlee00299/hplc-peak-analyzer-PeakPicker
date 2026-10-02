@@ -8,6 +8,7 @@ Concrete implementations of data reader interfaces.
 from .chemstation_reader import ChemstationReader, CSVReader
 from .rainbow_reader import RainbowReader, RainbowChemstationReader
 from .auto_reader import AutoReader
+from .legacy_parser_reader import LegacyParserReader
 from .d_folder_scanner import DFolderScanner
 
 __all__ = [
@@ -16,5 +17,6 @@ __all__ = [
     'RainbowReader',
     'RainbowChemstationReader',
     'AutoReader',
+    'LegacyParserReader',
     'DFolderScanner',
 ]

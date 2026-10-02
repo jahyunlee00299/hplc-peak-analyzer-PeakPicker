@@ -20,6 +20,10 @@ class ChemstationReader(IDataReader):
     Reader for Agilent Chemstation .ch files (format 130/131).
 
     Single Responsibility: Only handles reading Chemstation files.
+
+    WARNING: the body decoder here does not match Agilent format 130 (time offset, scale position and the
+    delta layout all differ); on real files it returns a different number of points and wrong intensities.
+    Use ``AutoReader`` / ``RainbowChemstationReader`` / ``LegacyParserReader`` instead.
     """
 
     SUPPORTED_EXTENSIONS = {'.ch'}
