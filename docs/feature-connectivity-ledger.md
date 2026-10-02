@@ -193,3 +193,14 @@ Every strict xfail was removed only because it XPASSed; no tolerance was loosene
   `tests/test_anchor_finders_characterization.py` pins "not identical" and the partial overlap.
 - **Deduplicated**: `HybridBaselineCorrector._baseline_anchor_mask` now delegates to `peakpicker.baseline.anchor_filters.baseline_anchor_mask` (the Unit 1 helper, same algorithm). Equal to a frozen copy of the old method
   on 3 fixtures x 3 seeds; the batch-2 golden tests (flank filter, area recovery) pass unchanged.
+
+### Unit 3 - `scripts/quantify_peaks.py`: plotting extracted
+
+- **Change**: `_plot_peak_information`, `create_individual_chromatograms`, `create_overlay_chromatograms` moved verbatim (mechanical extraction, `self.sample_details` -> parameter) to
+  `src/peakpicker/infrastructure/quantification/chromatogram_plots.py` (`plot_peak_information`, `create_individual_chromatograms`, `create_overlay_chromatograms`). The three `PeakQuantifier` methods remain as one-line
+  delegates, so every caller keeps working (no overlay script imports `quantify_peaks`; checked by grep over the main checkout incl. gitignored overlay). Script 961 -> 438 lines; new module 557 lines.
+  `QuantificationPlotExporter` (bar / time-course / comparison charts over `QuantificationResult`) shares no code with these per-sample panels, so nothing was merged into it.
+- **Proof** (`tests/test_quantify_peaks_characterization.py`, written and committed before the move): synthetic 4-sample folder -> results table and `all_peaks_detailed.csv` hash-identical, and a canonical fingerprint of
+  every figure's artist data (titles, labels, scales, limits, line xy, texts, annotations, table cells, scatter offsets, legends) identical for all 6 figures. One-off: the 6 PNGs and the CSV written before and after the
+  move are byte-identical (SHA-256, same machine / matplotlib).
+- **Refutation**: the fingerprint harness is shown to change under a 0.001 data change and a title change; the CLI (`python scripts/quantify_peaks.py <folder>` from another cwd) still runs end to end.
