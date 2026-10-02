@@ -9,7 +9,9 @@ from pathlib import Path
 import sys
 import re
 
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))  # `src.` package imports
+sys.path.insert(0, str(_REPO_ROOT / 'src'))  # flat module imports
 from hybrid_baseline import HybridBaselineCorrector
 
 # Korean font settings (kept for CJK-capable rendering environments)

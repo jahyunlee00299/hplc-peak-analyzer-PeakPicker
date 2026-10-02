@@ -13,8 +13,10 @@ import numpy as np
 from scipy import signal
 from scipy.integrate import trapezoid
 
-# Add src directory to path
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
+# Add repo root and src directory to path
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))  # `src.` package imports
+sys.path.insert(0, str(_REPO_ROOT / 'src'))  # flat module imports
 
 from hybrid_baseline import HybridBaselineCorrector
 from peak_deconvolution import PeakDeconvolution, DeconvolutionResult
