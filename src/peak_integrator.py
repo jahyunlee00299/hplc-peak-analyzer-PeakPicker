@@ -11,7 +11,10 @@ import numpy as np
 from scipy.signal import savgol_coeffs, savgol_filter
 from typing import Tuple
 
-from src.peakpicker.utils.numeric import trapezoid
+try:  # `src` on sys.path
+    from peakpicker.utils.numeric import trapezoid
+except ModuleNotFoundError:  # repo root on sys.path (`from src.peak_integrator import ...`)
+    from src.peakpicker.utils.numeric import trapezoid
 
 
 def find_peak_boundaries(

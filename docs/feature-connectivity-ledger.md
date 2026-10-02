@@ -204,3 +204,9 @@ Every strict xfail was removed only because it XPASSed; no tolerance was loosene
   every figure's artist data (titles, labels, scales, limits, line xy, texts, annotations, table cells, scatter offsets, legends) identical for all 6 figures. One-off: the 6 PNGs and the CSV written before and after the
   move are byte-identical (SHA-256, same machine / matplotlib).
 - **Refutation**: the fingerprint harness is shown to change under a 0.001 data change and a title change; the CLI (`python scripts/quantify_peaks.py <folder>` from another cwd) still runs end to end.
+
+### Unit 4 - `src/peak_integrator.py` import prefix
+
+- `from src.peakpicker.utils.numeric import trapezoid` -> `from peakpicker...` with a `ModuleNotFoundError` fallback to `src.peakpicker...`, the same pattern as `peak_models` / `hybrid_baseline`.
+  Before: `import peak_integrator` with only `src` on `sys.path` failed (needed the repo root); now both layouts work (`tests/test_legacy_import_paths.py`, subprocess per layout; the `src` case fails on the old code).
+- `pytest.ini` keeps `pythonpath = src .`: the private lab tests (`from src.peak_integrator import ...`) and `src.peak_deconvolution` still need the repo root, so the `.` entry is not removable yet.
