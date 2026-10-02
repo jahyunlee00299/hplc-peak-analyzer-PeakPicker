@@ -239,3 +239,11 @@ Every strict xfail was removed only because it XPASSed; no tolerance was loosene
   and areas identical, max deviation 0 (`tests/golden/deconv_decision_golden.py real --data <dir> --golden <json outside the repo>`).
 - **Refuted (decisions change, not adopted)**: iteration cap 3000 (28 of 908 inputs change), `ftol` 1e-6 (25 change) and 1e-5 (52 change).
   The n / model decision depends on how deep slow-valley EMG fits converge, so any speed-up that shortens convergence is not behaviour-preserving.
+
+## Parallel deconvolution (2026-10-02, branch `peakpicker/feature/parallel-deconv-261002`)
+
+### Unit P1 - `--jobs N` file-level process pool in `scripts/hplc_analyzer_enhanced.py`
+
+- **Wiring**: `main()` -> `batch_analyze(jobs=)` -> `_analyze_parallel` -> top-level `_analyze_file_worker` (replays the analyzer constructor kwargs, returns result + captured stdout). `--jobs 1` (or one file) runs the unchanged serial loop. Default `min(cpu_count-1, 8)`. `batch_analyze_all.py` has no deconvolution (already has its own pool) and is untouched.
+- **Design**: one file per task, no shared state; each worker writes its own xlsx; results and console output are collected/replayed in sorted input order. Workers run with OMP/MKL/OPENBLAS threads = 1 (set in the parent env before spawn). A worker exception becomes an `{error, file}` entry, same as the serial path. Peak-level parallelism deliberately not added (file-level already saturates cores on batches).
+- **Proof**: `tests/test_parallel_batch.py` (3 synthetic files + 1 corrupt, serial == jobs 2 on arrays, peak_data, every xlsx cell, order, error entry). Real data (not committed): 12 files, serial vs `--jobs 8`, all xlsx cells identical (timestamp column excluded).

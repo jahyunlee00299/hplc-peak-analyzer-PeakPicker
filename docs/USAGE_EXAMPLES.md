@@ -165,6 +165,12 @@ python hplc_analyzer_enhanced.py "C:\path\to\csv\files" -o "C:\path\to\results"
 python hplc_analyzer_enhanced.py "C:\path\to\csv\files" --no-hybrid-baseline
 ```
 
+#### Parallel Processing (`--jobs`)
+```bash
+python hplc_analyzer_enhanced.py "C:\path	o\csviles" --jobs 8
+```
+Files are analysed in parallel worker processes (default: all cores but one, at most 8; `--jobs 1` runs the serial path). Output files, their order and every number are identical to the serial run; a failing file is reported and does not stop the others.
+
 #### Custom File Pattern
 ```bash
 python hplc_analyzer_enhanced.py "C:\path\to\csv\files" --pattern "EXPORT*.CSV"

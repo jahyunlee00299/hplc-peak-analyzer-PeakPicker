@@ -4,9 +4,13 @@ Integrates auto_export_keyboard and advanced baseline correction
 """
 
 import argparse
+import contextlib
+import io
+import os
 import sys
 from pathlib import Path
 from typing import List, Dict, Optional
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 import pandas as pd
 import numpy as np
@@ -34,6 +38,15 @@ class EnhancedHPLCAnalyzer:
         deconvolution_asymmetry_threshold: float = 1.2,
         half_peak_mode: str = 'none'
     ):
+        # Constructor arguments, replayed by worker processes (--jobs > 1)
+        self._init_kwargs = dict(
+            data_directory=str(data_directory),
+            output_directory=str(output_directory) if output_directory else None,
+            use_hybrid_baseline=use_hybrid_baseline,
+            enable_deconvolution=enable_deconvolution,
+            deconvolution_asymmetry_threshold=deconvolution_asymmetry_threshold,
+            half_peak_mode=half_peak_mode,
+        )
         self.data_dir = Path(data_directory)
         self.output_dir = Path(output_directory) if output_directory else self.data_dir / "analysis_results"
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -483,12 +496,15 @@ class EnhancedHPLCAnalyzer:
 
         print(f"  Results saved: {output_file.name}")
 
-    def batch_analyze(self, file_pattern: str = "*.CSV") -> List[Dict]:
+    def batch_analyze(self, file_pattern: str = "*.CSV", jobs: int = 1) -> List[Dict]:
         """
         Analyze all CSV files in the data directory
 
         Args:
             file_pattern: Pattern to match files
+            jobs: Worker processes. 1 = the original serial path; >1 analyses
+                files in parallel (one file per task). Results, output files and
+                console output keep the sorted input-file order.
 
         Returns:
             List of results dictionaries
@@ -502,10 +518,15 @@ class EnhancedHPLCAnalyzer:
         print(f"\nFound {len(csv_files)} files to analyze")
         print("="*60)
 
-        results = []
-        for csv_file in csv_files:
-            result = self.analyze_csv_file(csv_file)
-            results.append(result)
+        jobs = min(max(1, int(jobs)), len(csv_files))
+        if jobs == 1:
+            results = []
+            for csv_file in csv_files:
+                result = self.analyze_csv_file(csv_file)
+                results.append(result)
+        else:
+            print(f"Parallel analysis: {jobs} worker processes")
+            results = self._analyze_parallel(csv_files, jobs)
 
         print("\n" + "="*60)
         print("BATCH ANALYSIS COMPLETE")
@@ -513,6 +534,50 @@ class EnhancedHPLCAnalyzer:
         print(f"Results saved to: {self.output_dir}")
 
         return results
+
+    def _analyze_parallel(self, csv_files: List[Path], jobs: int) -> List[Dict]:
+        """File-level process pool; per-file console output is replayed in input order."""
+        results: List[Dict] = []
+        # Children inherit the environment: keep BLAS/OpenMP single-threaded so
+        # N workers do not oversubscribe the cores.
+        saved = {k: os.environ.get(k) for k in _BLAS_ENV}
+        os.environ.update({k: '1' for k in _BLAS_ENV})
+        try:
+            with ProcessPoolExecutor(max_workers=jobs) as executor:
+                futures = [executor.submit(_analyze_file_worker, self._init_kwargs, str(f))
+                           for f in csv_files]
+                for csv_file, future in zip(csv_files, futures):
+                    try:
+                        result, text = future.result()
+                    except Exception as e:  # worker crash / unpicklable result
+                        text = f"\nAnalyzing: {csv_file.name}\n  Error: {e}\n"
+                        result = {'error': str(e), 'file': csv_file.name}
+                    print(text, end='', flush=True)
+                    results.append(result)
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        return results
+
+
+_BLAS_ENV = ('OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS')
+
+
+def _analyze_file_worker(init_kwargs: Dict, csv_path: str):
+    """Top-level (picklable) worker: analyse one file, return (result, captured stdout)."""
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        analyzer = EnhancedHPLCAnalyzer(**init_kwargs)
+        result = analyzer.analyze_csv_file(Path(csv_path))
+    return result, buf.getvalue()
+
+
+def default_jobs() -> int:
+    """Default worker count: all cores but one, capped at 8."""
+    return max(1, min((os.cpu_count() or 2) - 1, 8))
 
 
 def main():
@@ -553,7 +618,12 @@ def main():
     parser.add_argument('--half-peak', choices=['none', 'left', 'right', 'auto'],
                         default='none', help='Half-peak quantification mode')
 
+    parser.add_argument('--jobs', type=int, default=None, metavar='N',
+                        help='Worker processes for file-level parallelism '
+                             '(default: min(cpu_count-1, 8); 1 = serial). Results are identical.')
+
     args = parser.parse_args()
+    jobs = default_jobs() if args.jobs is None else args.jobs
 
     # Create analyzer
     analyzer = EnhancedHPLCAnalyzer(
@@ -566,7 +636,7 @@ def main():
     )
 
     # Run batch analysis
-    results = analyzer.batch_analyze(file_pattern=args.pattern)
+    results = analyzer.batch_analyze(file_pattern=args.pattern, jobs=jobs)
 
     # Print summary
     successful = sum(1 for r in results if 'error' not in r)
