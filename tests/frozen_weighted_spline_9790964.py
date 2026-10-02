@@ -1,29 +1,12 @@
-"""
-Weighted Spline Baseline Strategy
-=================================
-
-Generates baseline using confidence-weighted spline fitting.
-Open/Closed Principle: New strategies can be added without modifying existing ones.
-"""
+"""Frozen verbatim copy of src/peakpicker/baseline/strategies/weighted_spline.py at 9790964 (before the flank filter).
+Only the relative imports are made absolute. Used as the bit-identity reference for the production composition."""
 
 from typing import List
 import numpy as np
 
-from ...interfaces import IBaselineStrategy, IInterpolator
-from ...domain import AnchorPoint, BaselineMethod
-from ...config import BaselineStrategyConfig
-from ..anchor_filters import baseline_anchor_mask
-
-
-def _drop_flank_anchors(anchors: List[AnchorPoint], signal: np.ndarray, enabled: bool) -> List[AnchorPoint]:
-    """Return ``anchors`` unchanged, or (``enabled``) sorted by index with peak-flank anchors removed (see anchor_filters)."""
-    if not enabled:
-        return anchors
-    ordered = sorted(anchors, key=lambda p: p.index)
-    idx = np.array([p.index for p in ordered])
-    val = np.array([p.value for p in ordered])
-    keep = baseline_anchor_mask(idx, val, float(np.ptp(signal)))
-    return [p for p, k in zip(ordered, keep) if k]
+from peakpicker.interfaces import IBaselineStrategy, IInterpolator
+from peakpicker.domain import AnchorPoint, BaselineMethod
+from peakpicker.config import BaselineStrategyConfig
 
 
 class WeightedSplineStrategy(IBaselineStrategy):
@@ -86,8 +69,7 @@ class WeightedSplineStrategy(IBaselineStrategy):
         if len(anchors) == 0:
             return np.zeros_like(signal)
 
-        # Extract anchor data (sorted by index), dropping anchors that sit on a peak flank
-        anchors = _drop_flank_anchors(anchors, signal, self.config.drop_flank_anchors)
+        # Extract anchor data
         indices = np.array([p.index for p in anchors])
         values = np.array([p.value for p in anchors])
         confidences = np.array([p.confidence for p in anchors])
@@ -281,12 +263,10 @@ class AdaptiveConnectStrategy(IBaselineStrategy):
 
         baseline = np.zeros_like(signal, dtype=float)
 
-        # Sort anchors by index and drop anchors that sit on a peak flank
-        sorted_anchors = sorted(
-            _drop_flank_anchors(anchors, signal, self.config.drop_flank_anchors), key=lambda p: p.index
-        )
+        # Sort anchors by index
+        sorted_anchors = sorted(anchors, key=lambda p: p.index)
 
-        from ...domain import AnchorSource
+        from peakpicker.domain import AnchorSource
 
         for i in range(len(sorted_anchors) - 1):
             start_anchor = sorted_anchors[i]

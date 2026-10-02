@@ -153,15 +153,21 @@ Every strict xfail was removed only because it XPASSed; no tolerance was loosene
 
 ## Refactor batch 3 (2026-10-02)
 
-### Unit 1 - package weighted_spline / adaptive_connect flank anchors
+### Unit 1 - package weighted_spline / adaptive_connect flank anchors (opt-in, follow-up after independent verification)
 
 - **Defect**: the batch-2 flank-anchor fix (Unit I) was applied to the legacy `hybrid_baseline` only. `WeightedSplineStrategy` and `AdaptiveConnectStrategy`
-  in `src/peakpicker/baseline/strategies/weighted_spline.py` interpolated through every anchor. The production composition
-  (`PeakBoundaryAnchorFinder` + `BoundaryAnchorFinder`, `WorkflowBuilder.with_default_baseline`) never anchors inside a peak and was already accurate (area 100.6-101.4 %);
-  the window-minimum composition (`LocalMinAnchorFinder` + `ValleyAnchorFinder` + `BoundaryAnchorFinder`) recovered a flat-baseline single peak at 36.5 % (weighted_spline) / 52 % (adaptive_connect).
-- **Change**: shared `baseline/anchor_filters.baseline_anchor_mask` (same rule as the legacy method); both strategies drop flank anchors first. `RobustFitStrategy`, `LinearStrategy`, the anchor finders are untouched.
-- **Evidence** (`tests/test_package_baseline_flank.py`): flat single peak within 3 % for 3 seeds x 2 strategies x 2 compositions (pre-fix: 12 failures, 35-65 %), close pair (2.7 sigma) within 5 %, tailing EMG within 5 %.
-- **Refutation**: peak-free linear/curved drift gives a baseline bit-identical to the unfiltered one; the filter rejects a flank anchor but never end anchors or below-baseline dips.
+  in `src/peakpicker/baseline/strategies/weighted_spline.py` interpolated through every anchor. With the window-minimum composition (`LocalMinAnchorFinder` + `ValleyAnchorFinder` + `BoundaryAnchorFinder`)
+  a flat-baseline single peak was recovered at 36.5 % (weighted_spline) / 52 % (adaptive_connect). The production composition (`PeakBoundaryAnchorFinder` + `BoundaryAnchorFinder`,
+  `WorkflowBuilder.with_default_baseline`) never anchors inside a peak and was already accurate (100.6-101.4 %).
+- **First attempt (b6c403c) was wrong**: the filter was applied to every use of the strategies, so the production composition changed too. Independent verification measured the damage on peak-free curved drift
+  (rmse 1.061 -> 7.267, max 6.1 -> 33.1; 16 of 120 no-peak runs changed, 18 of 40 changed cases worse).
+- **Fix**: `BaselineStrategyConfig.drop_flank_anchors` (default `False`) gates the shared `baseline/anchor_filters.baseline_anchor_mask`. Off = the exact pre-batch-3 code path. Window-minimum compositions set it to `True`.
+  `RobustFitStrategy`, `LinearStrategy` and the anchor finders are untouched.
+- **Evidence**: with the flag on, flat single peak within 3 % for 3 seeds x 2 strategies (pre-fix: 12 failures, 35-65 %), close pair (2.7 sigma) within 5 %, tailing EMG within 5 % (`tests/test_package_baseline_flank.py`).
+  Production composition bit-identical to a verbatim frozen copy of 9790964 (`tests/frozen_weighted_spline_9790964.py`) over 10 seeds x noise {0.2, 1, 5} x {linear, curved, sinusoidal wander, 6 peaks + drift, broad sigma 1.5,
+  low SNR} x 2 strategies = 360 comparisons, `assert_array_equal` (`tests/test_production_baseline_bit_identity.py`); the matrix is sensitive (flag on changes 58 of 180 weighted_spline cases).
+- **Refutation / honest residual**: peak-free drift with the flag ON for window-minimum finders, 60 runs per strategy (seeds 0-9 x noise 0.2/1/5 x linear/curved, no seed picked): 5 of 60 baselines change per strategy;
+  rmse vs truth moves by -0.054 .. +0.013 (weighted_spline better 4 / worse 1, adaptive_connect better 2 / worse 3), the rest bit-identical. The filter never rejects end anchors or below-baseline dips.
 
 ### Unit 2a - EMG / Gaussian dedup (`src/peak_models.py` -> `peakpicker`)
 
@@ -170,8 +176,9 @@ Every strict xfail was removed only because it XPASSed; no tolerance was loosene
   (`gaussian`, `exponentially_modified_gaussian`, `multi_gaussian` / `multi_emg` incl. their ValueError validation) and delegates; `lorentzian`, `voigt`, asymmetry helpers stay (no duplicate).
 - **Proof** (`tests/test_peak_model_dedup.py`, frozen copies of both old implementations): legacy output bit-identical on a 48-point parameter grid and the tau = 0 / +-1e-12 / tau < 0 branches;
   Gaussians bit-identical; EMG matches scipy `exponnorm` to 1e-6 on the whole grid; `EmgFitter` R2 / area on three noisy tailing peaks unchanged (1e-6 / 1e-4).
-- **Measured difference (old package EMG was wrong)**: `emg_fitter.emg` clipped the exponent at +-500 and used a plain `erfc`; for sigma/tau >= ~40 (e.g. sigma 0.8, tau 0.02, or EmgFitter's lower bound tau = 1e-6)
-  the peak collapsed (max 2e-10 instead of ~1) and the far tail was off by 1e5 relative. The new values follow the old ones exactly wherever the clip was inactive (rtol 1e-9).
+- **Measured difference (old package EMG was wrong)**: `emg_fitter.emg` clipped the exponent at +-500 and used a plain `erfc`. Measured with sigma = 0.3 on a 40001-point grid: identical to the new values
+  (rel. 2e-13) up to sigma/tau = 25; from sigma/tau ~ 28-30 the tail is wrong (rel. error 1.0 in the region above 1e-6 of the peak at 28, above 1e-3 at 30; area -4.2 % at 30); the peak collapses at sigma/tau >= 33
+  (height ratio 0.42 at 33, 0.006 at 35, 0 at 40; e.g. sigma 0.8 / tau 0.02, or EmgFitter's lower bound tau = 1e-6). The new values follow the old ones exactly wherever the clip was inactive (rtol 1e-9).
 - **Cost**: `src/peak_models.py` now imports the `peakpicker` package (a leaf module no longer standalone; `src.peak_deconvolution` already did).
 
 ### Unit 2b - ChemStation readers: NOT merged (they differ), difference pinned

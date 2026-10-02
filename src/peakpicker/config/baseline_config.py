@@ -96,6 +96,14 @@ class BaselineStrategyConfig:
     mid_point_percentile: float = 5.0
     """Percentile for mid-point adjustment."""
 
+    drop_flank_anchors: bool = False
+    """Drop anchors that sit on a peak flank before weighted_spline / adaptive_connect.
+
+    Enable it when the anchor finders can pick window minima that lie on a peak flank
+    (LocalMinAnchorFinder / ValleyAnchorFinder). Leave it off for PeakBoundaryAnchorFinder,
+    whose anchors are true peak bases (the default production composition): the filter has
+    nothing to remove there and can only cost accuracy on peak-free drift."""
+
 
 @dataclass
 class BaselineCorrectorConfig:
