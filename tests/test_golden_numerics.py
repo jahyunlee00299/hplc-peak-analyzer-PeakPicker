@@ -135,13 +135,6 @@ def test_gaussian_model_area_and_apex():
     assert trapezoid(y, x) == pytest.approx(gauss_area(100.0, 0.3), rel=1e-4)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="peak_models.exponentially_modified_gaussian uses erf_arg = (x-c)/(sqrt2*sigma) - sigma/(sqrt2*tau) "
-    "inside (1 - erf(.)); the standard EMG needs erfc((sigma/tau - (x-c)/sigma)/sqrt2), i.e. the opposite sign. "
-    "As written the model peaks at x=0 (4e4 for amplitude 1) and overflows for small tau; it does not match "
-    "scipy.stats.exponnorm.",
-)
 def test_emg_model_matches_scipy_exponnorm():
     x = np.linspace(0, 10, 2001)
     sigma, tau, mu = 0.25, 0.4, 4.0
@@ -149,6 +142,36 @@ def test_emg_model_matches_scipy_exponnorm():
     ref = exponnorm.pdf(x, tau / sigma, loc=mu, scale=sigma)
     assert x[np.argmax(model)] == pytest.approx(x[np.argmax(ref)], abs=0.02)
     np.testing.assert_allclose(model / model.max(), ref / ref.max(), atol=1e-3)
+
+
+def test_emg_model_small_tau_is_finite_gaussian_limit():
+    """tau -> 0 must not overflow and must converge to the Gaussian of the same amplitude."""
+    x = np.linspace(0, 10, 2001)
+    gaussian_ref = peak_models.gaussian(x, 5.0, 4.0, 0.25)
+    for tau in (1e-9, 1e-6, 1e-3):
+        model = peak_models.exponentially_modified_gaussian(x, 5.0, 4.0, 0.25, tau)
+        assert np.all(np.isfinite(model))
+        np.testing.assert_allclose(model, gaussian_ref, atol=5.0 * (1e-6 + 10 * tau))   # shrinks with tau
+
+
+@pytest.mark.parametrize("sigma,tau", [(0.1, 2.0), (0.25, 1.5)])
+def test_emg_model_large_tau_area_and_scipy_shape(sigma, tau):
+    """Strong tailing: area is amplitude*sigma*sqrt(2 pi) (Gaussian-equivalent) and shape equals exponnorm."""
+    x = np.linspace(-5.0, 60.0, 65001)
+    model = peak_models.exponentially_modified_gaussian(x, 3.0, 4.0, sigma, tau)
+    assert np.all(np.isfinite(model))
+    assert trapezoid(model, x) == pytest.approx(gauss_area(3.0, sigma), rel=2e-3)
+    ref = exponnorm.pdf(x, tau / sigma, loc=4.0, scale=sigma)
+    np.testing.assert_allclose(model / model.max(), ref / ref.max(), atol=1e-6)
+
+
+def test_emg_model_negative_tau_is_mirror_image():
+    """Fronting peak (tau<0): mirror of the tailing peak, same area."""
+    x = np.linspace(0, 8, 4001)
+    tail = peak_models.exponentially_modified_gaussian(x, 2.0, 4.0, 0.2, 0.3)
+    front = peak_models.exponentially_modified_gaussian(x, 2.0, 4.0, 0.2, -0.3)
+    np.testing.assert_allclose(front, tail[::-1], atol=1e-9)
+    assert x[np.argmax(front)] < 4.0 < x[np.argmax(tail)]
 
 
 # --------------------------------------------------------------------------------------
@@ -223,12 +246,6 @@ def test_deconvolution_overlapped_pair_component_count():
     assert res.n_components == 2
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="_fit_n_emg fails on clean synthetic EMG peaks (R2 about -0.2..-0.3, or 'initial guess outside bounds'): "
-    "consequence of the peak_models EMG sign error plus tau upper bound sigma*3. The tailing peak (area 500) "
-    "then falls back to one Gaussian that under-recovers the area (~464-475, -5..-7 %).",
-)
 @pytest.mark.parametrize("sigma,tau", [(0.2, 0.3), (0.25, 0.4)])
 def test_deconvolution_tailing_peak_area(sigma, tau):
     sig = noisy(500.0 * exponnorm.pdf(RT, tau / sigma, loc=4.0, scale=sigma), seed=5)

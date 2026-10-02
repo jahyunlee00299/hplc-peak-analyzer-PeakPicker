@@ -123,17 +123,25 @@ def exponentially_modified_gaussian(x, amplitude, center, sigma, tau):
         # If tau is very small, just return Gaussian
         return gaussian(x, amplitude, center, sigma)
 
-    # EMG calculation using error function
-    from scipy.special import erf
+    from scipy.special import erfc, erfcx
 
-    term1 = (sigma ** 2) / (2 * tau ** 2)
-    term2 = (x - center) / tau
+    x = np.asarray(x, dtype=float)
+    u = x - center
+    if tau < 0:
+        # Fronting peak = mirror image of the tailing peak with |tau|
+        u = -u
+        tau = -tau
 
-    exponent = term1 - term2
-    erf_arg = (x - center) / (np.sqrt(2) * sigma) - sigma / (np.sqrt(2) * tau)
-
-    return (amplitude * sigma * np.sqrt(2 * np.pi) / (2 * tau)) * \
-           np.exp(exponent) * (1 - erf(erf_arg))
+    # Standard EMG with Gaussian-equivalent height `amplitude` (area = amplitude*sigma*sqrt(2*pi)):
+    #   A/(2*tau) * exp(sigma^2/(2*tau^2) - u/tau) * erfc((sigma/tau - u/sigma)/sqrt(2))
+    # Written overflow-free: for b >= 0 use exp(-u^2/(2 sigma^2)) * erfcx(b), since
+    # exp(a)*erfc(b) = exp(a - b^2)*erfcx(b) and a - b^2 = -u^2/(2 sigma^2).
+    b = (sigma / tau - u / sigma) / np.sqrt(2.0)
+    prefactor = amplitude * sigma * np.sqrt(2 * np.pi) / (2 * tau)
+    with np.errstate(over='ignore', invalid='ignore'):
+        stable = np.exp(-u ** 2 / (2 * sigma ** 2)) * erfcx(np.where(b >= 0, b, 0.0))
+        tail = np.exp(sigma ** 2 / (2 * tau ** 2) - u / tau) * erfc(np.where(b < 0, b, 0.0))
+    return prefactor * np.where(b >= 0, stable, tail)
 
 
 def multi_gaussian(x, *params):
