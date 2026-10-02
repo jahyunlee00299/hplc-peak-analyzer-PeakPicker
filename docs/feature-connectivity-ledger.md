@@ -221,3 +221,21 @@ Every strict xfail was removed only because it XPASSed; no tolerance was loosene
 - `from src.peakpicker.utils.numeric import trapezoid` -> `from peakpicker...` with a `ModuleNotFoundError` fallback to `src.peakpicker...`, the same pattern as `peak_models` / `hybrid_baseline`.
   Before: `import peak_integrator` with only `src` on `sys.path` failed (needed the repo root); now both layouts work (`tests/test_legacy_import_paths.py`, subprocess per layout; the `src` case fails on the old code).
 - `pytest.ini` keeps `pythonpath = src .`: the private lab tests (`from src.peak_integrator import ...`) and `src.peak_deconvolution` still need the repo root, so the `.` entry is not removable yet.
+
+## Deconvolution speed (2026-10-02, branch `peakpicker/fix/deconv-speed-261002`)
+
+### Unit S1 - `src/peak_fit_engine.py` replaces `curve_fit` inside `PeakDeconvolution`
+
+- **Wiring**: `_fit_n_gaussians` / `_fit_n_emg` call `fit_peak_sum` (same `least_squares`: trf, 2-point Jacobian, same bounds and
+  `max_nfev` 10000 / 15000). `curve_fit` raised on a failed or capped fit; `fit_peak_sum` raises the same `RuntimeError`, so the
+  callers' failure paths are unchanged. Only `src/peak_deconvolution.py` imports the engine; `peakpicker` package untouched.
+- **Profile (c53f76e, slowest real input, 47 points)**: 8 fits, 36k Jacobians, 483k model evaluations, 82 s; every slow fit is an EMG fit
+  (91 % of fit time over a 60-input random sample) and fits that end at the iteration cap (about 5 % of EMG fits) are 42 % of EMG time.
+- **Change**: only the perturbed component is re-evaluated for each finite-difference column (cached partial sums, original summation order),
+  and `erfcx` / `erfc` run only on their own branch. Same floating-point operations per element -> bit-identical results.
+- **Proof**: `tests/test_peak_fit_engine.py` (bit-identical to `curve_fit`, same exception at the cap, component equals reference model);
+  `tests/test_deconv_decision_golden.py` (20 synthetic cases frozen from c53f76e: single Gaussian, 2.15 sigma pair, tailing EMG,
+  10/15/20 % shoulders, 6 and 12 point windows). Real data (not committed): 40-file sample, 908 unique inputs / 1096 peak rows, decisions
+  and areas identical, max deviation 0 (`tests/golden/deconv_decision_golden.py real --data <dir> --golden <json outside the repo>`).
+- **Refuted (decisions change, not adopted)**: iteration cap 3000 (28 of 908 inputs change), `ftol` 1e-6 (25 change) and 1e-5 (52 change).
+  The n / model decision depends on how deep slow-valley EMG fits converge, so any speed-up that shortens convergence is not behaviour-preserving.
