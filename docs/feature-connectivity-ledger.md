@@ -88,3 +88,53 @@ One entry per delivered unit: scope, layer, inputs/outputs, evidence, refutation
 - `hybrid_baseline.test_hybrid_baseline` (line 816) is a plotting demo, not a test: it reads `peakpicker/examples/EXPORT.CSV` (path does not exist),
   has no assertions and is never collected (`testpaths = tests`). Listed, not moved.
 - **Deferred risk**: nothing was deleted or moved; the table is a proposal for the owner's decision.
+
+## Refactor batch 2 (2026-10-02) - numerical fixes for the batch-1 xfails
+
+Branch `peakpicker/fix/numerics-batch2-261002`. Suite: 174 passed / 1 skipped / 10 xfailed -> 240 passed / 1 skipped / 0 xfailed.
+Every strict xfail was removed only because it XPASSed; no tolerance was loosened.
+
+### Unit F - EMG model and `_fit_n_emg` (bugs 1 and 2)
+
+- **Change**: `peak_models.exponentially_modified_gaussian` now uses the standard EMG (erfc, correct sign), written overflow-free with `erfcx`,
+  Gaussian-equivalent amplitude (area = amp*sigma*sqrt(2 pi), unchanged convention), tau < 0 = mirrored fronting peak. `_fit_n_emg` bounds widened
+  (amp x2 -> x5, tau 3 sigma -> max(15 sigma, 5 % of window)) and the initial guess clipped into them.
+- **Evidence**: matches `scipy.stats.exponnorm` to 1e-6 (shape) and 2e-3 (area) up to tau/sigma = 20. Tailing peaks (tau/sigma 1.5-5): area error
+  -5..-7 % (Gaussian fallback) -> < 1 %.
+- **Refutation**: tau = 1e-9..1e-3 finite and -> Gaussian; negative tau mirror; pure Gaussian fed to `_fit_n_emg` keeps Gaussian area/centre;
+  strongly tailing peak test fails on the old bounds (-4 % area).
+- **Connect**: used by `peak_deconvolution` only (EMG + `multi_emg`); `scripts/hplc_analyzer_enhanced.py` reaches it through `PeakDeconvolution`.
+
+### Unit G - `find_peak_boundaries` (bug 5)
+
+- **Change**: cutoff and valley half-height are measured above the local baseline (mean of the lowest 10 % of the search window).
+- **Behaviour change**: with an offset baseline the boundaries no longer run to the window edge, so `integrate_peak` is offset-invariant and carries
+  the 0.3 % cutoff truncation bias (-0.77 % on a noise-free Gaussian) that the zero-baseline case always had. Real Chemstation D-Xylose file
+  (`tests/lab/test_peak_integrator.py`, overlay): Chemstation difference -0.89 % -> -1.49 %. Recalibrate or lower `threshold_ratio` if a calibration was
+  built on the old integrator output.
+- **Refutation**: negative / zero / +100 / +5000 baselines give identical bounds and area; offset baseline + neighbour 0.9 min away stops at the valley.
+
+### Unit H - `deconvolve_peak` component count (bug 3)
+
+- **Change**: component count and Gaussian-vs-EMG are chosen by BIC (delta > 10 to add a component or a tail), not by R2 > 0.95. Seeds: detected
+  maxima and area quantiles. Resolution guard: components < 10 % of the largest or closer than 1.5 mean sigma are rejected (unidentifiable).
+- **Evidence**: 2.15-sigma pair -> 2 components, areas within 2 % of analytic over 4 seeds.
+- **Refutation**: single Gaussian (noise sd 0 / 1 / 4), tailing EMG (tau/sigma 1.6 and 5) x 6 seeds each: always 1 component, area within 5 %.
+- **Deferred risk**: pairs closer than ~1.5 sigma stay one component by design; runtime of `deconvolve_peak` rose (up to 4 fits x 2 seed sets).
+
+### Unit I - weighted_spline / adaptive_connect flank anchors (bug 4)
+
+- **Change**: `HybridBaselineCorrector._baseline_anchor_mask` drops anchors > 3 robust sigma above the median of their 7 nearest anchors; applied to
+  `weighted_spline` and `adaptive_connect` only. `robust_fit` and the anchor finder are untouched.
+- **Evidence**: flat baseline + single peak area recovery 64 % -> 100.7 % (weighted_spline), 56 % -> 100.3 % (adaptive_connect); 3-peak drifting/curved
+  baseline recovery within 8 % for all three methods.
+- **Refutation**: peak-free drift/curvature keeps every anchor; the flank anchor (511) is rejected while flat-baseline anchors (< 105) stay.
+- **Deferred risk**: the filter is not applied to the package strategy `src/peakpicker/baseline/strategies/weighted_spline.py` (not audited here).
+  Pre-existing and unchanged: on a peak-free steep drift the anchor finder's own low-value outlier rule costs up to ~26 units at the record ends.
+
+### Unit J - cleanup
+
+- `scripts/hplc_analyzer_enhanced.py`, `scripts/quantify_peaks.py`: the `Path(__file__).parent / 'src'` insert pointed at `scripts/src`; both scripts failed
+  with `ModuleNotFoundError` from any cwd but `src/`. Replaced by repo root + `src` from `__file__`; verified `--help` / import from another cwd.
+- Deleted: `docs/PROJECT_STRUCTURE.md` (stale, unlinked; root `PROJECT_STRUCTURE.md` stays), `src/deconvolution_visualizer.py` (0 references incl. overlay),
+  `src/result_exporter.py` (0 importers; `docs/USAGE_EXAMPLES.md` now names `peakpicker/result_writer.py`). Left: pyautogui text in `docs/TIMING_OPTIMIZATION_GUIDE.md` (historical).
