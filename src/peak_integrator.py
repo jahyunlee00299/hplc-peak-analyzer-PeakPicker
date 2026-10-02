@@ -8,6 +8,7 @@ Supports three integration modes:
 """
 
 import numpy as np
+from scipy.signal import savgol_coeffs, savgol_filter
 from typing import Tuple
 
 from src.peakpicker.utils.numeric import trapezoid
@@ -41,7 +42,8 @@ def find_peak_boundaries(
     search_half_width : float
         Half-width of the search window around rt_hint (minutes).
     threshold_ratio : float
-        Fraction of the peak height above the local baseline used as the noise floor cutoff.
+        Cutoff as a fraction of the peak height ABOVE the local baseline (not of the absolute peak
+        maximum); it is raised to 3 noise sigma (of the smoothed signal) when the data are noisier than that.
 
     Returns
     -------
@@ -60,51 +62,79 @@ def find_peak_boundaries(
     win_start = win_indices[0]
     win_end = win_indices[-1]
 
-    # Find peak apex within window
-    win_intensity = intensity[win_start:win_end + 1]
-    local_peak = np.argmax(win_intensity)
+    # Find peak apex within window (on the lightly smoothed signal so a noise spike is not taken as the apex)
+    raw_window = intensity[win_start:win_end + 1]
+    smooth_window, sigma_s = _smooth_and_noise(raw_window)
+    local_peak = int(np.argmax(smooth_window))
     peak_idx = win_start + local_peak
     peak_max = intensity[peak_idx]
 
-    # Local baseline level = mean of the lowest 10 % of the window (robust to a neighbouring peak
-    # inside the window, unlike the window edges). All cutoffs are measured above it.
-    n_low = max(3, len(win_intensity) // 10)
-    baseline_level = float(np.mean(np.sort(win_intensity)[:n_low]))
-    height = max(peak_max - baseline_level, 0.0)
-    threshold = baseline_level + height * threshold_ratio
+    # Local baseline level = mean of the lowest 10 % of the smoothed window (robust to a neighbouring
+    # peak inside the window, unlike the window edges). All cutoffs are measured above it.
+    n_low = max(3, len(smooth_window) // 10)
+    baseline_level = float(np.mean(np.sort(smooth_window)[:n_low]))
+    apex_s = float(smooth_window[local_peak])
+    height = max(apex_s - baseline_level, 0.0)
+    # Noise-aware cutoff: never below _NOISE_K sigma of the smoothed signal above the baseline, otherwise
+    # the scan would run into the noise floor and lock on its first up-tick.
+    cutoff = max(height * threshold_ratio, _NOISE_K * sigma_s)
+    threshold = baseline_level + cutoff
     half_level = baseline_level + height * 0.5
 
-    # --- Scan LEFT from peak ---
-    left_idx = peak_idx
-    prev_val = intensity[peak_idx]
-    for i in range(peak_idx - 1, win_start - 1, -1):
-        cur_val = intensity[i]
-        if cur_val > prev_val and prev_val < half_level:
-            # Valley detected: signal was decreasing, now increasing
-            left_idx = i + 1  # the minimum point
-            break
-        if cur_val <= threshold:
-            left_idx = i
-            break
-        prev_val = cur_val
-        left_idx = i
+    def scan(step: int) -> int:
+        """Walk outward from the apex on the smoothed signal; stop at the cutoff or at a valley.
 
-    # --- Scan RIGHT from peak ---
-    right_idx = peak_idx
-    prev_val = intensity[peak_idx]
-    for i in range(peak_idx + 1, win_end + 1):
-        cur_val = intensity[i]
-        if cur_val > prev_val and prev_val < half_level:
-            # Valley detected
-            right_idx = i - 1  # the minimum point
-            break
-        if cur_val <= threshold:
-            right_idx = i
-            break
-        prev_val = cur_val
-        right_idx = i
+        A valley is declared only when the signal has rebounded more than _NOISE_K sigma above the running
+        minimum (a neighbouring peak), not on the first noise up-tick; the boundary is then the minimum."""
+        stop = len(smooth_window) if step > 0 else -1
+        k = local_peak + step
+        run_min, run_min_k = smooth_window[local_peak], local_peak
+        last = local_peak
+        while k != stop:
+            cur = smooth_window[k]
+            if cur < run_min:
+                run_min, run_min_k = cur, k
+            elif run_min < half_level and cur > run_min + _NOISE_K * sigma_s:
+                return win_start + run_min_k
+            if cur <= threshold:
+                return win_start + k
+            last = k
+            k += step
+        return win_start + last
 
-    return left_idx, right_idx, peak_idx, peak_max
+    return scan(-1), scan(+1), peak_idx, peak_max
+
+
+# Number of noise sigmas used for the cutoff floor and the valley rebound test.
+_NOISE_K = 3.0
+
+
+def _smooth_and_noise(values: np.ndarray) -> Tuple[np.ndarray, float]:
+    """Savitzky-Golay smoothed copy of `values` and the noise sigma of that smoothed signal.
+
+    Raw noise sigma = MAD of first differences / sqrt(2) (peak slopes are outliers, so MAD ignores them);
+    the smoothed sigma follows from the filter coefficients (sigma_raw * ||h||). Short windows are returned
+    unsmoothed. The filter length is limited to a third of the apex FWHM so a narrow peak is not flattened.
+    """
+    n = len(values)
+    if n < 7:
+        return values.astype(float), 0.0
+    diffs = np.diff(values)
+    sigma_raw = 1.4826 * np.median(np.abs(diffs - np.median(diffs))) / np.sqrt(2.0)
+    above = values > 0.5 * (values.max() + np.sort(values)[:max(3, n // 10)].mean())
+    fwhm_pts = int(above.sum())
+    win = int(np.clip(fwhm_pts // 3, 5, 15))
+    win += (win + 1) % 2
+    win = min(win, n if n % 2 else n - 1)
+    smoothed = savgol_filter(values.astype(float), win, 2)
+    sigma_s = sigma_raw * float(np.sqrt(np.sum(savgol_coeffs(win, 2) ** 2)))
+    return smoothed, sigma_s
+
+
+def _edge_level(intensity: np.ndarray, idx: int, half: int = 3) -> float:
+    """Mean of the raw signal over idx +- half points: the valley-line anchor without the single-point noise."""
+    lo, hi = max(idx - half, 0), min(idx + half + 1, len(intensity))
+    return float(np.mean(intensity[lo:hi]))
 
 
 def integrate_peak(
@@ -133,7 +163,8 @@ def integrate_peak(
     search_half_width : float
         Half-width of search window (minutes).
     threshold_ratio : float
-        Noise floor as fraction of peak max.
+        Cutoff as a fraction of the peak height ABOVE the local baseline (not of the absolute peak
+        maximum); it is raised to 3 noise sigma when the data are noisier than that.
 
     Returns
     -------
@@ -148,21 +179,21 @@ def integrate_peak(
         seg_t = time[left_idx:right_idx + 1]
         seg_i = intensity[left_idx:right_idx + 1]
         # Valley baseline: straight line from left boundary to right boundary
-        baseline = np.linspace(seg_i[0], seg_i[-1], len(seg_i))
+        baseline = np.linspace(_edge_level(intensity, left_idx), _edge_level(intensity, right_idx), len(seg_i))
         area = trapezoid(seg_i - baseline, seg_t) * 60.0  # min -> s
 
     elif mode == "left_half":
         seg_t = time[left_idx:peak_idx + 1]
         seg_i = intensity[left_idx:peak_idx + 1]
         # Baseline: horizontal line at left boundary signal level
-        baseline_val = intensity[left_idx]
+        baseline_val = _edge_level(intensity, left_idx)
         area = trapezoid(seg_i - baseline_val, seg_t) * 60.0
 
     elif mode == "right_half":
         seg_t = time[peak_idx:right_idx + 1]
         seg_i = intensity[peak_idx:right_idx + 1]
         # Baseline: horizontal line at right boundary signal level
-        baseline_val = intensity[right_idx]
+        baseline_val = _edge_level(intensity, right_idx)
         area = trapezoid(seg_i - baseline_val, seg_t) * 60.0
 
     else:

@@ -318,6 +318,21 @@ def test_deconvolution_overlapped_pair_component_count_and_areas_over_seeds(seed
     assert comps[1].area == pytest.approx(gauss_area(70.0, 0.35), rel=DECON_AREA_RTOL)
 
 
+def test_emg_component_reports_mu_and_apex_separately():
+    """EMG retention_time is the model parameter mu; apex_time is the true maximum (later by ~tau-dependent shift)."""
+    sig = noisy(500.0 * exponnorm.pdf(RT, 0.4 / 0.25, loc=4.0, scale=0.25), seed=5)
+    comp = run_decon(sig).components[0]
+    assert comp.model == "emg"
+    assert comp.retention_time == pytest.approx(4.0, abs=0.05)
+    assert comp.apex_time == pytest.approx(RT[np.argmax(exponnorm.pdf(RT, 0.4 / 0.25, loc=4.0, scale=0.25))], abs=0.03)
+    assert comp.apex_time > comp.retention_time
+
+
+def test_gaussian_component_apex_equals_centre():
+    comp = run_decon(noisy(gauss(RT, 100.0, 5.0, 0.3), seed=1)).components[0]
+    assert comp.apex_time == pytest.approx(comp.retention_time)
+
+
 def test_deconvolution_rejects_too_small_region():
     """Adverse input: a region of <5 points must fail cleanly, not raise or invent components."""
     sig = gauss(RT, 100.0, 5.0, 0.3)
@@ -408,6 +423,58 @@ def test_integrate_peak_offset_baseline_stops_at_valley_of_neighbour():
     d = peak_integrator.integrate_peak_detailed(INT_T, y, 10.0)
     assert d["rt_hi"] < 10.6
     assert d["area"] == pytest.approx(INT_AREA_TRUTH, rel=0.03)
+
+
+def _noise_limited_bound(h, sigma_noise=1.0, sigma_peak=0.1, dt=0.005):
+    """Derived area-error bound (fraction of truth) for integrate_peak on a Gaussian of height h, white noise.
+
+    * deterministic: the cutoff c (above baseline) is max(0.003 h, 3 sigma_smoothed); the valley line passes through
+      the tail left at the boundary, costing about c * W * 60 with W = 2 sigma_p sqrt(2 ln(h/c)). The smoothed sigma
+      is at most 0.5 sigma_noise (5-point quadratic Savitzky-Golay), so c <= max(0.003 h, 1.5 sigma_noise); the
+      loss is evaluated at the worst c in that range.
+    * random: raw noise integrated over N = W/dt points, sd = sigma dt 60 sqrt(N); the two 7-point edge means
+      average the valley line, sd = 60 W sigma / sqrt(14).
+    Returns (bias_fraction, noise_sd_fraction).
+    """
+    truth = h * sigma_peak * np.sqrt(2 * np.pi) * 60.0
+    cs = np.linspace(0.003 * h, max(0.003 * h, 1.5 * sigma_noise), 200)
+    cs = cs[cs < h]
+    widths = 2 * sigma_peak * np.sqrt(2 * np.log(h / cs))
+    bias = np.max(cs * widths * 60.0) / truth
+    w = widths[np.argmin(cs)]            # narrowest-cutoff (widest) window gives the largest noise
+    sd = np.hypot(sigma_noise * dt * 60.0 * np.sqrt(w / dt), 60.0 * w * sigma_noise / np.sqrt(14.0)) / truth
+    return bias, sd
+
+
+@pytest.mark.parametrize("offset", [0.0, 100.0])
+@pytest.mark.parametrize("snr", [20, 50, 100, 1000])
+def test_integrate_peak_noisy_area_within_derived_noise_bound(snr, offset):
+    """Regression for the valley detector locking on the first noise up-tick (areas were -40..-70 % at SNR 20-100)."""
+    bias, sd = _noise_limited_bound(float(snr))
+    errs = []
+    for seed in range(8):
+        y = offset + gauss(INT_T, float(snr), 10.0, 0.1) + np.random.default_rng(seed).normal(0.0, 1.0, INT_T.size)
+        errs.append(peak_integrator.integrate_peak(INT_T, y, 10.0) / (gauss_area(float(snr), 0.1) * 60.0) - 1.0)
+    errs = np.array(errs)
+    assert abs(np.median(errs)) < bias + sd, (snr, offset, errs.round(3), bias, sd)
+    assert np.max(np.abs(errs)) < bias + 4 * sd, (snr, offset, errs.round(3), bias, sd)
+    if snr >= 100:
+        assert abs(np.median(errs)) < 0.04          # "a few %" at SNR >= 100
+
+
+def test_integrate_peak_noisy_boundaries_are_not_noise_locked():
+    """SNR 50, offset 100: the boundaries sit near the +-3 sigma_peak flanks, not at the first noise up-tick."""
+    y = 100.0 + gauss(INT_T, 50.0, 10.0, 0.1) + np.random.default_rng(1).normal(0.0, 1.0, INT_T.size)
+    d = peak_integrator.integrate_peak_detailed(INT_T, y, 10.0)
+    assert 0.3 < d["rt_hi"] - d["rt_lo"] < 1.0
+
+
+def test_integrate_peak_noisy_neighbour_valley_still_found():
+    """SNR 50 target with a 0.9-min neighbour: the target stops at the genuine valley despite the noise."""
+    y = 100.0 + gauss(INT_T, 500.0, 10.0, 0.1) + gauss(INT_T, 400.0, 10.9, 0.1)         + np.random.default_rng(2).normal(0.0, 5.0, INT_T.size)
+    d = peak_integrator.integrate_peak_detailed(INT_T, y, 10.0)
+    assert d["rt_hi"] < 10.6 and d["rt_lo"] > 9.3
+    assert d["area"] == pytest.approx(gauss_area(500.0, 0.1) * 60.0, rel=0.06)
 
 
 def test_integrate_peak_adverse_inputs_raise():

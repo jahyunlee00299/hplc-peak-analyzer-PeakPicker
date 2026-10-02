@@ -138,3 +138,15 @@ Every strict xfail was removed only because it XPASSed; no tolerance was loosene
   with `ModuleNotFoundError` from any cwd but `src/`. Replaced by repo root + `src` from `__file__`; verified `--help` / import from another cwd.
 - Deleted: `docs/PROJECT_STRUCTURE.md` (stale, unlinked; root `PROJECT_STRUCTURE.md` stays), `src/deconvolution_visualizer.py` (0 references incl. overlay),
   `src/result_exporter.py` (0 importers; `docs/USAGE_EXAMPLES.md` now names `peakpicker/result_writer.py`). Left: pyautogui text in `docs/TIMING_OPTIMIZATION_GUIDE.md` (historical).
+
+### Unit G follow-up - noise-robust boundaries (2026-10-02, after independent verification)
+
+- **Defect found**: a77141c made the cutoff baseline-relative, which exposed a pre-existing flaw: the valley test (`cur > prev and prev < half`) was unsmoothed and
+  had no noise margin, so the scan locked on the first noise up-tick (SNR 20/50/100 areas -65/-59/-37 % median; the same flaw existed at offset 0 on main).
+- **Fix**: scans run on a Savitzky-Golay smoothed copy (window <= FWHM/3 points, 5-15) with noise sigma from the MAD of first differences; the cutoff is
+  `max(threshold_ratio * height, 3 sigma_s)` above the baseline; a valley needs a rebound > 3 sigma_s above the running minimum; valley-line anchors are 7-point means.
+  Integration still uses the raw signal.
+- **Result** (median / worst of 10 seeds, area error, offset 0 and 100 identical): SNR 20 -4.9/-7.1 %, 50 -2.5/-3.5 %, 100 -1.8/-2.5 %, 1000 -0.7/-0.8 %
+  (a77141c: -65/-70, -59/-66, -37/-46, -2.1/-3.1 %). Residual error = the documented cutoff truncation bias plus noise; tests assert a bound derived from both.
+- **Lab file** (D-Xylose, Chemstation reference): -0.89 % (main) -> -1.49 % (a77141c) -> -1.53 %; L+R / full ratio 1.0001.
+- `DeconvolvedPeak.apex_time` added (backward compatible); EMG `retention_time` is mu, not the apex (documented).

@@ -30,7 +30,7 @@ from src.peakpicker.utils.numeric import trapezoid
 @dataclass
 class DeconvolvedPeak:
     """Represents a single deconvolved peak component."""
-    retention_time: float  # Peak center (RT)
+    retention_time: float  # Model centre: the Gaussian mean, or the EMG parameter mu (NOT the apex of a tailing EMG; see apex_time)
     amplitude: float  # Peak height
     sigma: float  # Peak width parameter
     area: float  # Integrated peak area
@@ -42,6 +42,7 @@ class DeconvolvedPeak:
     end_rt: float  # Peak end time
     model: str = 'gaussian'  # Peak model type: 'gaussian' or 'emg'
     tau: float = 0.0  # EMG tau parameter (only for EMG model)
+    apex_time: float = float('nan')  # RT of the component's maximum (== retention_time for Gaussian, later than mu for EMG)
 
 
 @dataclass
@@ -586,7 +587,8 @@ class PeakDeconvolution:
                     is_shoulder=is_shoulder,
                     asymmetry=asymmetry,
                     start_rt=start_rt,
-                    end_rt=end_rt
+                    end_rt=end_rt,
+                    apex_time=center
                 ))
 
             # Calculate area percentages
@@ -774,7 +776,8 @@ class PeakDeconvolution:
                     start_rt=start_rt,
                     end_rt=end_rt,
                     model='emg',
-                    tau=tau
+                    tau=tau,
+                    apex_time=float(rt[int(np.argmax(component_curve))])
                 ))
 
             # Calculate area percentages
