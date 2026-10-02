@@ -25,7 +25,9 @@ def find_peak_boundaries(
 
     Algorithm (from peak apex, scanning outward in each direction):
       1. Valley: signal decreasing then increasing = local minimum (adjacent peak boundary)
-      2. Threshold: signal drops below peak_max * threshold_ratio
+      2. Threshold: signal drops below baseline + (peak_max - baseline) * threshold_ratio, where
+         the local baseline level is the mean of the lowest 10 % of the search window
+         (so an offset or negative baseline does not move the cutoff)
       3. Fallback: search window edge
 
     Parameters
@@ -39,7 +41,7 @@ def find_peak_boundaries(
     search_half_width : float
         Half-width of the search window around rt_hint (minutes).
     threshold_ratio : float
-        Fraction of peak maximum used as the noise floor cutoff.
+        Fraction of the peak height above the local baseline used as the noise floor cutoff.
 
     Returns
     -------
@@ -63,14 +65,21 @@ def find_peak_boundaries(
     local_peak = np.argmax(win_intensity)
     peak_idx = win_start + local_peak
     peak_max = intensity[peak_idx]
-    threshold = peak_max * threshold_ratio
+
+    # Local baseline level = mean of the lowest 10 % of the window (robust to a neighbouring peak
+    # inside the window, unlike the window edges). All cutoffs are measured above it.
+    n_low = max(3, len(win_intensity) // 10)
+    baseline_level = float(np.mean(np.sort(win_intensity)[:n_low]))
+    height = max(peak_max - baseline_level, 0.0)
+    threshold = baseline_level + height * threshold_ratio
+    half_level = baseline_level + height * 0.5
 
     # --- Scan LEFT from peak ---
     left_idx = peak_idx
     prev_val = intensity[peak_idx]
     for i in range(peak_idx - 1, win_start - 1, -1):
         cur_val = intensity[i]
-        if cur_val > prev_val and prev_val < peak_max * 0.5:
+        if cur_val > prev_val and prev_val < half_level:
             # Valley detected: signal was decreasing, now increasing
             left_idx = i + 1  # the minimum point
             break
@@ -85,7 +94,7 @@ def find_peak_boundaries(
     prev_val = intensity[peak_idx]
     for i in range(peak_idx + 1, win_end + 1):
         cur_val = intensity[i]
-        if cur_val > prev_val and prev_val < peak_max * 0.5:
+        if cur_val > prev_val and prev_val < half_level:
             # Valley detected
             right_idx = i - 1  # the minimum point
             break

@@ -296,8 +296,19 @@ def int_signal(baseline, extra=None, seed=0):
 
 def test_integrate_peak_noise_free_exact_and_unit_conversion():
     y = 100.0 + gauss(INT_T, 1000.0, 10.0, 0.1)
-    area = peak_integrator.integrate_peak(INT_T, y, 10.0)
+    # threshold_ratio 1e-4: the default 3e-3 cutoff leaves ~3 signal units of tail under the valley line
+    # (-0.77 % by design, identical for every baseline offset -- see the next test)
+    area = peak_integrator.integrate_peak(INT_T, y, 10.0, threshold_ratio=1e-4)
     assert area == pytest.approx(INT_AREA_TRUTH, rel=0.005)     # minutes -> seconds (x60) included
+
+
+def test_integrate_peak_default_cutoff_truncation_bias_is_small_and_offset_independent():
+    """Documented design bias of the 0.3 % cutoff: about -0.8 % (tail under the valley line), never more than 1 %."""
+    areas = [peak_integrator.integrate_peak(INT_T, off + gauss(INT_T, 1000.0, 10.0, 0.1), 10.0)
+             for off in (-300.0, 0.0, 100.0)]
+    assert areas[0] == pytest.approx(areas[1], rel=1e-9) and areas[2] == pytest.approx(areas[1], rel=1e-9)
+    assert areas[1] == pytest.approx(INT_AREA_TRUTH, rel=0.01)
+    assert areas[1] < INT_AREA_TRUTH
 
 
 @pytest.mark.parametrize("slope", [0.0, 3.0], ids=["flat", "drifting"])
@@ -330,17 +341,28 @@ def test_integrate_peak_detailed_reports_apex_and_bounds_zero_baseline():
     assert d["rt_hi"] == pytest.approx(10.0 + 0.34, abs=0.02)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="find_peak_boundaries compares the signal with peak_max * threshold_ratio in ABSOLUTE units, not baseline-"
-    "subtracted: with a baseline of 100 on a 1000-high peak the cutoff (3.3) is never reached, so both boundaries "
-    "fall back to the search-window edge (+-1.2 min = +-12 sigma) instead of ~+-3.4 sigma. The area stays right only "
-    "because the straight valley baseline is subtracted; a neighbouring peak inside the window would be swallowed.",
-)
 def test_integrate_peak_boundaries_with_offset_baseline():
     y = 100.0 + gauss(INT_T, 1000.0, 10.0, 0.1)
     d = peak_integrator.integrate_peak_detailed(INT_T, y, 10.0)
     assert d["rt_hi"] - d["rt_lo"] < 8 * 0.1 + 0.05      # within ~ +-4 sigma
+
+
+@pytest.mark.parametrize("offset", [-300.0, 0.0, 100.0, 5000.0], ids=["negative", "zero", "offset", "large_offset"])
+def test_integrate_peak_bounds_and_area_independent_of_baseline_offset(offset):
+    """Boundaries and area must not depend on the absolute baseline level (negative, zero, large)."""
+    y = offset + gauss(INT_T, 1000.0, 10.0, 0.1)
+    d = peak_integrator.integrate_peak_detailed(INT_T, y, 10.0)
+    assert d["rt_lo"] == pytest.approx(10.0 - 0.34, abs=0.03)
+    assert d["rt_hi"] == pytest.approx(10.0 + 0.34, abs=0.03)
+    assert d["area"] == pytest.approx(INT_AREA_TRUTH, rel=0.01)
+
+
+def test_integrate_peak_offset_baseline_stops_at_valley_of_neighbour():
+    """Offset baseline + neighbour 0.9 min away inside the window: the target must stop at the valley, not swallow it."""
+    y = 100.0 + gauss(INT_T, 1000.0, 10.0, 0.1) + gauss(INT_T, 800.0, 10.9, 0.1)
+    d = peak_integrator.integrate_peak_detailed(INT_T, y, 10.0)
+    assert d["rt_hi"] < 10.6
+    assert d["area"] == pytest.approx(INT_AREA_TRUTH, rel=0.03)
 
 
 def test_integrate_peak_adverse_inputs_raise():
