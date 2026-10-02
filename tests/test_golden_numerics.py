@@ -254,6 +254,25 @@ def test_deconvolution_tailing_peak_area(sigma, tau):
     assert res.total_area == pytest.approx(500.0, rel=DECON_AREA_RTOL)
 
 
+@pytest.mark.parametrize("sigma,tau", [(0.1, 0.5), (0.2, 0.8)])
+def test_fit_n_emg_strongly_tailing_peak_tight_area(sigma, tau):
+    """tau/sigma = 4-5: the old tau (<=3 sigma) and amplitude (<=2x apex) bounds clipped the fit (-4 % area)."""
+    sig = noisy(500.0 * exponnorm.pdf(RT, tau / sigma, loc=4.0, scale=sigma), seed=5)
+    res = PeakDeconvolution()._fit_n_emg(RT, sig, [RT[np.argmax(sig)]], 4.0)
+    assert res.success
+    assert res.total_area == pytest.approx(500.0, rel=0.01)
+    assert res.components[0].retention_time == pytest.approx(4.0, abs=0.05)
+
+
+def test_fit_n_emg_on_pure_gaussian_stays_gaussian_in_the_limit():
+    """Adverse: a symmetric peak fitted with the EMG model must give the Gaussian area/centre, not an invented tail."""
+    sig = noisy(gauss(RT, 100.0, 5.0, 0.3), seed=1)
+    res = PeakDeconvolution()._fit_n_emg(RT, sig, [5.0], 5.0)
+    assert res.success
+    assert res.total_area == pytest.approx(gauss_area(100.0, 0.3), rel=0.02)
+    assert res.components[0].retention_time == pytest.approx(5.0, abs=0.03)
+
+
 def test_deconvolution_rejects_too_small_region():
     """Adverse input: a region of <5 points must fail cleanly, not raise or invent components."""
     sig = gauss(RT, 100.0, 5.0, 0.3)

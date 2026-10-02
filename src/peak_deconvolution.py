@@ -639,11 +639,19 @@ class PeakDeconvolution:
             asymmetry = calculate_peak_asymmetry(rt, signal, center_idx)
             tau = estimate_tau_from_asymmetry(asymmetry, sigma)
 
-            p0.extend([amp, center, sigma, tau])
+            # Bounds. `amp` is the Gaussian-equivalent height of the EMG model, which exceeds
+            # the observed apex height for tailing peaks, and tau of strongly tailing peaks
+            # reaches several sigma, so the upper limits must be generous.
+            lower = [amp * 0.1, center - sigma * 3, sigma * 0.1, 0.001]
+            upper = [amp * 5.0, center + sigma * 3, sigma * 5.0, max(sigma * 15.0, 0.05 * (rt[-1] - rt[0]))]
+            bounds_lower.extend(lower)
+            bounds_upper.extend(upper)
 
-            # Bounds
-            bounds_lower.extend([amp * 0.1, center - sigma * 3, sigma * 0.1, 0.001])
-            bounds_upper.extend([amp * 2.0, center + sigma * 3, sigma * 5.0, sigma * 3.0])
+            # Keep the initial guess strictly inside the bounds (curve_fit rejects it otherwise)
+            guess = [amp, center, sigma, tau]
+            guess = [float(np.clip(g, lo + 1e-9 * (abs(lo) + 1.0), hi - 1e-9 * (abs(hi) + 1.0)))
+                     for g, lo, hi in zip(guess, lower, upper)]
+            p0.extend(guess)
 
         try:
             # Perform curve fitting
