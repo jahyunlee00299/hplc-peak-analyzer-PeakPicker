@@ -12,30 +12,21 @@ Date: 2025-11-10
 import numpy as np
 from scipy.special import wofz
 
+try:  # `src` on sys.path (installed package layout)
+    from peakpicker.peak_analysis.deconvolution.emg_fitter import (
+        exponentially_modified_gaussian as _emg_model,
+    )
+    from peakpicker.peak_analysis.deconvolution.gaussian_fitter import gaussian as _gaussian
+except ModuleNotFoundError:  # repo root on sys.path (legacy `src.peak_models` imports)
+    from src.peakpicker.peak_analysis.deconvolution.emg_fitter import (
+        exponentially_modified_gaussian as _emg_model,
+    )
+    from src.peakpicker.peak_analysis.deconvolution.gaussian_fitter import gaussian as _gaussian
+
 
 def gaussian(x, amplitude, center, sigma):
-    """
-    Gaussian (normal) peak model.
-
-    Most common peak shape in HPLC chromatography.
-
-    Parameters
-    ----------
-    x : array-like
-        X-axis values (retention times)
-    amplitude : float
-        Peak height
-    center : float
-        Peak center position (retention time)
-    sigma : float
-        Standard deviation (related to peak width)
-
-    Returns
-    -------
-    array-like
-        Peak intensities at each x position
-    """
-    return amplitude * np.exp(-((x - center) ** 2) / (2 * sigma ** 2))
+    """Gaussian peak model (delegates to the single implementation in peakpicker)."""
+    return _gaussian(x, amplitude, center, sigma)
 
 
 def lorentzian(x, amplitude, center, gamma):
@@ -96,52 +87,12 @@ def exponentially_modified_gaussian(x, amplitude, center, sigma, tau):
     """
     Exponentially Modified Gaussian (EMG) peak model.
 
-    Excellent for modeling asymmetric peaks with tailing,
-    common in reversed-phase HPLC.
-
-    Parameters
-    ----------
-    x : array-like
-        X-axis values (retention times)
-    amplitude : float
-        Peak height
-    center : float
-        Peak center position (retention time)
-    sigma : float
-        Gaussian width parameter
-    tau : float
-        Exponential decay time constant (tailing parameter)
-        Positive tau = right tailing
-        Negative tau = left tailing (fronting)
-
-    Returns
-    -------
-    array-like
-        Peak intensities at each x position
+    Delegates to the single implementation in
+    ``peakpicker.peak_analysis.deconvolution.emg_fitter`` (positive tau = right
+    tailing, negative tau = fronting, |tau| < 1e-10 = pure Gaussian; area =
+    amplitude * sigma * sqrt(2*pi)).
     """
-    if abs(tau) < 1e-10:
-        # If tau is very small, just return Gaussian
-        return gaussian(x, amplitude, center, sigma)
-
-    from scipy.special import erfc, erfcx
-
-    x = np.asarray(x, dtype=float)
-    u = x - center
-    if tau < 0:
-        # Fronting peak = mirror image of the tailing peak with |tau|
-        u = -u
-        tau = -tau
-
-    # Standard EMG with Gaussian-equivalent height `amplitude` (area = amplitude*sigma*sqrt(2*pi)):
-    #   A/(2*tau) * exp(sigma^2/(2*tau^2) - u/tau) * erfc((sigma/tau - u/sigma)/sqrt(2))
-    # Written overflow-free: for b >= 0 use exp(-u^2/(2 sigma^2)) * erfcx(b), since
-    # exp(a)*erfc(b) = exp(a - b^2)*erfcx(b) and a - b^2 = -u^2/(2 sigma^2).
-    b = (sigma / tau - u / sigma) / np.sqrt(2.0)
-    prefactor = amplitude * sigma * np.sqrt(2 * np.pi) / (2 * tau)
-    with np.errstate(over='ignore', invalid='ignore'):
-        stable = np.exp(-u ** 2 / (2 * sigma ** 2)) * erfcx(np.where(b >= 0, b, 0.0))
-        tail = np.exp(sigma ** 2 / (2 * tau ** 2) - u / tau) * erfc(np.where(b < 0, b, 0.0))
-    return prefactor * np.where(b >= 0, stable, tail)
+    return _emg_model(x, amplitude, center, sigma, tau)
 
 
 def multi_gaussian(x, *params):
@@ -176,7 +127,7 @@ def multi_gaussian(x, *params):
         amplitude = params[i * 3]
         center = params[i * 3 + 1]
         sigma = params[i * 3 + 2]
-        result += gaussian(x, amplitude, center, sigma)
+        result += _gaussian(x, amplitude, center, sigma)
 
     return result
 

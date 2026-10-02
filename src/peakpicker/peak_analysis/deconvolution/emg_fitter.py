@@ -25,7 +25,7 @@ import logging
 from typing import List, Optional, Tuple
 
 import numpy as np
-from scipy.special import erfc
+from scipy.special import erfc, erfcx
 from scipy.optimize import curve_fit
 
 logger = logging.getLogger(__name__)
@@ -42,31 +42,56 @@ except ImportError:
 # Core model functions
 # ─────────────────────────────────────────────────────────────────────────────
 
-def emg(x: np.ndarray, amplitude: float, center: float,
-        sigma: float, tau: float) -> np.ndarray:
+def exponentially_modified_gaussian(x, amplitude, center, sigma, tau):
     """
-    Exponentially Modified Gaussian.
+    Exponentially Modified Gaussian (EMG) peak model - the single EMG implementation.
 
     Parameters
     ----------
-    x : np.ndarray
-        Independent variable (time)
+    x : array-like
+        X-axis values (retention times)
     amplitude : float
-        Peak amplitude (height at centre when tau→0)
+        Gaussian-equivalent peak height (area = amplitude * sigma * sqrt(2*pi))
     center : float
-        Gaussian centre (retention time)
+        Gaussian centre mu (not the apex of a tailing peak)
     sigma : float
-        Gaussian standard deviation (> 0)
+        Gaussian width parameter
     tau : float
-        Exponential time constant (> 0 → right tailing)
+        Exponential decay time constant. Positive = right tailing, negative = left
+        tailing (fronting, mirror image); |tau| < 1e-10 returns the pure Gaussian.
+    """
+    if abs(tau) < 1e-10:
+        # If tau is very small, just return Gaussian
+        return amplitude * np.exp(-((x - center) ** 2) / (2 * sigma ** 2))
+
+    x = np.asarray(x, dtype=float)
+    u = x - center
+    if tau < 0:
+        # Fronting peak = mirror image of the tailing peak with |tau|
+        u = -u
+        tau = -tau
+
+    # Standard EMG with Gaussian-equivalent height `amplitude` (area = amplitude*sigma*sqrt(2*pi)):
+    #   A/(2*tau) * exp(sigma^2/(2*tau^2) - u/tau) * erfc((sigma/tau - u/sigma)/sqrt(2))
+    # Written overflow-free: for b >= 0 use exp(-u^2/(2 sigma^2)) * erfcx(b), since
+    # exp(a)*erfc(b) = exp(a - b^2)*erfcx(b) and a - b^2 = -u^2/(2 sigma^2).
+    b = (sigma / tau - u / sigma) / np.sqrt(2.0)
+    prefactor = amplitude * sigma * np.sqrt(2 * np.pi) / (2 * tau)
+    with np.errstate(over='ignore', invalid='ignore'):
+        stable = np.exp(-u ** 2 / (2 * sigma ** 2)) * erfcx(np.where(b >= 0, b, 0.0))
+        tail = np.exp(sigma ** 2 / (2 * tau ** 2) - u / tau) * erfc(np.where(b < 0, b, 0.0))
+    return prefactor * np.where(b >= 0, stable, tail)
+
+
+def emg(x: np.ndarray, amplitude: float, center: float,
+        sigma: float, tau: float) -> np.ndarray:
+    """
+    EMG for the fitters: ``exponentially_modified_gaussian`` with |sigma| >= 1e-10 and
+    tau forced to a positive (right-tailing) magnitude >= 1e-10, as the bounded fits expect.
     """
     sigma = max(abs(sigma), 1e-10)
     tau = max(abs(tau), 1e-10)
-    z = (sigma / tau) - (x - center) / sigma
-    exponent = np.clip(0.5 * (sigma / tau) ** 2 - (x - center) / tau, -500, 500)
-    return (amplitude * sigma / tau * np.sqrt(np.pi / 2)
-            * np.exp(exponent)
-            * erfc(z / np.sqrt(2)))
+    return exponentially_modified_gaussian(x, amplitude, center, sigma, tau)
 
 
 def multi_emg(x: np.ndarray, *params) -> np.ndarray:

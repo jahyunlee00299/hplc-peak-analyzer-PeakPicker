@@ -162,3 +162,14 @@ Every strict xfail was removed only because it XPASSed; no tolerance was loosene
 - **Change**: shared `baseline/anchor_filters.baseline_anchor_mask` (same rule as the legacy method); both strategies drop flank anchors first. `RobustFitStrategy`, `LinearStrategy`, the anchor finders are untouched.
 - **Evidence** (`tests/test_package_baseline_flank.py`): flat single peak within 3 % for 3 seeds x 2 strategies x 2 compositions (pre-fix: 12 failures, 35-65 %), close pair (2.7 sigma) within 5 %, tailing EMG within 5 %.
 - **Refutation**: peak-free linear/curved drift gives a baseline bit-identical to the unfiltered one; the filter rejects a flank anchor but never end anchors or below-baseline dips.
+
+### Unit 2a - EMG / Gaussian dedup (`src/peak_models.py` -> `peakpicker`)
+
+- **Survivor**: `peakpicker/peak_analysis/deconvolution/emg_fitter.exponentially_modified_gaussian` (the batch-2 overflow-free erfcx form, tau < 0 mirror, |tau| < 1e-10 Gaussian) and
+  `gaussian_fitter.gaussian`. `emg_fitter.emg` is now a thin guard wrapper (|sigma|, |tau| >= 1e-10) around it. `src/peak_models.py` keeps its public signatures
+  (`gaussian`, `exponentially_modified_gaussian`, `multi_gaussian` / `multi_emg` incl. their ValueError validation) and delegates; `lorentzian`, `voigt`, asymmetry helpers stay (no duplicate).
+- **Proof** (`tests/test_peak_model_dedup.py`, frozen copies of both old implementations): legacy output bit-identical on a 48-point parameter grid and the tau = 0 / +-1e-12 / tau < 0 branches;
+  Gaussians bit-identical; EMG matches scipy `exponnorm` to 1e-6 on the whole grid; `EmgFitter` R2 / area on three noisy tailing peaks unchanged (1e-6 / 1e-4).
+- **Measured difference (old package EMG was wrong)**: `emg_fitter.emg` clipped the exponent at +-500 and used a plain `erfc`; for sigma/tau >= ~40 (e.g. sigma 0.8, tau 0.02, or EmgFitter's lower bound tau = 1e-6)
+  the peak collapsed (max 2e-10 instead of ~1) and the far tail was off by 1e5 relative. The new values follow the old ones exactly wherever the clip was inactive (rtol 1e-9).
+- **Cost**: `src/peak_models.py` now imports the `peakpicker` package (a leaf module no longer standalone; `src.peak_deconvolution` already did).
