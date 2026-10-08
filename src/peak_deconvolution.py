@@ -735,9 +735,11 @@ class PeakDeconvolution:
                 sigma = popt[i * 4 + 2]
                 tau = popt[i * 4 + 3]
 
-                # Calculate area using trapezoid integration
+                # Analytic area of the standard EMG (amp is the Gaussian-equivalent height).
+                # Trapezoid integration over the fit window silently drops the part of a long
+                # tail that lies beyond the window; the analytic value does not.
                 component_curve = exponentially_modified_gaussian(rt, amp, center, sigma, tau)
-                area = trapezoid(component_curve, rt)
+                area = float(amp * sigma * np.sqrt(2.0 * np.pi))
 
                 total_area += area
 

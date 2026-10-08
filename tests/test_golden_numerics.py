@@ -483,3 +483,15 @@ def test_integrate_peak_adverse_inputs_raise():
         peak_integrator.integrate_peak(INT_T, y, 50.0)              # hint outside the data
     with pytest.raises(ValueError):
         peak_integrator.integrate_peak(INT_T, y, 10.0, mode="bad")  # unknown mode
+
+
+def test_fit_n_emg_area_survives_a_window_that_cuts_the_tail():
+    """Adverse: the fit window ends inside the tail. The component area must stay the analytic
+    amp*sigma*sqrt(2 pi) (full tail), not the trapezoid over the truncated window."""
+    sigma, tau = 0.1, 0.5
+    full = 500.0 * exponnorm.pdf(RT, tau / sigma, loc=4.0, scale=sigma)
+    keep = RT <= 4.0 + 3.0 * tau
+    rt, sig = RT[keep], noisy(full, seed=5)[keep]
+    res = PeakDeconvolution()._fit_n_emg(rt, sig, [rt[np.argmax(sig)]], 4.0)
+    assert res.success
+    assert res.total_area == pytest.approx(500.0, rel=0.02)
