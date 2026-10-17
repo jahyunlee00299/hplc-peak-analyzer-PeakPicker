@@ -97,7 +97,7 @@ def run(tmp_path_factory):
     return {"df": df, "out": out, "fingerprints": fingerprints, "quantifier": q}
 
 
-GOLDEN_TABLE_SHA = "36077fcb75e579c4a8955f12af06ae54ac5b3e978dbf5a041615f79002122350"
+GOLDEN_TABLE_SHA = "fabd074998e674f602670dfb3e4903e2a2b5fb6fd0c56018a6e536d4cebf91bd"  # LF-terminated CSV text
 GOLDEN_CSV_SHA = GOLDEN_TABLE_SHA
 GOLDEN_FIGURES = {
     "peak_information_summary.png": "efcd7d90970c812bfc85243ff11ac4e2acf5c5ea5ee7308e5816835a02068290",
@@ -113,7 +113,7 @@ def _table_sha(df):
     d = df.copy()
     for c in d.select_dtypes("float").columns:
         d[c] = d[c].round(4)
-    return hashlib.sha256(d.to_csv(index=False).encode()).hexdigest()
+    return hashlib.sha256(d.to_csv(index=False, lineterminator="\n").encode()).hexdigest()
 
 
 def test_results_table_is_unchanged(run):
