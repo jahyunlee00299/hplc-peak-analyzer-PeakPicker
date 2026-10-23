@@ -95,17 +95,25 @@ class CompoundDef:
         return self.rt_min <= rt <= self.rt_max
 
 
+_WEIGHTINGS = {"none": 0, "1/x": 1, "1/x2": 2}  # exponent k of the weight 1/x**k
+
+
 @dataclass
 class StandardCurve:
     """
     Linear calibration curve: area = slope * concentration + intercept.
 
-    Fit is performed by fit() which must be called before predict().
+    Fit is performed by fit() which must be called before predict(). ``r2`` is the unweighted
+    coefficient of determination of the fitted line, also when ``weighting`` is set.
     """
     compound_name: str
     concentrations: List[float]         # e.g. mM
     areas: List[float]
     unit: str = "mM"
+    # Regression weights for fit(): "none" = ordinary least squares (the default, unchanged behaviour);
+    # "1/x" or "1/x2" = weighted least squares for a calibration whose area scatter grows with concentration
+    # (the usual case over a wide range; OLS then lets the top standards dominate the low end).
+    weighting: str = "none"
 
     # Fitted parameters (populated by fit(), or read from a pre-fitted YAML)
     slope: float = field(default=0.0, init=False)
@@ -138,7 +146,22 @@ class StandardCurve:
         if len(x) < 2:
             logger.warning("StandardCurve '%s': need ≥2 points for fit — fill in standard_curves in YAML", self.compound_name)
             return
-        coeffs = np.polyfit(x, y, 1)
+        if self.weighting not in _WEIGHTINGS:
+            raise ValueError(
+                f"StandardCurve '{self.compound_name}': weighting must be one of {sorted(_WEIGHTINGS)}, "
+                f"got {self.weighting!r}"
+            )
+        k = _WEIGHTINGS[self.weighting]
+        if k:
+            if np.any(x <= 0):
+                raise ValueError(
+                    f"StandardCurve '{self.compound_name}': weighting {self.weighting!r} needs every "
+                    f"standard concentration > 0 (a blank has no defined 1/x weight)"
+                )
+            # np.polyfit minimises sum((w * residual)**2), so w = sqrt(1/x**k) gives the weights 1/x**k.
+            coeffs = np.polyfit(x, y, 1, w=x ** (-k / 2.0))
+        else:
+            coeffs = np.polyfit(x, y, 1)
         self.slope = float(coeffs[0])
         self.intercept = float(coeffs[1])
         y_pred = np.polyval(coeffs, x)
@@ -281,6 +304,7 @@ class QuantMethod:
                 concentrations=list(sc_raw.get("concentrations", [])),
                 areas=list(sc_raw.get("areas", [])),
                 unit=sc_raw.get("unit", "mM"),
+                weighting=str(sc_raw.get("weighting", "none")),
             )
             # Support pre-fitted slope/intercept directly in YAML
             if "slope" in sc_raw and "intercept" in sc_raw:
@@ -358,6 +382,8 @@ class QuantMethod:
                     "areas": sc.areas,
                     "unit": sc.unit,
                 }
+                if sc.weighting != "none":
+                    entry["weighting"] = sc.weighting
                 for key in ("llod", "ulod", "lloq", "uloq"):
                     val = getattr(sc, key)
                     if val is not None:
