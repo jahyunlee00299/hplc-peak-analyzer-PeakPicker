@@ -212,6 +212,28 @@ class StandardCurve:
             )
         return float(conc)
 
+    def detection_limits(self) -> Optional[tuple]:
+        """ICH Q2 calibration-based limits ``(LOD, LOQ) = (3.3, 10) * s_res / slope`` in concentration units.
+
+        ``s_res`` is the residual standard deviation of the ordinary-least-squares line (n - 2 degrees of
+        freedom). Returns None when it is not defined: fewer than 3 raw standards (pre-fitted YAML curves
+        keep no points), a zero slope, or ``weighting`` other than "none" (the scatter is then not
+        constant, a single s_res does not describe the low end).
+
+        This is a screening number: over a wide range OLS overestimates the limits (up to ~10x measured in
+        Separations 5, 49), so confirm with replicate blanks or S/N before quoting it. It does not set
+        ``llod``/``lloq``; the caller decides whether to adopt it.
+        """
+        if not self._fitted:
+            self.fit()
+        if self.weighting != "none" or len(self.concentrations) < 3 or abs(self.slope) < 1e-12:
+            return None
+        x = np.array(self.concentrations, dtype=float)
+        y = np.array(self.areas, dtype=float)
+        resid = y - (self.slope * x + self.intercept)
+        s_res = float(np.sqrt(np.sum(resid ** 2) / (len(x) - 2)))
+        return 3.3 * s_res / abs(self.slope), 10.0 * s_res / abs(self.slope)
+
     def is_fitted(self) -> bool:
         return self._fitted
 

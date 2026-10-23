@@ -64,3 +64,32 @@ def test_yaml_round_trip_keeps_weighting(tmp_path):
     out = tmp_path / "out.yaml"
     m.to_yaml(out)
     assert QuantMethod.from_yaml(str(out)).standard_curves["X"].weighting == "1/x2"
+
+
+# ── ICH detection limits from the calibration residuals ─────────────────────
+
+def test_detection_limits_follow_ich_formula():
+    x = [1.0, 2.0, 3.0, 4.0, 5.0]
+    y = [10.1, 19.8, 30.3, 39.7, 50.1]
+    sc = StandardCurve(compound_name="t", concentrations=x, areas=y)
+    lod, loq = sc.detection_limits()
+    slope, intercept = np.polyfit(x, y, 1)
+    s_res = np.sqrt(np.sum((np.array(y) - (slope * np.array(x) + intercept)) ** 2) / 3)
+    assert lod == pytest.approx(3.3 * s_res / slope)
+    assert loq == pytest.approx(10 * s_res / slope)
+    assert loq / lod == pytest.approx(10 / 3.3)
+
+
+def test_detection_limits_undefined_cases():
+    assert StandardCurve(compound_name="t", concentrations=[1.0, 2.0], areas=[10.0, 20.0]).detection_limits() is None
+    weighted = StandardCurve(compound_name="t", concentrations=X, areas=Y, weighting="1/x")
+    assert weighted.detection_limits() is None
+    prefit = StandardCurve(compound_name="t", concentrations=[], areas=[])
+    prefit.slope, prefit.intercept, prefit._fitted = 1000.0, 0.0, True
+    assert prefit.detection_limits() is None
+
+
+def test_detection_limits_do_not_touch_loq_fields():
+    sc = StandardCurve(compound_name="t", concentrations=X, areas=Y)
+    sc.detection_limits()
+    assert sc.llod is None and sc.ulod is None
