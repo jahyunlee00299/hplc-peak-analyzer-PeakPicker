@@ -33,7 +33,7 @@ class DeconvolvedPeak:
     retention_time: float  # Model centre: the Gaussian mean, or the EMG parameter mu (NOT the apex of a tailing EMG; see apex_time)
     amplitude: float  # Peak height
     sigma: float  # Peak width parameter
-    area: float  # Integrated peak area
+    area: float  # Integrated peak area in signal * min (the time axis is in minutes); see area_signal_s
     area_percent: float  # Percentage of total area
     fit_quality: float  # R² value for this component
     is_shoulder: bool  # True if detected as shoulder peak
@@ -43,6 +43,15 @@ class DeconvolvedPeak:
     model: str = 'gaussian'  # Peak model type: 'gaussian' or 'emg'
     tau: float = 0.0  # EMG tau parameter (only for EMG model)
     apex_time: float = float('nan')  # RT of the component's maximum (== retention_time for Gaussian, later than mu for EMG)
+
+    @property
+    def area_signal_s(self) -> float:
+        """Area in signal * s, the unit of ``peak_integrator.integrate_peak`` and the calibration curves.
+
+        ``area`` is in signal * min; comparing it with a valley or half-peak area (or feeding it to a
+        curve built from those) without this conversion is off by a factor of 60.
+        """
+        return self.area * 60.0
 
 
 @dataclass
